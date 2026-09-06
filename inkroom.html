@@ -202,6 +202,13 @@ pre.pv{white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-s
 .wa .in textarea{min-height:40px;max-height:120px;border-radius:20px;padding:9px 14px;font-size:15px}
 .wa .wallet{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--gold-soft);color:var(--ink);border-radius:14px;margin:10px}
 .wa .wallet b{font-family:var(--display);font-size:22px;color:var(--gold)}
+.fx{width:100%;border:0;display:block;border-radius:12px;background:transparent;min-height:40px}
+.fx-wrap{margin:.6em 0}
+.rx{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+.rx .h{display:flex;align-items:center;gap:8px}.rx .h b{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rx code{font-size:12px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#saveInd{font-size:11px;color:var(--muted);white-space:nowrap}
+#saveInd.busy{color:var(--warn)}#saveInd.err{color:var(--bad)}
 #plusBtn .dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--bad)}
 #cbar .ib{position:relative}
 
@@ -230,7 +237,7 @@ pre.pv{white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-s
     <header id="topbar">
       <h1 id="worldTitle">—</h1>
       <div class="who" id="who"></div>
-      <div id="ctx"><span id="ctxLabel">上下文 0 / 64 KB</span><div class="bar"><i id="ctxBar"></i></div></div>
+      <div id="ctx"><span id="ctxLabel">上下文 0 / 64 KB</span><div class="bar"><i id="ctxBar"></i></div><span id="saveInd"></span></div>
     </header>
     <div id="bg"></div>
     <div id="reader"><div class="col" id="floors"></div></div>
@@ -353,6 +360,20 @@ let S=null, DB=null, SAMPLE=null, DOWNLOADS=null, BACKEND=null, LAST_MODEL='';
 const MODELS=[['claude-opus-5','Opus 5'],['claude-sonnet-5','Sonnet 5'],['claude-haiku-4-5','Haiku 4.5'],['claude-opus-4-8','Opus 4.8'],['claude-opus-4-7','Opus 4.7'],['claude-opus-4-6','Opus 4.6'],['claude-sonnet-4-6','Sonnet 4.6']];
 let saveT=null, dirty=new Set();
 function ls(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k)||'null');localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}}
+/* IndexedDB：主本地存储（不受 5MB 限制，图片也放得下）+ 存档快照 */
+const IDB={db:null,
+  open(){return new Promise((res,rej)=>{try{const r=indexedDB.open('inkroom',1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');if(!d.objectStoreNames.contains('snap'))d.createObjectStore('snap',{keyPath:'t'})};r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)}catch(e){rej(e)}})},
+  tx(store,mode,fn){return new Promise((res,rej)=>{if(!this.db)return rej(new Error('no idb'));const t=this.db.transaction(store,mode);const q=fn(t.objectStore(store));t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error)})},
+  get(store,key){return this.tx(store,'readonly',s=>s.get(key))},
+  set(store,key,val){return this.tx(store,'readwrite',s=>key===undefined?s.put(val):s.put(val,key))},
+  del(store,key){return this.tx(store,'readwrite',s=>s.delete(key))},
+  all(store){return this.tx(store,'readonly',s=>s.getAll())},
+};
+function clean(o){return JSON.parse(JSON.stringify(o,(k,v)=>k.startsWith('_')?undefined:v))}
+function setSaveInd(t,cls){const el=$('#saveInd');if(el){el.textContent=t;el.className=cls||''}}
+async function saveLocal(){const data=clean(S);setSaveInd('保存中…','busy');let ok=false;if(IDB.db){try{await IDB.set('kv','state',data);ok=true}catch(e){console.warn('idb',e)}}if(!ok)ls('inkroom.state',data);else{try{localStorage.removeItem('inkroom.state')}catch(e){}}setSaveInd((ok?'本地已保存 ':'已保存 ')+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}
+async function loadLocal(){if(IDB.db){try{const d=await IDB.get('kv','state');if(d)return d}catch(e){}}return ls('inkroom.state')}
+async function snapshot(reason){if(!IDB.db)return;try{await IDB.set('snap',undefined,{t:now(),reason,worldId:S.activeWorldId,floors:world().floors.length,state:clean(S)});const all=await IDB.all('snap');if(all.length>30){all.sort((a,b)=>a.t-b.t);for(const s of all.slice(0,all.length-30))await IDB.del('snap',s.t)}}catch(e){console.warn('snap',e)}}
 function world(){return S.worlds.find(w=>w.id===S.activeWorldId)||S.worlds[0]}
 function chars(w=world()){return w.charIds.map(id=>S.characters.find(c=>c.id===id)).filter(Boolean)}
 function preset(w=world()){return S.presets.find(p=>p.id===w.presetId)||S.presets[0]}
@@ -361,7 +382,7 @@ function metaOf(s){const {worlds,assets,...m}=s;return m}
 function assetUrl(id){return id&&S.assets&&S.assets[id]||''}
 function splitWorld(w){const {floors,...rest}=w;const chunks=[];for(let i=0;i<floors.length;i+=20)chunks.push(floors.slice(i,i+20));return {rest,chunks}}
 async function flush(){
-  ls('inkroom.state',S);
+  await saveLocal();
   if(!DB)return;
   try{
     const ws=[...dirty];dirty.clear();
@@ -374,8 +395,8 @@ async function flush(){
         for(let i=chunks.length;i<(w._chunkCount||0);i++)await DB.doc('worlds/'+d+'/floors/c'+i).delete().catch(()=>{});
         w._chunkCount=chunks.length;}
     }
-    setStatus('已保存到云端 · '+new Date().toLocaleTimeString(),true);
-  }catch(e){console.warn(e);setStatus('云端保存失败（本地已保存）：'+(e.message||e.code),true)}
+    setSaveInd('云端已同步 '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){console.warn(e);setSaveInd('云端同步失败（本地已保存）','err')}
 }
 async function loadFromDb(){
   const m=await DB.doc('inkroom/meta').get(); if(!m.exists)return null;
@@ -399,6 +420,20 @@ const FTS={idx:new Map(),len:new Map(),N:0,avg:1,
   search(q,cands,k=10){const qt=[...new Set(this.tok(q))];const sc=new Map();for(const t of qt){const post=this.idx.get(t);if(!post)continue;const idf=Math.log(1+(this.N-post.size+.5)/(post.size+.5));post.forEach((tf,id)=>{if(!cands.has(id))return;const L=this.len.get(id)||1;const s=idf*(tf*2.2)/(tf+1.2*(1-.75+.75*L/this.avg));sc.set(id,(sc.get(id)||0)+s)})}return [...sc.entries()].sort((a,b)=>b[1]-a[1]).slice(0,k)}
 };
 
+/* ---------------- regex scripts (兼容 SillyTavern Regex 扩展) ---------------- */
+function activeRegex(w=world()){return (S.regex||[]).filter(r=>r.enabled!==false&&(!r.charId||w.charIds.includes(r.charId)))}
+function applyRegex(text,scope,stage,w=world()){
+  for(const r of activeRegex(w)){
+    if(r.scope&&r.scope!=='both'&&r.scope!==scope)continue;
+    if(stage==='display'&&r.display===false)continue;
+    if(stage==='prompt'&&!r.prompt)continue;
+    try{const re=new RegExp(r.find,r.flags||'g');const rep=String(r.replace||'').replace(/\{\{match\}\}/g,'$&');text=text.replace(re,rep)}catch(e){}
+  }
+  return text;
+}
+function parseStRegex(s){const m=String(s||'').match(/^\/([\s\S]*)\/([a-z]*)$/);return m?{find:m[1],flags:m[2]||'g'}:{find:String(s||''),flags:'g'}}
+function importStRegexScript(sc,charId){const {find,flags}=parseStRegex(sc.findRegex);const pl=sc.placement||[1,2];return {id:uid(),name:sc.scriptName||'脚本',find,flags,replace:sc.replaceString||'',scope:pl.includes(1)&&pl.includes(2)?'both':pl.includes(2)?'ai':'user',display:!sc.promptOnly,prompt:!sc.markdownOnly,enabled:!sc.disabled,charId:charId||''}}
+
 /* ---------------- prompt assembly ---------------- */
 function fillVars(t,w=world()){const cs=chars(w);return String(t||'').replace(/\{\{user\}\}/g,w.user.name).replace(/\{\{char\}\}/g,cs[0]?.name||'char')}
 function charBlock(c,w){return `■ ${c.name}（${c.role==='main'?'主要角色':'NPC'}）
@@ -407,8 +442,13 @@ function charBlock(c,w){return `■ ${c.name}（${c.role==='main'?'主要角色'
 性格：${c.personality||'—'}
 背景：${c.background||'—'}
 说话方式：${c.speech||'—'}
-关系：${c.relation||'—'}`}
-function triggeredLore(w,recentText){const out=[];for(const e of w.lorebook){if(!e.enabled)continue;if(e.charId&&!w.charIds.includes(e.charId))continue;if(e.always){out.push(e);continue}if((e.keys||[]).some(k=>k&&recentText.includes(k)))out.push(e)}return out}
+关系：${c.relation||'—'}${c.scenario?`\n场景：${fillVars(c.scenario,w)}`:''}${c.mesExample?`\n对话示例（仅供学习语气，不要照抄）：\n${fillVars(c.mesExample,w).replace(/<START>/gi,'—').slice(0,1500)}`:''}`}
+function triggeredLore(w,recentText){const out=[];const low=recentText.toLowerCase();const hit=(k,cs)=>k&&(cs?recentText.includes(k):low.includes(String(k).toLowerCase()));
+  for(const e of w.lorebook){if(!e.enabled)continue;if(e.charId&&!w.charIds.includes(e.charId))continue;if(e.always){out.push(e);continue}
+    const p=(e.keys||[]).some(k=>hit(k,e.caseSensitive));if(!p)continue;
+    if(e.selective&&(e.secondaryKeys||[]).length&&!(e.secondaryKeys||[]).some(k=>hit(k,e.caseSensitive)))continue;
+    out.push(e)}
+  return out.sort((a,b)=>(a.order??100)-(b.order??100))}
 function floorText(f){return f.swipes[f.si]||''}
 function buildPrompt(w,opts={}){
   const cs=chars(w), st=S.settings, extraUser=opts.userText||'';
@@ -417,11 +457,16 @@ function buildPrompt(w,opts={}){
   const lore=triggeredLore(w,recent);
   const mode=REPLY_MODES.find(m=>m.id===st.replyMode)||REPLY_MODES[1];
   const pov=st.pov==='second'?'以第二人称「你」称呼 '+w.user.name+' 来叙述':'以第三人称叙述';
+  const cardSys=st.preferCardPrompt!==false?cs.find(c=>c.role==='main'&&c.systemPrompt)?.systemPrompt:'';
+  const stableLore=lore.filter(e=>e.always), dynLore=lore.filter(e=>!e.always);
   const head=[
-    `【预设】\n${fillVars(preset(w).text,w)}`,
+    `【预设】\n${fillVars(cardSys||preset(w).text,w)}`,
     `【用户扮演的角色】\n${w.user.name}：${w.user.desc||'—'}\n（${w.user.name} 由用户本人扮演，你不能替 ${w.user.name} 做决定。）`,
     `【在场角色（你负责扮演，最多 ${cs.length} 位；也可临时引入路人 NPC）】\n${cs.map(c=>charBlock(c,w)).join('\n\n')}`,
-    lore.length?`【世界书 · 已触发条目】\n${lore.map(e=>`◆ ${e.title}\n${fillVars(e.content,w)}`).join('\n\n')}`:'',
+    stableLore.length?`【世界书 · 常驻条目】\n${stableLore.map(e=>`◆ ${e.title}\n${fillVars(e.content,w)}`).join('\n\n')}`:'',
+  ];
+  const dyn=[
+    dynLore.length?`【世界书 · 本轮触发】\n${dynLore.map(e=>`◆ ${e.title}\n${fillVars(e.content,w)}`).join('\n\n')}`:'',
     `【当前状态】\n日期：${w.state.date||'—'}　时间：${w.state.time||'—'}　地点：${w.state.place||'—'}　天气：${w.state.weather||'—'}\n在场：${w.state.present||'—'}`,
     w.relations.length?`【人物关系】\n${w.relations.map(r=>`${r.a} ↔ ${r.b}：${r.label}`).join('\n')}`:'',
     w.notes.length?`【重要记忆点】\n${w.notes.slice(-15).map(n=>`(#${n.n}) ${n.text}`).join('\n')}`:'',
@@ -433,22 +478,26 @@ function buildPrompt(w,opts={}){
 - 在场的 NPC 要自然地融入场景：有自己的目的、日程与情绪，会插话、会离开、会带来新信息，不为撮合主角而工具化；不在场的人可以通过消息、电话、传闻出现。
 - 保持时间线连续；如果剧情中时间流逝，更新状态。
 - 正文写完后，另起一行输出一个状态块，格式严格如下（JSON 单行，不要加代码围栏）：
-<state>{"date":"日期","time":"时间","place":"地点","weather":"天气","present":"在场人物","inner":"${cs[0]?.name||'角色'}此刻的真实心声（一两句，第一人称）","relations":[{"a":"人物A","b":"人物B","label":"当前关系一词","note":"本楼的变化原因，没有变化则省略此项"}],"memory":["本楼值得长期记住的事，最多3条，没有则空数组"]}</state>`;
-  const first={role:'user',content:head.filter(Boolean).join('\n\n')+'\n\n'+rules+'\n\n（以下是至今为止的剧情。你回复时直接续写正文。）'};
-  // history turns (drop oldest visible floors if over budget)
-  let turns=[], omitted=0, budget=SAFE_BYTES-bytes(first.content)-bytes(extraUser)-2*KB;
+<state>{"date":"日期","time":"时间","place":"地点","weather":"天气","present":"在场人物","inner":"${cs[0]?.name||'角色'}此刻的真实心声（一两句，第一人称）","relations":[{"a":"人物A","b":"人物B","label":"当前关系一词","note":"本楼的变化原因，没有变化则省略此项"}],"memory":["本楼值得长期记住的事，最多3条，没有则空数组"]}</state>`
+  +cs.filter(c=>c.postHistory).map(c=>`\n【${c.name} 的附加指令】\n${fillVars(c.postHistory,w)}`).join('')
+  +cs.filter(c=>c.depthPrompt?.prompt).map(c=>`\n【${c.name} 附注】\n${fillVars(c.depthPrompt.prompt,w)}`).join('');
+  // 稳定部分放最前（预设/角色/常驻世界书），便于提示词缓存；动态部分（状态/检索/规则）放在最后一条用户消息里
+  const first={role:'user',content:head.filter(Boolean).join('\n\n')+'\n\n（以下是至今为止的剧情。回复规则与当前状态会在最后给出。）'};
+  const dynText=()=>dyn.filter(Boolean).join('\n\n')+'\n\n'+rules;
+  const ft=f=>applyRegex(floorText(f),f.role==='user'?'user':'ai','prompt',w);
+  let turns=[], omitted=0, budget=SAFE_BYTES-bytes(first.content)-bytes(dynText())-bytes(extraUser)-3*KB;
   const hist=vis.slice(); let used=0; const kept=[];
-  for(let i=hist.length-1;i>=0;i--){const b=bytes(floorText(hist[i]))+20;if(used+b>budget){omitted=i+1;break}used+=b;kept.unshift(hist[i])}
+  for(let i=hist.length-1;i>=0;i--){const b=bytes(ft(hist[i]))+20;if(used+b>budget){omitted=i+1;break}used+=b;kept.unshift(hist[i])}
   const inContext=new Set(kept.map(f=>f.id));
   // FTS recall among floors NOT in context
   let recall=[];
   if(w.floors.length){const cands=new Set(w.floors.filter(f=>!inContext.has(f.id)).map(f=>f.id));
     if(cands.size){if(opts.recall){recall=opts.recall.filter(r=>cands.has(r.f.id))}else{FTS.build(w.floors);const q=(extraUser||'')+' '+(vis.slice(-1).map(floorText)[0]||'');recall=FTS.search(q,cands,S.settings.ftsK||15).map(([id,s])=>({f:w.floors.find(x=>x.id===id),s}))}}}
-  if(recall.length){const rb=recall.map(r=>`(#${r.f.n}) ${floorText(r.f).slice(0,400)}`).join('\n\n');first.content=first.content.replace('【回复规则】',`【记忆检索 · 来自更早楼层的片段（${BACKEND?'SQLite FTS5':'FTS'} 命中 ${recall.length} 楼）】\n${rb}\n\n【回复规则】`)}
-  for(const f of kept){turns.push({role:f.role==='user'?'user':'assistant',content:(f.role==='user'?`${w.user.name}：`:'')+floorText(f)})}
-  if(extraUser)turns.push({role:'user',content:`${w.user.name}：${extraUser}`});
-  if(!turns.length||turns[turns.length-1].role!=='assistant'&&!extraUser&&!turns.length)turns.push({role:'user',content:'（开始）'});
-  if(turns[turns.length-1].role==='assistant')turns.push({role:'user',content:opts.continueText||'（请继续推进剧情，不要重复上文。）'});
+  if(recall.length){const rb=recall.map(r=>`(#${r.f.n}) ${floorText(r.f).slice(0,400)}`).join('\n\n');dyn.push(`【记忆检索 · 来自更早楼层的片段（${BACKEND?'SQLite FTS5':'FTS'} 命中 ${recall.length} 楼）】\n${rb}`)}
+  for(const f of kept){turns.push({role:f.role==='user'?'user':'assistant',content:(f.role==='user'?`${w.user.name}：`:'')+ft(f)})}
+  const tail=dynText()+'\n\n';
+  if(extraUser)turns.push({role:'user',content:tail+`【${w.user.name} 的新回合】\n${applyRegex(extraUser,'user','prompt',w)}`});
+  else turns.push({role:'user',content:tail+(opts.continueText||(turns.length?'（请继续推进剧情，不要重复上文。）':'（开始）'))});
   const all=[first,...turns];
   return {turns:all,bytes:all.reduce((a,t)=>a+bytes(t.content),0),omitted,recall,lore,inContext};
 }
@@ -494,6 +543,7 @@ function renderRail(){
 }
 function openPanel(k){panelKind=(k==='chat'||k===panelKind)?null:k;$('#panel').classList.toggle('closed',!panelKind);renderRail();if(panelKind)renderPanel()}
 function renderPanel(){
+  if(!panelKind)return;
   const t={world:'世界与存档',chars:'角色库',preset:'预设',lore:'世界书',memory:'记忆系统',settings:'设置'}[panelKind];
   $('#panelTitle').textContent=t; const b=$('#panelBody'); b.innerHTML='';
   ({world:renderWorlds,chars:renderChars,preset:renderPresets,lore:renderLore,memory:renderMemory,settings:renderSettings})[panelKind](b);
@@ -517,10 +567,15 @@ function renderWorlds(b){
   <label class="f">在场角色（最多 5 位）</label>
   <div id="wChars">${S.characters.map(c=>`<label class="row" style="padding:6px 0;cursor:pointer"><input type="checkbox" data-wc="${c.id}" ${w.charIds.includes(c.id)?'checked':''}><span class="ava" style="background:${c.color}">${esc(c.name[0])}</span><span class="grow">${esc(c.name)} <span class="tiny">${c.role==='main'?'主角':'NPC'}</span></span></label>`).join('')||'<span class="muted">角色库为空，先去「角色」创建。</span>'}</div>
   <div class="sep"></div>
+  <h3 style="font-size:18px">存档快照</h3>
+  <p class="muted">每次生成新楼、总结、回溯前都会自动留一份快照（最多 30 份），误操作可以整体回滚。</p>
+  <div id="snapList"><span class="tiny">读取中…</span></div>
+  <div class="sep"></div>
   <h3 style="font-size:18px">分支与存档</h3>
   <p class="muted">在任意楼层点「回溯」，之后的楼层会自动存成一个分支；在这里可以切回去，走平行剧情线。</p>
   ${w.branches.length?w.branches.map(br=>`<div class="card"><div class="row between"><b>${esc(br.name)}</b><span class="tiny">${br.floors.length} 楼</span></div><div class="row" style="margin-top:6px"><button class="btn sm" data-brswitch="${br.id}">切换到此分支</button><button class="btn sm ghost" data-brren="${br.id}">改名</button><button class="btn sm ghost danger" data-brdel="${br.id}">删除</button></div></div>`).join(''):'<span class="tiny">还没有分支。</span>'}`;
   $$('[data-world]',b).forEach(el=>el.onclick=()=>{S.activeWorldId=el.dataset.world;markDirty();renderAll();renderPanel()});
+  (async()=>{const box=$('#snapList',b);if(!box)return;if(!IDB.db){box.innerHTML='<span class="tiny">此浏览器不支持快照存储。</span>';return}try{const all=(await IDB.all('snap')).sort((a,c)=>c.t-a.t);box.innerHTML=all.length?all.slice(0,12).map(s=>`<div class="row between" style="padding:6px 0;border-bottom:1px dashed var(--line)"><span class="tiny">${new Date(s.t).toLocaleString()} · ${esc(s.reason)} · ${s.floors} 楼</span><button class="btn sm ghost" data-snap="${s.t}">回滚</button></div>`).join(''):'<span class="tiny">还没有快照。</span>';$$('[data-snap]',box).forEach(el=>el.onclick=async()=>{if(!confirm('回滚到这份快照？当前状态会先另存一份快照。'))return;await snapshot('回滚前');const s=await IDB.get('snap',+el.dataset.snap);const old=S.worlds.map(w=>w.id);S=s.state;old.forEach(id=>dirty.add(id));saveAll();renderAll();renderPanel();toast('已回滚')})}catch(e){box.innerHTML='<span class="tiny">快照读取失败</span>'}})();
   $('#newWorld',b).onclick=()=>{const name=prompt('新世界名称','新的世界');if(!name)return;const nw={id:'w_'+uid(),name,presetId:S.presets[0].id,charIds:[],user:{name:w.user.name,desc:w.user.desc},lorebook:[],floors:[],branches:[],summaries:[],state:{date:'',time:'',place:'',weather:'',inner:'',present:''},relations:[],notes:[]};S.worlds.push(nw);S.activeWorldId=nw.id;dirty.add(nw.id);markDirty();renderAll();renderPanel()};
   $('#dupWorld',b).onclick=()=>{const nw=JSON.parse(JSON.stringify(w));nw.id='w_'+uid();nw.name=w.name+'（副本）';S.worlds.push(nw);S.activeWorldId=nw.id;dirty.add(nw.id);markDirty();renderAll();renderPanel()};
   $('#delWorld',b).onclick=()=>{if(S.worlds.length<2)return toast('至少保留一个世界');if(!confirm(`删除世界「${w.name}」及其全部楼层？`))return;S.worlds=S.worlds.filter(x=>x.id!==w.id);dirty.add(w.id);S.activeWorldId=S.worlds[0].id;markDirty();renderAll();renderPanel()};
@@ -531,7 +586,7 @@ function renderWorlds(b){
   $('#bgUp',b).onclick=()=>pickFile('image/*',async f=>{try{const d=await shrinkImage(f,1400,.72);const id='bg_'+uid();if(w.bgId)setAsset(w.bgId,null);w.bgId=id;setAsset(id,d);markDirty(w.id);applyBackground();renderPanel()}catch(e){toast('图片读取失败')}});
   const bgRm=$('#bgRm',b);if(bgRm)bgRm.onclick=()=>{setAsset(w.bgId,null);w.bgId='';markDirty(w.id);applyBackground();renderPanel()};
   $('#bgo',b).oninput=e=>{S.settings.bgOpacity=+e.target.value/100;$('#bgov',b).textContent=e.target.value+'%';applyBackground();markDirty()};
-  $$('[data-wc]',b).forEach(cb=>cb.onchange=()=>{const id=cb.dataset.wc;if(cb.checked){if(w.charIds.length>=5){cb.checked=false;return toast('一个世界最多 5 位角色')}w.charIds.push(id);const c=S.characters.find(x=>x.id===id);if(c?.lorebook?.length&&!w.lorebook.some(e=>e.group===c.name)){c.lorebook.forEach(e=>w.lorebook.push({...e,id:uid(),group:c.name}));toast(`已把 ${c.name} 自带的世界书并入本世界`)}}else w.charIds=w.charIds.filter(x=>x!==id);markDirty(w.id);renderTop()});
+  $$('[data-wc]',b).forEach(cb=>cb.onchange=()=>{const id=cb.dataset.wc;if(cb.checked){if(w.charIds.length>=5){cb.checked=false;return toast('一个世界最多 5 位角色')}w.charIds.push(id);const c=S.characters.find(x=>x.id===id);if(c?.lorebook?.length&&!w.lorebook.some(e=>e.group===c.name)){c.lorebook.forEach(e=>w.lorebook.push({...e,id:uid(),group:c.name,charId:c.id}));toast(`已把 ${c.name} 自带的世界书并入本世界`)}}else w.charIds=w.charIds.filter(x=>x!==id);markDirty(w.id);renderTop()});
   $$('[data-brswitch]',b).forEach(el=>el.onclick=()=>switchBranch(w,el.dataset.brswitch));
   $$('[data-brren]',b).forEach(el=>el.onclick=()=>{const br=w.branches.find(x=>x.id===el.dataset.brren);const n=prompt('分支名',br.name);if(n){br.name=n;markDirty(w.id);renderPanel()}});
   $$('[data-brdel]',b).forEach(el=>el.onclick=()=>{if(!confirm('删除这个分支？'))return;w.branches=w.branches.filter(x=>x.id!==el.dataset.brdel);markDirty(w.id);renderPanel()});
@@ -551,7 +606,8 @@ function renderChars(b){
   if(editChar)return renderCharForm(b,editChar);
   b.innerHTML=`<p class="muted">角色卡放这里。可以手写，也可以只写一句关系描述让 AI 随机生成性格、样貌。支持导入 SillyTavern 的 PNG 角色卡。</p>
   ${S.characters.map(c=>`<div class="card" data-ec="${c.id}" style="cursor:pointer"><div class="row">${avatar(c)}<div class="grow"><b>${esc(c.name)}</b> <span class="chip ${c.role==='main'?'acc':''}">${c.role==='main'?'主角':'NPC'}</span><div class="tiny" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.personality||c.relation||'')}</div></div></div></div>`).join('')}
-  <div class="row" style="margin-top:8px"><button class="btn p" id="newChar">＋ 新角色</button><button class="btn" id="importPng">导入 PNG 角色卡</button></div>`;
+  <div class="row" style="margin-top:8px"><button class="btn p" id="newChar">＋ 新角色</button><button class="btn" id="importPng">导入角色卡（PNG / JSON）</button></div>
+  <p class="tiny" style="margin-top:8px">兼容 SillyTavern V2/V3 卡：描述、性格、场景、开场白与备选开场白、示例对话、系统提示、附加指令、角色世界书、正则脚本、头像都会一并导入。</p>`;
   $$('[data-ec]',b).forEach(el=>el.onclick=()=>{editChar=JSON.parse(JSON.stringify(S.characters.find(c=>c.id===el.dataset.ec)));renderPanel()});
   $('#newChar',b).onclick=()=>{editChar={id:'c_'+uid(),name:'',role:'npc',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:'',background:'',speech:'',relation:'',firstMessage:'',_new:true};renderPanel()};
   $('#importPng',b).onclick=()=>pickFile('.png,.json',importCard);
@@ -564,6 +620,12 @@ function renderCharForm(b,c){
   <div class="grid2">${F('name','名字')}<div><label class="f">类型</label><select data-cf="role"><option value="main" ${c.role==='main'?'selected':''}>主角</option><option value="npc" ${c.role==='npc'?'selected':''}>NPC</option></select></div>${F('gender','性别')}${F('age','年龄')}</div>
   <label class="f">头像颜色</label><div class="row">${COLORS.map(col=>`<button class="swatch" data-col="${col}" style="background:${col};width:22px;height:22px;${c.color===col?'outline:2px solid var(--ink);outline-offset:2px':''}"></button>`).join('')}</div>
   ${F('appearance','外貌',1)}${F('personality','性格',1)}${F('background','背景',1)}${F('speech','说话方式 / 口癖',1)}${F('relation','与其他人的关系（与 uu、与其他角色）',1)}${F('firstMessage','开场白（作为主角时，新世界的第一楼）',1)}
+  <details class="acc" style="margin-top:12px"><summary>SillyTavern 高级字段</summary><div class="body">
+  ${F('scenario','场景（scenario）',1)}${F('mesExample','示例对话（mes_example，用 &lt;START&gt; 分段）',1)}${F('systemPrompt','系统提示（system_prompt，非空时替代预设）',1)}${F('postHistory','附加指令（post_history_instructions，放在剧情之后）',1)}
+  <label class="f">备选开场白（alternate_greetings，每段用一行 --- 分隔）</label><textarea data-alt>${esc((c.altGreetings||[]).join('\n---\n'))}</textarea>
+  <label class="f">创作者备注（不进提示词）</label><textarea data-cf="creatorNotes">${esc(c.creatorNotes||'')}</textarea>
+  <div class="row" style="margin-top:10px"><button class="btn sm" id="expJson">导出 JSON 卡</button><button class="btn sm" id="expPng">导出 PNG 卡</button><span class="tiny">${(S.regex||[]).filter(r=>r.charId===c.id).length} 条随卡正则</span></div>
+  </div></details>
   <div class="card" style="margin-top:14px"><b>✦ 扫描人设里的 NPC</b><p class="tiny">从这个角色的背景/关系里找出提到的其他人物，自动生成 NPC 卡并加进当前世界，顺手写入关系图。</p><button class="btn g sm" id="scanNpc">扫描并生成 NPC</button></div>
   <div class="row" style="margin-top:14px"><button class="btn p" id="saveChar">保存</button>${c._new?'':'<button class="btn danger ghost" id="delChar">删除角色</button>'}</div>`;
   $('#avUp',b).onclick=()=>pickFile('image/*',async f=>{try{const d=await shrinkImage(f,256,.8);const id='av_'+uid();if(c.avatarId)setAsset(c.avatarId,null);c.avatarId=id;setAsset(id,d);renderPanel()}catch(e){toast('图片读取失败')}});
@@ -571,6 +633,9 @@ function renderCharForm(b,c){
   $('#scanNpc',b).onclick=()=>scanNpcs(c);
   $('#backChars',b).onclick=()=>{editChar=null;renderPanel()};
   $$('[data-cf]',b).forEach(el=>el.oninput=()=>c[el.dataset.cf]=el.value);
+  $('[data-alt]',b).oninput=e=>c.altGreetings=e.target.value.split(/\n-{3,}\n/).map(s=>s.trim()).filter(Boolean);
+  $('#expJson',b).onclick=()=>saveFile(`${c.name||'card'}.json`,JSON.stringify(toStCard(c),null,2));
+  $('#expPng',b).onclick=()=>exportPngCard(c);
   $$('[data-col]',b).forEach(el=>el.onclick=()=>{c.color=el.dataset.col;renderPanel()});
   $('#genBrief',b).oninput=e=>c._brief=e.target.value;
   $('#genChar',b).onclick=()=>generateChar(c,$('#genBrief',b).value);
@@ -614,10 +679,42 @@ async function importCard(file){
     if(file.name.endsWith('.json'))data=JSON.parse(await file.text());
     else{const buf=new Uint8Array(await file.arrayBuffer());data=readPngChara(buf)}
     if(!data)throw new Error('没有在文件里找到角色卡数据');
-    const d=data.data||data; const c={id:'c_'+uid(),name:d.name||'未命名',role:'main',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:d.personality||'',background:[d.description,d.scenario].filter(Boolean).join('\n\n'),speech:d.mes_example||'',relation:'',firstMessage:d.first_mes||''};
-    const book=d.character_book?.entries||[];if(book.length)c.lorebook=book.map(e=>({id:uid(),title:e.comment||e.name||(e.keys||[])[0]||'条目',keys:e.keys||[],content:e.content||'',enabled:e.enabled!==false,always:!!e.constant,group:c.name}));
-    S.characters.push(c);markDirty();editChar=JSON.parse(JSON.stringify(c));renderPanel();toast(`已导入 ${c.name}${book.length?'（含 '+book.length+' 条世界书）':''}`);
+    const d=data.data||data; const ext=d.extensions||{};
+    const c={id:'c_'+uid(),name:d.name||'未命名',role:'main',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:d.personality||'',background:d.description||'',speech:'',relation:'',firstMessage:d.first_mes||'',
+      scenario:d.scenario||'',mesExample:d.mes_example||'',systemPrompt:d.system_prompt||'',postHistory:d.post_history_instructions||'',altGreetings:Array.isArray(d.alternate_greetings)?d.alternate_greetings.filter(Boolean):[],creatorNotes:d.creator_notes||'',tags:Array.isArray(d.tags)?d.tags:[],creator:d.creator||'',version:d.character_version||'',
+      depthPrompt:ext.depth_prompt?.prompt?{prompt:ext.depth_prompt.prompt,depth:ext.depth_prompt.depth||4}:null};
+    const book=d.character_book?.entries||[];if(book.length)c.lorebook=book.map(e=>stEntryToLore(e,c.name));
+    const rx=Array.isArray(ext.regex_scripts)?ext.regex_scripts:[];if(rx.length){S.regex=S.regex||[];rx.forEach(sc=>S.regex.push(importStRegexScript(sc,c.id)))}
+    if(!file.name.endsWith('.json')){try{const av=await shrinkImage(file,256,.8);const id='av_'+uid();c.avatarId=id;setAsset(id,av)}catch(e){}}
+    S.characters.push(c);markDirty();editChar=JSON.parse(JSON.stringify(c));renderPanel();toast(`已导入 ${c.name}${book.length?'（含 '+book.length+' 条世界书）':''}${rx.length?'（'+rx.length+' 条正则）':''}${c.altGreetings.length?'（'+c.altGreetings.length+' 个备选开场白）':''}`,4500);
   }catch(e){toast('导入失败：'+e.message,4000)}
+}
+function stEntryToLore(e,group){const pos=e.position;return {id:uid(),title:e.comment||e.name||(e.keys||[])[0]||'条目',keys:(e.keys||e.key||[]).filter(Boolean),secondaryKeys:(e.secondary_keys||e.keysecondary||[]).filter(Boolean),selective:!!e.selective,caseSensitive:!!e.case_sensitive,order:e.insertion_order??e.order??100,content:e.content||'',enabled:e.enabled!==false&&!e.disable,always:!!e.constant,group}}
+function loreToStEntry(e,i){return {id:i,keys:e.keys||[],secondary_keys:e.secondaryKeys||[],comment:e.title,content:e.content,constant:!!e.always,selective:!!e.selective,insertion_order:e.order??100,enabled:e.enabled!==false,position:'before_char',case_sensitive:!!e.caseSensitive,name:e.title,priority:10,extensions:{}}}
+function toStCard(c){const w=world();const book=(c.lorebook&&c.lorebook.length?c.lorebook:w.lorebook.filter(e=>e.charId===c.id||e.group===c.name));
+  const desc=[c.background,c.appearance?`外貌：${c.appearance}`:'',c.speech?`说话方式：${c.speech}`:'',c.relation?`关系：${c.relation}`:'',c.gender||c.age?`性别/年龄：${c.gender||'—'} / ${c.age||'—'}`:''].filter(Boolean).join('\n\n');
+  return {spec:'chara_card_v2',spec_version:'2.0',data:{name:c.name,description:desc,personality:c.personality||'',scenario:c.scenario||'',first_mes:c.firstMessage||'',mes_example:c.mesExample||'',creator_notes:c.creatorNotes||'',system_prompt:c.systemPrompt||'',post_history_instructions:c.postHistory||'',alternate_greetings:c.altGreetings||[],tags:c.tags||[],creator:c.creator||'',character_version:c.version||'',extensions:{...(c.depthPrompt?{depth_prompt:{prompt:c.depthPrompt.prompt,depth:c.depthPrompt.depth||4,role:'system'}}:{}),regex_scripts:(S.regex||[]).filter(r=>r.charId===c.id).map(r=>({id:r.id,scriptName:r.name,findRegex:`/${r.find}/${r.flags||'g'}`,replaceString:r.replace,trimStrings:[],placement:r.scope==='both'?[1,2]:r.scope==='ai'?[2]:[1],disabled:r.enabled===false,markdownOnly:!r.prompt,promptOnly:r.display===false,runOnEdit:false,substituteRegex:0}))},character_book:{name:c.name+' 的世界书',entries:book.map(loreToStEntry)}}}}
+async function saveFile(name,data){
+  if(DOWNLOADS){try{await DOWNLOADS.save({filename:name,data});toast('已导出 '+name);return}catch(e){if(e.code==='declined')return;if(e.code!=='unavailable'&&e.code!=='not_granted'){toast('导出失败：'+(e.message||e.code));return}}}
+  try{const blob=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('已导出 '+name)}catch(e){toast('此环境不支持下载，请在设置里用备份功能')}
+}
+async function exportPngCard(c){
+  const cv=document.createElement('canvas');cv.width=400;cv.height=600;const g=cv.getContext('2d');
+  const u=assetUrl(c.avatarId);
+  if(u){await new Promise(res=>{const im=new Image();im.onload=()=>{const r=Math.max(400/im.width,600/im.height);const w=im.width*r,h=im.height*r;g.drawImage(im,(400-w)/2,(600-h)/2,w,h);res()};im.onerror=res;im.src=u})}
+  else{g.fillStyle=c.color||'#8A3B64';g.fillRect(0,0,400,600);g.fillStyle='#fff';g.font='160px serif';g.textAlign='center';g.textBaseline='middle';g.fillText((c.name||'?')[0],200,300)}
+  const png=Uint8Array.from(atob(cv.toDataURL('image/png').split(',')[1]),ch=>ch.charCodeAt(0));
+  const json=JSON.stringify(toStCard(c));const b64=btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+  const out=pngAddText(png,'chara',b64);saveFile(`${c.name||'card'}.png`,new Blob([out],{type:'image/png'}));
+}
+function crc32(u8){let c,crc=0xFFFFFFFF;for(let n=0;n<u8.length;n++){c=(crc^u8[n])&0xFF;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;crc=(crc>>>8)^c}return (crc^0xFFFFFFFF)>>>0}
+function pngAddText(png,key,val){
+  // 去掉旧的同名 tEXt，再在 IEND 前插入新的
+  const chunks=[];let p=8;const dv=new DataView(png.buffer,png.byteOffset,png.byteLength);
+  while(p<png.length){const len=dv.getUint32(p);const type=String.fromCharCode(...png.slice(p+4,p+8));const chunk=png.slice(p,p+12+len);if(!(type==='tEXt'&&String.fromCharCode(...chunk.slice(8,8+key.length))===key))chunks.push(chunk);p+=12+len}
+  const body=new Uint8Array(key.length+1+val.length);body.set(key.split('').map(ch=>ch.charCodeAt(0)));body.set(val.split('').map(ch=>ch.charCodeAt(0)),key.length+1);
+  const tc=new Uint8Array(12+body.length);const d2=new DataView(tc.buffer);d2.setUint32(0,body.length);tc.set([0x74,0x45,0x58,0x74],4);tc.set(body,8);d2.setUint32(8+body.length,crc32(tc.slice(4,8+body.length)));
+  const iend=chunks.pop();const total=8+chunks.reduce((a,c)=>a+c.length,0)+tc.length+iend.length;const out=new Uint8Array(total);out.set(png.slice(0,8));let q=8;for(const c of chunks){out.set(c,q);q+=c.length}out.set(tc,q);q+=tc.length;out.set(iend,q);return out;
 }
 function readPngChara(u8){
   if(u8[0]!==0x89||u8[1]!==0x50)return null;let p=8;const dv=new DataView(u8.buffer);
@@ -628,9 +725,11 @@ function readPngChara(u8){
 }
 
 /* ---- presets ---- */
+let presetTab='preset';
 function renderPresets(b){
   const w=world();
-  b.innerHTML=`<p class="muted">预设 = 给 AI 的写作总指令。支持 {{user}} {{char}} 占位符。每个世界可以选不同预设。</p>
+  if(presetTab==='regex')return renderRegex(b);
+  b.innerHTML=`<div class="tabs" style="margin:0 -18px 12px;padding:0 10px"><button class="tab on" data-pt="preset">预设</button><button class="tab" data-pt="regex">正则脚本</button></div><p class="muted">预设 = 给 AI 的写作总指令。支持 {{user}} {{char}} 占位符。每个世界可以选不同预设。</p>
   ${S.presets.map(p=>`<details class="acc" ${p.id===w.presetId?'open':''}><summary><b class="grow">${esc(p.name)}</b>${p.id===w.presetId?'<span class="chip acc">当前世界使用</span>':''}</summary><div class="body"><input type="text" data-pn="${p.id}" value="${esc(p.name)}" style="margin-bottom:8px"><textarea data-pt="${p.id}" style="min-height:220px;font-size:14px">${esc(p.text)}</textarea><div class="row" style="margin-top:8px"><button class="btn sm" data-puse="${p.id}">当前世界使用</button><button class="btn sm ghost danger" data-pdel="${p.id}">删除</button></div></div></details>`).join('')}
   <button class="btn p" id="newPreset">＋ 新预设</button>`;
   $$('[data-pn]',b).forEach(el=>el.oninput=()=>{S.presets.find(p=>p.id===el.dataset.pn).name=el.value;markDirty()});
@@ -638,15 +737,48 @@ function renderPresets(b){
   $$('[data-puse]',b).forEach(el=>el.onclick=()=>{w.presetId=el.dataset.puse;markDirty(w.id);renderPanel()});
   $$('[data-pdel]',b).forEach(el=>el.onclick=()=>{if(S.presets.length<2)return toast('至少保留一个预设');S.presets=S.presets.filter(p=>p.id!==el.dataset.pdel);S.worlds.forEach(x=>{if(x.presetId===el.dataset.pdel){x.presetId=S.presets[0].id;dirty.add(x.id)}});markDirty();renderPanel()});
   $('#newPreset',b).onclick=()=>{S.presets.push({id:'p_'+uid(),name:'新预设',text:DEFAULT_PRESET});markDirty();renderPanel()};
+  $$('[data-pt]',b).forEach(el=>el.onclick=()=>{presetTab=el.dataset.pt;renderPanel()});
+}
+function renderRegex(b){
+  S.regex=S.regex||[];const w=world();
+  b.innerHTML=`<div class="tabs" style="margin:0 -18px 12px;padding:0 10px"><button class="tab" data-pt="preset">预设</button><button class="tab on" data-pt="regex">正则脚本</button></div>
+  <p class="muted">和 SillyTavern 的 Regex 扩展一样：对 AI 输出 / 你的输入做查找替换。「显示」只影响你看到的正文，「提示词」影响发给 AI 的内容。随角色卡导入的脚本只在该角色在场时生效。</p>
+  <div class="row" style="margin-bottom:10px"><button class="btn p sm" id="newRx">＋ 新脚本</button><button class="btn sm" id="impRx">导入 ST 脚本 JSON</button><label class="row" style="margin-left:auto;cursor:pointer"><input type="checkbox" id="renderHtml" ${S.settings.renderHtml!==false?'checked':''}> 渲染前端 HTML</label></div>
+  ${S.regex.map(r=>`<div class="rx ${r.enabled===false?'off':''}"><div class="h"><button class="sw ${r.enabled!==false?'on':''}" data-rxsw="${r.id}"></button><b>${esc(r.name)}</b>${r.charId?`<span class="chip">${esc(S.characters.find(c=>c.id===r.charId)?.name||'?')}</span>`:''}<span class="chip">${{both:'输入+输出',ai:'AI 输出',user:'我的输入'}[r.scope||'both']}</span><button class="btn sm ghost" data-rxed="${r.id}">编辑</button></div><code>/${esc(r.find)}/${esc(r.flags||'g')} → ${esc(r.replace||'')}</code></div>`).join('')||'<span class="tiny">还没有脚本。常见用法：把 AI 输出里的「状态栏」代码块隐藏、把 *动作* 换成灰色、把敏感词替换。</span>'}`;
+  $$('[data-pt]',b).forEach(el=>el.onclick=()=>{presetTab=el.dataset.pt;renderPanel()});
+  $('#renderHtml',b).onchange=e=>{S.settings.renderHtml=e.target.checked;markDirty();renderAll()};
+  $('#newRx',b).onclick=()=>editRegex({id:uid(),name:'',find:'',flags:'g',replace:'',scope:'ai',display:true,prompt:false,enabled:true,charId:''},true);
+  $('#impRx',b).onclick=()=>pickFile('.json',async f=>{try{const d=JSON.parse(await f.text());const arr=Array.isArray(d)?d:[d];let n=0;for(const sc of arr){if(sc.findRegex!==undefined){S.regex.push(importStRegexScript(sc,''));n++}}markDirty();renderPanel();toast(`已导入 ${n} 条脚本`)}catch(e){toast('导入失败：'+e.message)}});
+  $$('[data-rxsw]',b).forEach(el=>el.onclick=()=>{const r=S.regex.find(x=>x.id===el.dataset.rxsw);r.enabled=r.enabled===false;markDirty();renderPanel();renderAll()});
+  $$('[data-rxed]',b).forEach(el=>el.onclick=()=>editRegex(S.regex.find(x=>x.id===el.dataset.rxed),false));
+}
+function editRegex(r,isNew){
+  modal(`<h3>${isNew?'新脚本':'编辑脚本'}</h3>
+  <label class="f">名称</label><input type="text" id="rxN" value="${esc(r.name)}">
+  <div class="grid2"><div><label class="f">查找（正则，不含斜杠）</label><input type="text" id="rxF" value="${esc(r.find)}"></div><div><label class="f">标志</label><input type="text" id="rxFl" value="${esc(r.flags||'g')}"></div></div>
+  <label class="f">替换为（可用 $1、{{match}}；留空 = 删除）</label><textarea id="rxR" style="min-height:70px">${esc(r.replace||'')}</textarea>
+  <div class="grid2"><div><label class="f">作用于</label><select id="rxS"><option value="ai" ${r.scope==='ai'?'selected':''}>AI 输出</option><option value="user" ${r.scope==='user'?'selected':''}>我的输入</option><option value="both" ${!r.scope||r.scope==='both'?'selected':''}>两者</option></select></div><div><label class="f">绑定角色</label><select id="rxC"><option value="">全局</option>${S.characters.map(c=>`<option value="${c.id}" ${r.charId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div></div>
+  <label class="row" style="margin-top:10px;cursor:pointer"><input type="checkbox" id="rxD" ${r.display!==false?'checked':''}> 影响显示</label>
+  <label class="row" style="margin-top:6px;cursor:pointer"><input type="checkbox" id="rxP" ${r.prompt?'checked':''}> 影响提示词（发给 AI 的内容）</label>
+  <div class="card" style="margin-top:10px"><label class="f" style="margin-top:0">试一试</label><textarea id="rxT" style="min-height:60px" placeholder="粘贴一段文本看看效果"></textarea><pre class="pv" id="rxO" style="max-height:120px;margin-top:6px"></pre></div>
+  <div class="row" style="margin-top:14px"><button class="btn p" id="rxOk">保存</button>${isNew?'':'<button class="btn danger ghost" id="rxDel">删除</button>'}<button class="btn ghost" id="rxNo">取消</button></div>`,m=>{
+    const test=()=>{try{$('#rxO',m).textContent=$('#rxT',m).value.replace(new RegExp($('#rxF',m).value,$('#rxFl',m).value),$('#rxR',m).value.replace(/\{\{match\}\}/g,'$&'))}catch(e){$('#rxO',m).textContent='正则错误：'+e.message}};
+    ['rxT','rxF','rxFl','rxR'].forEach(id=>$('#'+id,m).oninput=test);
+    $('#rxOk',m).onclick=()=>{try{new RegExp($('#rxF',m).value,$('#rxFl',m).value)}catch(e){return toast('正则有误：'+e.message)}Object.assign(r,{name:$('#rxN',m).value||'脚本',find:$('#rxF',m).value,flags:$('#rxFl',m).value||'g',replace:$('#rxR',m).value,scope:$('#rxS',m).value,charId:$('#rxC',m).value,display:$('#rxD',m).checked,prompt:$('#rxP',m).checked});if(isNew)S.regex.push(r);markDirty();closeModal();renderPanel();renderAll()};
+    const d=$('#rxDel',m);if(d)d.onclick=()=>{S.regex=S.regex.filter(x=>x.id!==r.id);markDirty();closeModal();renderPanel();renderAll()};
+    $('#rxNo',m).onclick=closeModal;
+  });
 }
 
 /* ---- lorebook ---- */
 function renderLore(b,compact=false){
   const w=world();const groups=[...new Set(w.lorebook.map(e=>e.group||'设定'))];
   b.innerHTML=`${compact?'':'<p class="muted">世界书条目会在关键词出现在最近 4 楼或你的输入里时注入提示词；「常驻」条目每次都注入。总结产生的条目会自动归入「总结」分组。</p>'}
-  <div class="row" style="margin-bottom:10px"><button class="btn p sm" id="newLore">＋ 新条目</button><span class="tiny">${w.lorebook.length} 条 · ${w.lorebook.filter(e=>e.enabled).length} 启用</span></div>
+  <div class="row" style="margin-bottom:10px"><button class="btn p sm" id="newLore">＋ 新条目</button>${compact?'':'<button class="btn sm" id="impLore">导入 ST 世界书</button><button class="btn sm ghost" id="expLore">导出</button>'}<span class="tiny">${w.lorebook.length} 条 · ${w.lorebook.filter(e=>e.enabled).length} 启用</span></div>
   ${groups.map(g=>`<details class="acc" open><summary><b class="grow">${esc(g)}</b><span class="tiny">${w.lorebook.filter(e=>(e.group||'设定')===g).length}</span></summary><div class="body">${w.lorebook.filter(e=>(e.group||'设定')===g).map(e=>`<div class="lore ${e.enabled?'':'off'}" data-lore="${e.id}"><div class="h"><button class="sw ${e.enabled?'on':''}" data-lsw="${e.id}" title="启用/停用"></button><b>${esc(e.title)}</b>${e.always?'<span class="chip gold">常驻</span>':''}${e.charId?`<span class="chip">${esc(S.characters.find(c=>c.id===e.charId)?.name||'?')}</span>`:''}<button class="btn sm ghost" data-ledit="${e.id}">编辑</button></div><div class="keys">${e.always?'每次注入':'关键词：'+(e.keys||[]).join('、')||'（无）'}</div></div>`).join('')}</div></details>`).join('')||'<span class="tiny">还没有条目。</span>'}`;
   $('#newLore',b).onclick=()=>editLore(w,{id:uid(),title:'',keys:[],content:'',enabled:true,always:false,group:'设定'},true);
+  const il=$('#impLore',b);if(il)il.onclick=()=>pickFile('.json',async f=>{try{const d=JSON.parse(await f.text());const raw=d.entries?(Array.isArray(d.entries)?d.entries:Object.values(d.entries)):(Array.isArray(d)?d:[]);if(!raw.length)throw new Error('没有找到条目');const g=(d.name||f.name.replace(/\.json$/i,'')).slice(0,20);raw.forEach(e=>w.lorebook.push(stEntryToLore(e,g)));markDirty(w.id);renderLore(b,compact);toast(`已导入 ${raw.length} 条到分组「${g}」`)}catch(e){toast('导入失败：'+e.message,4000)}});
+  const el_=$('#expLore',b);if(el_)el_.onclick=()=>saveFile(`${w.name}-世界书.json`,JSON.stringify({name:w.name,entries:Object.fromEntries(w.lorebook.map((e,i)=>[i,loreToStEntry(e,i)]))},null,2));
   $$('[data-lsw]',b).forEach(el=>el.onclick=()=>{const e=w.lorebook.find(x=>x.id===el.dataset.lsw);e.enabled=!e.enabled;markDirty(w.id);renderLore(b,compact)});
   $$('[data-ledit]',b).forEach(el=>el.onclick=()=>editLore(w,w.lorebook.find(x=>x.id===el.dataset.ledit),false,()=>renderLore(b,compact)));
 }
@@ -654,11 +786,12 @@ function editLore(w,e,isNew,after){
   modal(`<h3>${isNew?'新条目':'编辑条目'}</h3>
   <div class="grid2"><div><label class="f">标题</label><input type="text" id="lT" value="${esc(e.title)}"></div><div><label class="f">分组</label><input type="text" id="lG" value="${esc(e.group||'设定')}"></div></div>
   <label class="f">关键词（用逗号/顿号分隔）</label><input type="text" id="lK" value="${esc((e.keys||[]).join('、'))}">
+  <div class="grid2"><div><label class="f">次级关键词（可选，需同时命中）</label><input type="text" id="lK2" value="${esc((e.secondaryKeys||[]).join('、'))}"></div><div><label class="f">顺序（小的先注入）</label><input type="number" id="lO" value="${e.order??100}"></div></div>
   <label class="row" style="margin-top:10px;cursor:pointer"><input type="checkbox" id="lA" ${e.always?'checked':''}> 常驻（每次都注入，适合总结与核心设定）</label>
   <label class="f">绑定角色（只有该角色在这个世界里时才生效；不绑定则属于整个世界）</label><select id="lB"><option value="">不绑定 · 整个世界</option>${S.characters.map(c=>`<option value="${c.id}" ${e.charId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
   <label class="f">内容</label><textarea id="lC" style="min-height:200px">${esc(e.content)}</textarea>
   <div class="row" style="margin-top:14px"><button class="btn p" id="lSave">保存</button>${isNew?'':'<button class="btn danger ghost" id="lDel">删除</button>'}<button class="btn ghost" id="lCancel">取消</button></div>`,m=>{
-    $('#lSave',m).onclick=()=>{e.title=$('#lT',m).value||'未命名';e.group=$('#lG',m).value||'设定';e.keys=$('#lK',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.always=$('#lA',m).checked;e.charId=$('#lB',m).value||'';e.content=$('#lC',m).value;if(isNew)w.lorebook.push(e);markDirty(w.id);closeModal();(after||renderPanel)()};
+    $('#lSave',m).onclick=()=>{e.title=$('#lT',m).value||'未命名';e.group=$('#lG',m).value||'设定';e.keys=$('#lK',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.secondaryKeys=$('#lK2',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.selective=e.secondaryKeys.length>0;e.order=+$('#lO',m).value||100;e.always=$('#lA',m).checked;e.charId=$('#lB',m).value||'';e.content=$('#lC',m).value;if(isNew)w.lorebook.push(e);markDirty(w.id);closeModal();(after||renderPanel)()};
     const d=$('#lDel',m);if(d)d.onclick=()=>{w.lorebook=w.lorebook.filter(x=>x.id!==e.id);markDirty(w.id);closeModal();(after||renderPanel)()};
     $('#lCancel',m).onclick=closeModal;
   });
@@ -699,7 +832,7 @@ async function summarize(w,a,bN){
   const range=`${target[0].n}-${target[target.length-1].n}`;
   const text=target.map(f=>`#${f.n} ${f.role==='user'?w.user.name:'剧情'}：\n${floorText(f)}`).join('\n\n');
   if(bytes(text)>50*KB)return toast('这段太长了，请用「指定范围」分几次总结',4000);
-  setStatus(`正在总结 #${range}……`);busy(true);
+  setStatus(`正在总结 #${range}……`);busy(true);snapshot(`总结 #${range} 前`);
   try{const {text:sum}=await AI.text(`${S.settings.summaryPrompt}\n\n角色说明：${chars(w).map(c=>c.name).join('、')}；用户扮演 ${w.user.name}。\n\n===== 楼层 #${range} =====\n${text}`,{tier:S.settings.tier});
     w.lorebook.push({id:uid(),title:range,keys:[],content:sum.trim(),enabled:true,always:true,group:'总结'});
     w.summaries.push({range,t:now()});target.forEach(f=>f.hidden=true);
@@ -715,9 +848,10 @@ function renderSettings(b){
   <label class="f">正文字体</label><select id="font"><option value="serif" ${st.font==='serif'?'selected':''}>思源宋体（小说感，推荐）</option><option value="sans" ${st.font==='sans'?'selected':''}>思源黑体（更清晰）</option><option value="display" ${st.font==='display'?'selected':''}>站酷小薇（文艺）</option></select>
   <label class="f">主题</label><select id="theme"><option value="auto" ${st.theme==='auto'?'selected':''}>跟随系统</option><option value="light" ${st.theme==='light'?'selected':''}>浅色</option><option value="dark" ${st.theme==='dark'?'selected':''}>深色</option></select>
   <label class="f">叙事视角</label><select id="pov"><option value="third" ${st.pov==='third'?'selected':''}>第三人称（他/她）</option><option value="second" ${st.pov==='second'?'selected':''}>第二人称（你）</option></select>
+  <label class="row" style="margin-top:12px;cursor:pointer"><input type="checkbox" id="prefCard" ${st.preferCardPrompt!==false?'checked':''}> 角色卡自带「系统提示」时优先于预设（SillyTavern 行为）</label>
   <label class="f">上下文提醒阈值（KB，上限 64）</label><input type="number" id="warnKB" value="${st.warnKB}" min="10" max="60">
   <div class="sep"></div><h3 style="font-size:18px">快捷符号</h3><p class="tiny">显示在输入框上方，点一下插入。用空格分隔。</p><input type="text" id="quick" value="${esc(st.quick.join(' '))}">
-  <div class="sep"></div><h3 style="font-size:18px">备份</h3><p class="tiny">导出全部数据（角色、世界、楼层、世界书、设置）为一个 JSON 文件；换设备后导入即可。</p>
+  <div class="sep"></div><h3 style="font-size:18px">备份与缓存</h3><p class="tiny">本地缓存：${IDB.db?'IndexedDB（无 5MB 限制，含图片）':'localStorage（受限，建议换浏览器）'}${DB?' + 云端同步':''}${BACKEND?' + 本地后端文件':''}。快照在「世界」面板里。</p><p class="tiny">导出全部数据（角色、世界、楼层、世界书、正则、设置）为一个 JSON 文件；换设备后导入即可。</p>
   <div class="row"><button class="btn p" id="exportAll">一键备份</button><button class="btn" id="importAll">导入备份</button><button class="btn ghost danger" id="resetAll">重置为示例</button></div>
   <div id="exportBox" class="hidden" style="margin-top:8px"><p class="tiny">这个页面不能直接下载文件，请全选复制下面内容保存为 .json：</p><textarea id="exportTxt" style="min-height:120px;font-size:12px"></textarea></div>
   <div class="sep"></div><h3 style="font-size:18px">AI 来源</h3>
@@ -730,6 +864,7 @@ function renderSettings(b){
   $('#font',b).onchange=e=>{st.font=e.target.value;applySettings();markDirty()};
   $('#theme',b).onchange=e=>{st.theme=e.target.value;applySettings();markDirty()};
   $('#pov',b).onchange=e=>{st.pov=e.target.value;markDirty()};
+  $('#prefCard',b).onchange=e=>{st.preferCardPrompt=e.target.checked;markDirty()};
   $('#warnKB',b).onchange=e=>{st.warnKB=Math.min(60,Math.max(10,+e.target.value||44));markDirty();renderCtx()};
   $('#quick',b).onchange=e=>{st.quick=e.target.value.split(/\s+/).filter(Boolean);markDirty();renderQuick()};
   $('#exportAll',b).onclick=exportAll;$('#importAll',b).onclick=()=>pickFile('.json',importAll);
@@ -748,27 +883,49 @@ async function importAll(file){try{const d=JSON.parse(await file.text());if(!d.w
 </script>
 <script>
 /* ---------------- chat rendering ---------------- */
-function md(t){return esc(t).split(/\n{2,}/).map(p=>'<p>'+p.replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<em>$1</em>')+'</p>').join('')}
+function mdText(t){return esc(t).split(/\n{2,}/).filter(p=>p.trim()).map(p=>'<p>'+p.replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<em>$1</em>')+'</p>').join('')}
+/* 前端渲染：```html 围栏、或裸露的 <div>/<style>/<table>… 块，渲染进沙盒 iframe */
+function splitHtml(t){
+  const segs=[];let rest=t;
+  const fence=/```html\s*([\s\S]*?)```/i, raw=/<(div|section|style|table|center|details|article)\b[\s\S]*<\/(div|section|style|table|center|details|article)>/i;
+  while(rest){const m1=rest.match(fence);const m2=rest.match(raw);let m=null,html='';
+    if(m1&&(!m2||m1.index<=m2.index)){m=m1;html=m1[1]}else if(m2){m=m2;html=m2[0]}
+    if(!m){segs.push({type:'text',t:rest});break}
+    if(m.index>0)segs.push({type:'text',t:rest.slice(0,m.index)});segs.push({type:'html',t:html});rest=rest.slice(m.index+m[0].length)}
+  return segs;
+}
+function md(t,opts={}){
+  const on=S.settings.renderHtml!==false&&!opts.noHtml;
+  if(!on||!/<\/|```html/i.test(t))return mdText(t);
+  return splitHtml(t).map(s=>s.type==='text'?mdText(s.t):`<div class="fx-wrap" data-html="${encodeURIComponent(s.t)}"><div class="tiny">（前端内容${opts.streaming?'生成中…':''}）</div></div>`).join('');
+}
+function mountHtml(root){
+  const cs=getComputedStyle(document.documentElement);
+  $$('.fx-wrap',root).forEach(w=>{if(w.querySelector('iframe'))return;const html=decodeURIComponent(w.dataset.html);const f=document.createElement('iframe');f.className='fx';f.setAttribute('sandbox','allow-scripts allow-same-origin');
+    f.srcdoc=`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent;color:${cs.getPropertyValue('--ink')};font-family:${cs.getPropertyValue('--sans')};font-size:15px;line-height:1.6}img{max-width:100%}</style>${html}`;
+    f.style.height='24px';const fit=()=>{try{f.style.height=(f.contentDocument.body.scrollHeight+12)+'px'}catch(e){}};f.onload=()=>{fit();setTimeout(fit,300);setTimeout(fit,1500)};w.innerHTML='';w.appendChild(f)});
+}
 function labelOf(f,w){if(f.role==='user')return w.user.name;const cs=chars(w);return f.charId?(S.characters.find(c=>c.id===f.charId)?.name||'剧情'):(cs.length===1?cs[0].name:'剧情')}
 function renderTop(){const w=world();$('#worldTitle').textContent=w.name;$('#who').innerHTML=chars(w).map(c=>avatar(c)).join('');applyBackground();$('#msg').placeholder=`以 ${w.user.name} 的身份写下行动、对白……（Ctrl/⌘+Enter 发送）`;renderCtx()}
 function renderCtx(){const w=world();const p=buildPrompt(w,{userText:$('#msg').value});const kb=p.bytes/KB;const el=$('#ctx');el.className=kb>60?'bad':kb>S.settings.warnKB?'warn':'';const lastEnd=w.summaries.reduce((m,s)=>Math.max(m,+String(s.range).split('-')[1]||0),0);const pending=w.floors.filter(f=>f.n>lastEnd&&!f.hidden).length-(S.settings.keepRecent||0);const needSum=pending>=(S.settings.autoSumEvery||20);$('#ctxLabel').textContent=`上下文 ${kb.toFixed(1)} / 64 KB${p.omitted?` · 已自动省略前 ${p.omitted} 楼`:''}${needSum?` · 建议总结（${pending} 楼未总结）`:''}`;if(needSum&&!renderCtx._warned){renderCtx._warned=true;toast(`已有 ${pending} 楼没有总结，去「记忆」或 ➕ 面板点一下「总结」吧`,5000)}if(!needSum)renderCtx._warned=false;$('#ctxBar').style.width=Math.min(100,kb/64*100)+'%';el.title=kb>S.settings.warnKB?'上下文偏大：建议去「记忆」总结早期楼层，或隐藏楼层。隐藏后仍可被检索。':'';return p}
 function renderFloors(){
   const w=world();const box=$('#floors');
-  if(!w.floors.length){const c=chars(w)[0];box.innerHTML=`<div class="empty"><h3>${esc(w.name)}</h3>${c?`<p>主角 ${esc(c.name)} 已就位。</p>${c.firstMessage?`<button class="btn p" id="useFirst">用 ${esc(c.name)} 的开场白开始</button> `:''}<button class="btn" id="aiOpen">让 AI 写开场</button>`:'<p>先去左侧「世界」勾选在场角色。</p>'}</div>`;const uf=$('#useFirst');if(uf)uf.onclick=()=>{w.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage],si:0,hidden:false,t:now(),meta:null});markDirty(w.id);renderAll()};const ao=$('#aiOpen');if(ao)ao.onclick=()=>generate({mode:'continue',continueText:'（请写下这个故事的开场：交代时间、地点、氛围，让在场角色登场。）'});return}
+  if(!w.floors.length){const c=chars(w)[0];box.innerHTML=`<div class="empty"><h3>${esc(w.name)}</h3>${c?`<p>主角 ${esc(c.name)} 已就位。</p>${c.firstMessage?`<button class="btn p" id="useFirst">用 ${esc(c.name)} 的开场白开始</button> `:''}<button class="btn" id="aiOpen">让 AI 写开场</button>`:'<p>先去左侧「世界」勾选在场角色。</p>'}</div>`;const uf=$('#useFirst');if(uf)uf.onclick=()=>{w.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage,...(c.altGreetings||[])],si:0,hidden:false,t:now(),meta:null});markDirty(w.id);renderAll()};const ao=$('#aiOpen');if(ao)ao.onclick=()=>generate({mode:'continue',continueText:'（请写下这个故事的开场：交代时间、地点、氛围，让在场角色登场。）'});return}
   const last=w.floors[w.floors.length-1];
   box.innerHTML=w.floors.map(f=>`<article class="floor ${f.role} ${f.hidden?'hid':''}" data-f="${f.id}" id="f${f.id}">
     <div class="lbl">${floorAvatar(f,w)}<b>${esc(labelOf(f,w))}</b><span>#${f.n}</span>${f.model?`<span class="tiny">${esc(f.model)}</span>`:''}${f.hidden?'<span class="chip">已隐藏 · 仍可检索</span>':''}${f.swipes.length>1?`<span class="chip">${f.si+1}/${f.swipes.length}</span>`:''}</div>
-    <div class="txt">${md(floorText(f))}</div>
+    <div class="txt">${md(applyRegex(floorText(f),f.role==='user'?'user':'ai','display',w))}</div>
     ${f.truncated?'<div class="note">回复被长度上限截断，可点「续写」接着写。</div>':''}
-    ${f===last&&f.role==='char'&&f.swipes.length>1?`<div class="swp"><button data-swl="${f.id}">◀</button>${f.si+1} / ${f.swipes.length}<button data-swr="${f.id}">▶</button></div>`:''}
+    ${f===last&&f.role==='char'&&f.swipes.length>1?`<div class="swp"><button data-swl="${f.id}">◀</button>${f.si+1} / ${f.swipes.length}${f.n===1?'<span class="tiny">备选开场白</span>':''}<button data-swr="${f.id}">▶</button></div>`:''}
     <div class="acts">${f===last&&f.role==='char'?`<button data-regen="${f.id}" title="重新生成一条新回复（保留旧的可左右切换）">刷</button>`:''}<button data-edit="${f.id}">编辑</button><button data-hide="${f.id}">${f.hidden?'显示':'隐藏'}</button><button data-back="${f.id}" title="删掉这楼之后的所有楼层（自动存成分支）">回溯</button><button data-del="${f.id}">删除</button></div>
   </article>`).join('');
+  mountHtml(box);
   $$('[data-swl]').forEach(el=>el.onclick=()=>{const f=fl(el.dataset.swl);f.si=(f.si-1+f.swipes.length)%f.swipes.length;markDirty(w.id);renderAll()});
   $$('[data-swr]').forEach(el=>el.onclick=()=>{const f=fl(el.dataset.swr);f.si=(f.si+1)%f.swipes.length;markDirty(w.id);renderAll()});
   $$('[data-regen]').forEach(el=>el.onclick=()=>generate({mode:'regen'}));
   $$('[data-hide]').forEach(el=>el.onclick=()=>{const f=fl(el.dataset.hide);f.hidden=!f.hidden;markDirty(w.id);renderAll()});
   $$('[data-del]').forEach(el=>el.onclick=()=>{if(!confirm('删除这一楼？'))return;w.floors=w.floors.filter(x=>x.id!==el.dataset.del);renumber(w);markDirty(w.id);renderAll()});
-  $$('[data-back]').forEach(el=>el.onclick=()=>{const f=fl(el.dataset.back);const tail=w.floors.filter(x=>x.n>f.n);if(!tail.length)return toast('这已经是最后一楼');if(!confirm(`回溯到 #${f.n}：之后的 ${tail.length} 楼会存成分支，可在「世界」里切回。继续？`))return;w.branches.push({id:uid(),name:`分支 · 从 #${f.n} 起（${new Date().toLocaleString()}）`,fromN:f.n,floors:tail,t:now()});w.floors=w.floors.filter(x=>x.n<=f.n);markDirty(w.id);renderAll();toast('已回溯，旧剧情保存在分支里')});
+  $$('[data-back]').forEach(el=>el.onclick=()=>{const f=fl(el.dataset.back);const tail=w.floors.filter(x=>x.n>f.n);if(!tail.length)return toast('这已经是最后一楼');if(!confirm(`回溯到 #${f.n}：之后的 ${tail.length} 楼会存成分支，可在「世界」里切回。继续？`))return;snapshot(`回溯到 #${f.n} 前`);w.branches.push({id:uid(),name:`分支 · 从 #${f.n} 起（${new Date().toLocaleString()}）`,fromN:f.n,floors:tail,t:now()});w.floors=w.floors.filter(x=>x.n<=f.n);markDirty(w.id);renderAll();toast('已回溯，旧剧情保存在分支里')});
   $$('[data-edit]').forEach(el=>el.onclick=()=>{const f=fl(el.dataset.edit);const art=$('#f'+f.id);const txt=$('.txt',art);txt.innerHTML=`<textarea class="ed">${esc(floorText(f))}</textarea><div class="row" style="margin-top:6px;font-family:var(--sans)"><button class="btn sm p" id="edok">保存</button><button class="btn sm ghost" id="edno">取消</button></div>`;$('#edok',art).onclick=()=>{f.swipes[f.si]=$('.ed',art).value;markDirty(w.id);renderAll()};$('#edno',art).onclick=renderAll;$('.ed',art).focus()});
   if(window.innerWidth<=900)$$('.floor').forEach(a=>a.onclick=e=>{if(e.target.closest('button,textarea'))return;a.classList.toggle('menu')});
 }
@@ -847,10 +1004,10 @@ async function generate({mode,continueText}){
   const art=$('#f'+target.id);const txt=$('.txt',art);txt.classList.add('stream');txt.innerHTML='<p><em>正在构思……（首次使用会弹出授权；深思模式可能要等 10-60 秒）</em></p>';
   ctl=new AbortController();busy(true);setStatus(`已发送 ${(p.bytes/KB).toFixed(1)} KB · 世界书 ${p.lore.length} 条 · 检索 ${p.recall.length} 楼${p.omitted?' · 省略前 '+p.omitted+' 楼':''}`);
   try{
-    const r=await AI.text(p.turns,{signal:ctl.signal,onText:({text})=>{const {body}=parseState(text);txt.innerHTML=md(body.replace(/<state>[\s\S]*$/,''));scrollBottom()}});
+    const r=await AI.text(p.turns,{signal:ctl.signal,onText:({text})=>{const {body}=parseState(text);txt.innerHTML=md(applyRegex(body.replace(/<state>[\s\S]*$/,''),'ai','display',w),{streaming:true});scrollBottom()}});
     const {body,meta}=parseState(r.text);target.swipes[target.si]=body;target.meta=meta;target.model=LAST_MODEL;target.truncated=!!r.truncated;applyMeta(w,meta,target.n);
     if(r.truncated)toast('回复被截断了，点「续写」可以接着写');
-    setStatus(`本楼由 ${LAST_MODEL||AI.label()} 生成 · ${body.length} 字`,true);
+    setStatus(`本楼由 ${LAST_MODEL||AI.label()} 生成 · ${body.length} 字`,true);snapshot(`生成 #${target.n}`);
   }catch(e){
     if(e.code==='cancelled'){const {body}=parseState(e.text||'');if(body)target.swipes[target.si]=body;else{target.swipes.splice(target.si,1);target.si=Math.max(0,target.swipes.length-1);if(!target.swipes.length)w.floors.pop()}}
     else{target.swipes.splice(target.si,1);target.si=Math.max(0,target.swipes.length-1);if(!target.swipes.length)w.floors.pop();toast(({not_granted:'你拒绝了 AI 授权，本次页面无法生成',rate_limited:'请求太频繁，稍等再试',prompt_too_large:'提示词过大，请总结或隐藏楼层'})[e.code]||('生成失败：'+(e.message||e.code)),5000)}
@@ -981,10 +1138,11 @@ function bindUI(){
   const rm=$('#replyMode');rm.innerHTML=REPLY_MODES.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');rm.value=S.settings.replyMode;rm.onchange=()=>{S.settings.replyMode=rm.value;markDirty();renderCtx()};
   const ls_=$('#lenSel');ls_.innerHTML=LENGTHS.map(l=>`<option value="${l.id}">${l.label}</option>`).join('');ls_.value=S.settings.length;ls_.onchange=()=>{S.settings.length=+ls_.value;markDirty();renderCtx()};
   renderModelSelect();
-  window.addEventListener('beforeunload',()=>{ls('inkroom.state',S)});
+  window.addEventListener('beforeunload',()=>{if(dirty.size||saveT)saveLocal()});
 }
 (async function init(){
-  S=ls('inkroom.state')||seedState();
+  try{await IDB.open()}catch(e){console.warn('IndexedDB 不可用，退回 localStorage')}
+  S=(await loadLocal())||seedState();S.regex=S.regex||[];
   const def=seedState().settings;for(const k in def)if(S.settings[k]===undefined)S.settings[k]=def[k];S.assets=S.assets||{};
   applySettings();renderRail();bindUI();renderAll();
   if(!window.claude||!window.claude.use){
@@ -998,7 +1156,7 @@ function bindUI(){
   SAMPLE=sample;DOWNLOADS=dl;DB=db;
   if(!SAMPLE)setStatus('AI 未授权：发送时会提示授权，或此视图不支持 AI。',true);
   if(S.settings.backendUrl){await connectBackend(false);renderModelSelect()}
-  if(DB){try{const remote=await loadFromDb();if(remote&&(!ls('inkroom.state')||remote.updatedAt>=(S.updatedAt||0))){S=remote;S.assets=S.assets||{};for(const k in def)if(S.settings[k]===undefined)S.settings[k]=def[k];applySettings();renderAll();$('#replyMode').value=S.settings.replyMode;$('#lenSel').value=S.settings.length;renderModelSelect();if(panelKind)renderPanel();toast('已从云端载入存档')}else if(!remote){saveAll()}}catch(e){console.warn('db load',e);setStatus('云端读取失败，使用本地数据。',true)}}
+  if(DB){try{const remote=await loadFromDb();if(remote&&remote.updatedAt>=(S.updatedAt||0)){S=remote;S.assets=S.assets||{};S.regex=S.regex||[];for(const k in def)if(S.settings[k]===undefined)S.settings[k]=def[k];applySettings();renderAll();$('#replyMode').value=S.settings.replyMode;$('#lenSel').value=S.settings.length;renderModelSelect();if(panelKind)renderPanel();toast('已从云端载入存档')}else if(!remote){saveAll()}}catch(e){console.warn('db load',e);setStatus('云端读取失败，使用本地数据。',true)}}
 })();
 </script>
 </body>
