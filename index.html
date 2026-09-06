@@ -130,7 +130,7 @@ h3{font-size:1.15em;font-weight:600}
 .floor .body em{color:var(--muted);font-style:normal}
 .floor .body q,.floor .body .say{color:var(--accent-ink)}
 .floor.user{padding-left:18px;border-left:3px solid var(--accent);background:linear-gradient(90deg,var(--user-tint),transparent 70%);border-radius:0 12px 12px 0;padding-top:10px;padding-bottom:10px;padding-right:12px}
-.floor.system .body{font-family:var(--sans);font-size:.85em;color:var(--muted);text-align:center;padding:8px;border:1px dashed var(--line);border-radius:10px}
+.floor.system .body{font-family:var(--sans);font-size:.85em;color:var(--muted);text-align:left;white-space:pre-wrap;padding:10px 14px;border:1px dashed var(--line);border-radius:10px;line-height:1.6}
 .floor .actions{font-family:var(--sans);font-size:.74em;display:flex;gap:2px;margin-top:8px;opacity:0;transition:opacity .15s;flex-wrap:wrap}
 .floor:hover .actions,.floor:focus-within .actions,.floor.touched .actions{opacity:1}
 .floor .actions button{border:none;background:transparent;color:var(--muted);padding:3px 8px;border-radius:8px}
@@ -138,6 +138,10 @@ h3{font-size:1.15em;font-weight:600}
 .floor.streaming .body::after{content:"▍";color:var(--accent);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
 .floor .body textarea{width:100%;font-family:var(--prose-font);font-size:1em;line-height:1.8;min-height:160px}
+.chapter-div{max-width:46em;margin:34px auto 26px;text-align:center;font-family:var(--display);font-size:1.25em;letter-spacing:.08em;color:var(--accent);position:relative}
+.chapter-div::before,.chapter-div::after{content:"";position:absolute;top:50%;width:18%;border-top:1px solid var(--line-strong)}
+.chapter-div::before{left:0}.chapter-div::after{right:0}
+.chapter-div small{display:block;font-family:var(--sans);font-size:.65em;color:var(--muted);letter-spacing:.04em}
 .hidden-bar{max-width:46em;margin:0 auto 22px;text-align:center;font-size:.85em;color:var(--muted);border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:8px}
 .hidden-bar button{margin-left:8px}
 .floor.is-hidden{opacity:.55}
@@ -326,7 +330,7 @@ details.inner .voice{font-family:var(--serif);margin-top:10px;padding:12px 14px;
           <div class="ctx-meter" id="ctx-meter" title="本次将送入模型的上下文">
             <span>上下文</span><div class="bar"><i></i></div><span class="num" id="ctx-text">0%</span>
           </div>
-          <button class="small ghost" id="btn-branches" title="存档与分支">⑂<span class="lbl"> 分支</span></button>
+          <button class="small ghost" id="btn-chapters" title="章节">§<span class="lbl"> 章节</span></button><button class="small ghost" id="btn-branches" title="存档与分支">⑂<span class="lbl"> 分支</span></button>
           <button class="small ghost" id="btn-timeskip" title="推进世界时间">⏭<span class="lbl"> 推进时间</span></button>
           <button class="small ghost" id="btn-preview" title="查看本次发给 AI 的完整提示词">⌘<span class="lbl"> 提示词</span></button>
           <button class="small ghost" id="btn-dock" title="状态面板">◫<span class="lbl"> 状态</span></button>
@@ -535,6 +539,9 @@ function visibleFloors(w=W()){
   res.push(...w.floors.filter(f=>f.branchId===b.id&&f.no<=cut));}
  return res.sort((a,b)=>a.no-b.no);
 }
+function chapters(w=W()){const mb=memoryBook(w);const list=mb.entries.filter(e=>e.from).sort((a,b)=>a.from-b.from).map((e,i)=>({idx:i+1,title:e.chapter||('第 '+(i+1)+' 章'),from:e.from,to:e.to,done:true}));
+ const last=list.length?list[list.length-1].to:0;const vis=visibleFloors(w);if(vis.length&&vis[vis.length-1].no>last)list.push({idx:list.length+1,title:'第 '+(list.length+1)+' 章 · 进行中',from:last+1,to:vis[vis.length-1].no,done:false});return list;}
+function chapterOf(w,no){return chapters(w).find(c=>no>=c.from&&no<=c.to);}
 function nextNo(w=W()){const v=visibleFloors(w);return v.length?v[v.length-1].no+1:1;}
 
 /* ---------------- 记忆索引（二元分词倒排索引） ---------------- */
@@ -691,10 +698,11 @@ function renderStory(){
  $('#world-name').textContent=w.name;const br=w.branches.find(b=>b.id===w.activeBranchId);$('#world-sub').textContent=`${c.name} · ${br?.name||'主线'}`;
  $('#world-clock').textContent=w.clock.time;
  const box=$('#floors');const vis=visibleFloors(w);const keep=box.scrollTop;box.innerHTML='';
- box.insertAdjacentHTML('beforeend',`<div class="chapter-head"><div class="title">${esc(w.name)}</div><div class="sub">${esc(c.name)} × ${esc(S.user.name)} · ${vis.length} 楼 · ${esc(w.clock.location)} · ${esc(w.clock.weather)}</div></div>`);
+ const chs=chapters(w);const cur=chs[chs.length-1];
+ box.insertAdjacentHTML('beforeend',`<div class="chapter-head"><div class="title">${esc(w.name)}</div><div class="sub">${esc(c.name)} × ${esc(S.user.name)} · ${vis.length} 楼 · ${esc(w.clock.location)} · ${esc(w.clock.weather)}</div>${cur?`<div class="sub" style="color:var(--accent)">${esc(cur.title)}</div>`:''}</div>`);
  const hid=vis.filter(f=>f.hidden);
- if(hid.length){const first=hid[0].no,last=hid[hid.length-1].no;box.insertAdjacentHTML('beforeend',`<div class="hidden-bar">第 ${first}–${last} 楼中有 ${hid.length} 楼已隐藏，不再进入上下文，但仍可被记忆检索 <button class="small" id="btn-showhidden">${showHidden?'收起':'展开查看'}</button></div>`);$('#btn-showhidden').onclick=()=>{showHidden=!showHidden;renderStory();};}
- for(const f of vis){if(f.hidden&&!showHidden)continue;box.append(floorEl(f,w,c));}
+ if(hid.length){const first=hid[0].no,last=hid[hid.length-1].no;const arch=chs.filter(x=>x.done&&vis.some(f=>f.hidden&&f.no>=x.from&&f.no<=x.to)).map(x=>`${esc(x.title)}（${x.from}–${x.to} 楼）`).join('、');box.insertAdjacentHTML('beforeend',`<div class="hidden-bar">${arch?'已归档：'+arch+'。':''}第 ${first}–${last} 楼中有 ${hid.length} 楼已隐藏，不再进入上下文，但仍可被记忆检索 <button class="small" id="btn-showhidden">${showHidden?'收起':'展开查看'}</button></div>`);$('#btn-showhidden').onclick=()=>{showHidden=!showHidden;renderStory();};}
+ for(const f of vis){if(f.hidden&&!showHidden)continue;const ch=chs.find(x=>x.from===f.no);if(ch)box.insertAdjacentHTML('beforeend',`<div class="chapter-div" id="ch-${ch.idx}">${esc(ch.title)}<small>第 ${ch.from}${ch.done?'–'+ch.to:''} 楼</small></div>`);box.append(floorEl(f,w,c));}
  if(!vis.length)box.insertAdjacentHTML('beforeend',`<div class="floor system"><div class="body">这个世界还是空白的。写下第一段，或点“发送”让 ${esc(c.name)} 开场。</div></div>`);
  box.scrollTop=keep||box.scrollHeight;
  renderShortcuts();renderDock();renderMeter();$('#sel-mode').value=S.settings.replyMode;$('#sel-len').value=S.settings.length;badges();
@@ -778,6 +786,13 @@ $('#btn-preview').onclick=()=>{const r=buildPrompt($('#input').value);
  const pre=r.msgs.map((m,i)=>`<span class="seg">［${m.role==='user'?'用户':'助手'} · 第 ${i+1} 段］</span>\n${esc(m.content)}`).join('\n\n');
  modal({title:'本次实际发给 AI 的内容',body:head+`<div class="prompt-pre">${pre}</div>`,foot:[{label:'复制',onClick:()=>{navigator.clipboard?.writeText(r.msgs.map(m=>`[${m.role}]\n${m.content}`).join('\n\n'));toast('已复制');}},{label:'关闭',cls:'primary',onClick:closeModal}],wide:true});};
 
+/* ----- 章节 ----- */
+$('#btn-chapters').onclick=()=>{const w=W();const chs=chapters(w);
+ modal({title:'章节',body:`<p class="muted" style="margin-top:0">每次总结归档就是一章。可以跳到某一章开头，或回溯到那一章开头重新走。</p>`+chs.map(ch=>`<div class="branch-node" data-ch="${ch.idx}"><span class="dot"></span><span class="grow">${esc(ch.title)} <span class="muted num">· 第 ${ch.from}${ch.done?'–'+ch.to:''} 楼</span></span><button class="small ghost" data-jump="${ch.idx}">跳到</button><button class="small ghost" data-ren="${ch.idx}">改名</button>${ch.from>1?`<button class="small ghost danger" data-rew="${ch.idx}">回溯到章首</button>`:''}</div>`).join('')||'<p class="muted">还没有楼层。</p>',foot:[{label:'关闭',cls:'primary',onClick:closeModal}]});
+ $$('#m-body [data-jump]').forEach(b=>b.onclick=()=>{const ch=chs[+b.dataset.jump-1];closeModal();const vis=visibleFloors(w);const f=vis.find(x=>x.no>=ch.from);if(f?.hidden){showHidden=true;renderStory();}const el=$('#ch-'+ch.idx)||$(`.floor[data-id="${f?.id}"]`);el?.scrollIntoView({behavior:'smooth',block:'start'});});
+ $$('#m-body [data-ren]').forEach(b=>b.onclick=()=>{const ch=chs[+b.dataset.ren-1];const e=memoryBook(w).entries.find(x=>x.from===ch.from&&x.to===ch.to);if(!e)return toast('进行中的章节归档后才能命名');promptBox('章名',e.chapter||'',v=>{e.chapter=v;save();renderStory();});});
+ $$('#m-body [data-rew]').forEach(b=>b.onclick=()=>{const ch=chs[+b.dataset.rew-1];confirmBox(`回溯到「${ch.title}」开头？当前分支里第 ${ch.from} 楼起的楼层会被删除，这一章及之后的总结也会移除。建议先用“分支”保留原线。`,()=>{w.floors=w.floors.filter(x=>!(x.branchId===w.activeBranchId&&x.no>=ch.from));const mb=memoryBook(w);mb.entries=mb.entries.filter(e=>!(e.from>=ch.from));memIndexAll();save();closeModal();renderStory();});});};
+
 /* ----- 分支 ----- */
 $('#btn-branches').onclick=()=>{const w=W();const depth=b=>branchChain(w,b.id).length-1;
  const body=`<p class="muted" style="margin-top:0">每条分支从某一楼分叉，之后的楼层互不影响。在楼层上点“⑂ 分支”可以从任意一楼开新线。</p>`+w.branches.map(b=>`<div class="branch-node ${b.id===w.activeBranchId?'active':''}" data-id="${b.id}" style="padding-left:${8+depth(b)*22}px"><span class="dot"></span><span class="grow">${esc(b.name)} <span class="muted num">· ${b.forkAt?'自第 '+b.forkAt+' 楼':'根'} · ${w.floors.filter(f=>f.branchId===b.id).length} 楼</span></span><button class="small ghost" data-ren="${b.id}">改名</button>${b.parentId?`<button class="small ghost danger" data-del="${b.id}">删除</button>`:''}</div>`).join('');
@@ -807,7 +822,7 @@ function renderDock(){const w=W(),c=C(w);
  $('#dock').innerHTML=`<div class="row"><h3>状态面板</h3><span class="grow"></span><button class="small ghost" id="dock-close">✕</button></div>
  <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">世界</div><div class="kv"><span>时间</span><span class="num">${esc(w.clock.time)}</span><span>地点</span><span>${esc(w.clock.location)}</span><span>天气</span><span>${esc(w.clock.weather)}</span></div></div>
  <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">${esc(c.name)}</div><div class="kv"><span>情绪</span><span>${esc(w.status.mood||'—')}</span><span>正在</span><span>${esc(w.status.doing||'—')}</span></div>
-  <details class="inner" style="margin-top:10px"><summary>偷看心声</summary><div class="voice">${esc(w.status.inner||'（还没有心声）')}</div></details></div>
+  <details class="inner" open style="margin-top:10px"><summary>心声</summary><div class="voice">${esc(w.status.inner||'（还没有心声）')}</div></details></div>
  <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">其他人在哪</div>${(w.status.npcs||[]).map(n=>`<div class="npc-line"><b>${esc(n.name)}</b><span class="muted">${esc(n.where||'')}</span><span>${esc(n.doing||'')}</span></div>`).join('')||'<span class="muted">暂无</span>'}</div>
  <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">关系</div>${(w.relations||[]).map(r=>`<div class="npc-line"><b>${esc(r.a)}</b><span class="muted">↔ ${esc(r.b)}</span><span>${esc(r.label)}</span></div>`).join('')}</div>
  <button class="small" id="dock-edit">✎ 手动修改时间/地点</button>`;
@@ -828,9 +843,9 @@ async function timeSkip(days,note){
  const base=buildPrompt('').segs.filter(([n])=>!n.startsWith('回复规则')&&!n.startsWith('预设 · 状态回传')).map(([n,t])=>`## ${n}\n${t}`).join('\n\n');
  const recent=visibleFloors(w).filter(f=>!f.hidden&&f.role!=='system').slice(-6).map(f=>`〔第${f.no}楼〕${floorText(f).slice(0,400)}`).join('\n');
  const chats=w.phone.chats.map(ch=>`${ch.name}（${ch.type==='group'?'群聊':'私聊'}）`).join('、');
- const prompt=`${base}\n\n## 最近的剧情\n${recent}\n\n## 任务\n现在世界时间从「${w.clock.time}」向后推进 ${days} 天。${note?`这段时间里 ${S.user.name}：${note}`:''}\n请模拟这 ${days} 天里 ${c.name} 与每位 NPC 各自的生活（工作、社交、心情起伏、彼此之间可能的互动），要有具体事件，不要都围着 ${S.user.name} 转。然后以 JSON 输出，只输出 JSON：\n{"time":"推进后的世界时间（同格式）","location":"${c.name} 现在在哪","weather":"天气","events":["按天列出的关键事件，5-10 条，每条一句话"],"whatsapp":[{"chat":"聊天名（只能是：${chats}）","messages":[{"from":"发送者","text":"消息内容"}]}],"ig":[{"author":"发帖人","caption":"文案","scene":"配图画面描述（一句话）"}],"diary":{"date":"日期","mood":"心情","text":"${c.name} 这几天里写的一篇日记，第一人称，150-300 字"},"status":{"mood":"${c.name} 现在的情绪","inner":"此刻心声","doing":"正在做什么","npcs":[{"name":"NPC","where":"在哪","doing":"做什么"}]},"relations":[{"a":"A","b":"B","label":"新的关系","note":"变化原因"}],"memory":["值得记住的事，1-3 条"]}\n消息要符合每个人的说话习惯，${c.name} 发消息应该简短克制；NPC 的私聊里可以有 ${S.user.name} 不在场时发生的事的线索。`;
+ const prompt=`${base}\n\n## 最近的剧情\n${recent}\n\n## 任务\n现在世界时间从「${w.clock.time}」向后推进 ${days} 天。${note?`这段时间里 ${S.user.name}：${note}`:''}\n请模拟这 ${days} 天里 ${c.name} 与每位 NPC 各自的生活（工作、社交、心情起伏、彼此之间可能的互动），要有具体事件，不要都围着 ${S.user.name} 转。然后以 JSON 输出，只输出 JSON：\n{"time":"推进后的世界时间（同格式）","location":"${c.name} 现在在哪","weather":"天气","days":[{"date":"这一天的日期（接着世界时间往后推）","events":["这一天发生的事，1-3 条，每条一句话"]}],"whatsapp":[{"chat":"聊天名（只能是：${chats}）","messages":[{"from":"发送者","text":"消息内容"}]}],"ig":[{"author":"发帖人","caption":"文案","scene":"配图画面描述（一句话）"}],"diary":{"date":"日期","mood":"心情","text":"${c.name} 这几天里写的一篇日记，第一人称，150-300 字"},"status":{"mood":"${c.name} 现在的情绪","inner":"此刻心声","doing":"正在做什么","npcs":[{"name":"NPC","where":"在哪","doing":"做什么"}]},"relations":[{"a":"A","b":"B","label":"新的关系","note":"变化原因"}],"memory":["值得记住的事，1-3 条"]}\n消息要符合每个人的说话习惯，${c.name} 发消息应该简短克制；NPC 的私聊里可以有 ${S.user.name} 不在场时发生的事的线索。`;
  try{const j=await AI.chat([{role:'user',content:prompt}],{json:true});
-  const no=nextNo(w);const sys=addFloor(w,'system',`⏭ 时间推进 ${days} 天（${w.clock.time} → ${j.time||'?'}）\n`+(j.events||[]).map(e=>'· '+e).join('\n'));
+  const no=nextNo(w);const daysTxt=Array.isArray(j.days)&&j.days.length?j.days.map(d=>`${d.date||''}\n`+(d.events||[]).map(e=>'  · '+e).join('\n')).join('\n'):(j.events||[]).map(e=>'· '+e).join('\n');const sys=addFloor(w,'system',`⏭ 时间推进 ${days} 天（${w.clock.time} → ${j.time||'?'}）\n`+daysTxt);
   applyState(w,{time:j.time,location:j.location,weather:j.weather,...(j.status||{}),relations:j.relations},no);
   for(const m of j.memory||[])w.memoryPoints.push({no,text:String(m)});
   for(const cw of j.whatsapp||[]){const ch=w.phone.chats.find(x=>x.name===cw.chat)||w.phone.chats.find(x=>cw.chat?.includes(x.name));if(!ch)continue;for(const m of cw.messages||[]){if(!m?.text)continue;ch.messages.push({from:m.from||ch.name,text:m.text,time:j.time||'',unread:m.from!==S.user.name});}}
@@ -976,8 +991,8 @@ function renderMemory(){const w=W();const el=$('#memory-page');const vis=visible
 async function summarize(from,to,hide){
  if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),5000);const w=W();const fls=visibleFloors(w).filter(f=>f.role!=='system'&&f.no>=from&&f.no<=to);if(!fls.length)return toast('这个范围里没有楼层');
  toast(`正在总结第 ${from}-${to} 楼…`,8000);const c=C(w);
- const p=`${S.settings.summaryPrompt}\n\n人物：${c.name}（主角），${S.user.name}（用户），NPC：${(c.npcs||[]).map(n=>n.name).join('、')}\n\n${fls.map(f=>`〔第${f.no}楼 · ${f.role==='user'?S.user.name:c.name}〕\n${floorText(f)}`).join('\n\n')}`;
- try{const r=await AI.chat([{role:'user',content:p}],{});const mb=memoryBook(w);mb.entries.push({id:uid(),title:`${from}-${to}`,from,to,keys:'',constant:true,enabled:true,content:r.text.trim()});
+ const p=`${S.settings.summaryPrompt}\n\n另外：第一行请单独写“章名：xxx”（4-10 字，像小说章节名），然后空一行再写总结。\n\n人物：${c.name}（主角），${S.user.name}（用户），NPC：${(c.npcs||[]).map(n=>n.name).join('、')}\n\n${fls.map(f=>`〔第${f.no}楼 · ${f.role==='user'?S.user.name:c.name}〕\n${floorText(f)}`).join('\n\n')}`;
+ try{const r=await AI.chat([{role:'user',content:p}],{});let text=r.text.trim(),chapter='';const m=text.match(/^章名[：:]\s*(.+)\s*\n?/);if(m){chapter=m[1].trim();text=text.slice(m[0].length).trim();}const mb=memoryBook(w);const idx=mb.entries.filter(e=>e.from).length+1;mb.entries.push({id:uid(),title:`${from}-${to}`,from,to,keys:'',constant:true,enabled:true,content:text,chapter:chapter?`第 ${idx} 章 · ${chapter}`:''});
   if(hide)fls.forEach(f=>f.hidden=true);memIndexAll();save();renderMemory();toast('已归档到世界书「'+mb.name+'」');}catch(e){toast(errCopy(e),6000);}
 }
 
