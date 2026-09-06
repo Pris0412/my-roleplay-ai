@@ -607,11 +607,12 @@ let editChar=null;
 function renderChars(b){
   if(editChar)return renderCharForm(b,editChar);
   b.innerHTML=`<p class="muted">角色卡放这里。可以手写，也可以只写一句关系描述让 AI 随机生成性格、样貌。支持导入 SillyTavern 的 PNG 角色卡。</p>
-  ${S.characters.map(c=>`<div class="card" data-ec="${c.id}" style="cursor:pointer"><div class="row">${avatar(c)}<div class="grow"><b>${esc(c.name)}</b> <span class="chip ${c.role==='main'?'acc':''}">${c.role==='main'?'主角':'NPC'}</span><div class="tiny" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.personality||c.relation||'')}</div></div></div></div>`).join('')}
+  ${S.characters.map(c=>`<div class="card" data-ec="${c.id}" style="cursor:pointer"><div class="row">${avatar(c)}<div class="grow"><b>${esc(c.name)}</b> <span class="chip ${c.role==='main'?'acc':''}">${c.role==='main'?'主角':'NPC'}</span><div class="tiny" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.personality||c.relation||'')}</div></div><button class="btn sm p" data-start="${c.id}" title="用这个角色开一个新世界，直接开始">▶ 开始</button></div></div>`).join('')}
   <div class="row" style="margin-top:8px"><button class="btn p" id="newChar">＋ 新角色</button><button class="btn" id="importPng">导入角色卡（PNG / JSON）</button><button class="btn ghost" id="pasteCard">粘贴 JSON</button></div>
   <div class="tiny" style="margin-top:6px">也可以把 PNG / JSON 卡直接拖进这个面板。</div>
   <p class="tiny" style="margin-top:8px">兼容 SillyTavern V2/V3 卡：描述、性格、场景、开场白与备选开场白、示例对话、系统提示、附加指令、角色世界书、正则脚本、头像都会一并导入。</p>`;
-  $$('[data-ec]',b).forEach(el=>el.onclick=()=>{editChar=JSON.parse(JSON.stringify(S.characters.find(c=>c.id===el.dataset.ec)));renderPanel()});
+  $$('[data-ec]',b).forEach(el=>el.onclick=e=>{if(e.target.closest('[data-start]'))return;editChar=JSON.parse(JSON.stringify(S.characters.find(c=>c.id===el.dataset.ec)));renderPanel()});
+  $$('[data-start]',b).forEach(el=>el.onclick=()=>startWorldWith(S.characters.find(c=>c.id===el.dataset.start)));
   $('#newChar',b).onclick=()=>{editChar={id:'c_'+uid(),name:'',role:'npc',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:'',background:'',speech:'',relation:'',firstMessage:'',_new:true};renderPanel()};
   $('#importPng',b).onclick=()=>pickFile('.png,.json,image/png,application/json',importCard);
   $('#pasteCard',b).onclick=()=>modal(`<h3>粘贴角色卡 JSON</h3><p class="tiny">在 SillyTavern 角色页「导出 → JSON」，打开文件全选复制，粘贴到这里。</p><textarea id="pcTxt" style="min-height:220px;font-size:12px" placeholder='{"spec":"chara_card_v2", ...}'></textarea><div class="row" style="margin-top:12px"><button class="btn p" id="pcOk">导入</button><button class="btn ghost" id="pcNo">取消</button></div>`,m=>{$('#pcOk',m).onclick=()=>{const t=$('#pcTxt',m).value.trim();if(!t)return;closeModal();importCardText(t)};$('#pcNo',m).onclick=closeModal});
@@ -696,8 +697,23 @@ async function importCard(file){
     const book=d.character_book?.entries||[];if(book.length)c.lorebook=book.map(e=>stEntryToLore(e,c.name));
     const rx=Array.isArray(ext.regex_scripts)?ext.regex_scripts:[];if(rx.length){S.regex=S.regex||[];rx.forEach(sc=>S.regex.push(importStRegexScript(sc,c.id)))}
     if(!file.name.endsWith('.json')){try{const av=await shrinkImage(file,256,.8);const id='av_'+uid();c.avatarId=id;setAsset(id,av)}catch(e){}}
-    S.characters.push(c);markDirty();editChar=JSON.parse(JSON.stringify(c));renderPanel();toast(`已导入 ${c.name}${book.length?'（含 '+book.length+' 条世界书）':''}${rx.length?'（'+rx.length+' 条正则）':''}${c.altGreetings.length?'（'+c.altGreetings.length+' 个备选开场白）':''}`,4500);
+    S.characters.push(c);markDirty();editChar=null;if(panelKind==='chars')renderPanel();
+    modal(`<h3>已导入 ${esc(c.name)}</h3><p class="muted">${book.length?book.length+' 条世界书 · ':''}${rx.length?rx.length+' 条正则 · ':''}${c.altGreetings.length?c.altGreetings.length+' 个备选开场白 · ':''}头像${c.avatarId?'已带入':'未带入'}</p>
+    <div class="card"><b>现在开始玩？</b><p class="tiny">会为 ${esc(c.name)} 新建一个世界：带上角色自带的世界书，用开场白作为第一楼，然后直接进入剧情。你扮演的角色沿用当前设置（可在「世界」里改）。</p>
+    <label class="f">世界名称</label><input type="text" id="swName" value="${esc(c.name)}"><label class="f">你的名字</label><input type="text" id="swUser" value="${esc(world().user.name)}"></div>
+    <div class="row" style="margin-top:12px"><button class="btn p" id="swGo">▶ 开新世界并开始</button><button class="btn ghost" id="swEdit">先看看角色卡</button><button class="btn ghost" id="swNo">稍后</button></div>`,m=>{
+      $('#swGo',m).onclick=()=>{const nm=$('#swName',m).value.trim()||c.name;const un=$('#swUser',m).value.trim()||'uu';closeModal();startWorldWith(c,nm,un)};
+      $('#swEdit',m).onclick=()=>{closeModal();editChar=JSON.parse(JSON.stringify(c));openPanel('chars');if(panelKind!=='chars')openPanel('chars')};
+      $('#swNo',m).onclick=closeModal});
   }catch(e){console.error('import',e);toast('导入失败：'+(e.message||e),6000)}
+}
+function startWorldWith(c,name,userName){
+  const cur=world();const nw={id:'w_'+uid(),name:name||c.name,presetId:cur.presetId||S.presets[0].id,charIds:[c.id],user:{name:userName||cur.user.name||'uu',desc:cur.user.desc||''},lorebook:[],floors:[],branches:[],summaries:[],state:{date:'',time:'',place:'',weather:'',inner:'',present:c.name},relations:[],notes:[]};
+  (c.lorebook||[]).forEach(e=>nw.lorebook.push({...e,id:uid(),group:c.name,charId:c.id}));
+  if(c.firstMessage)nw.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage,...(c.altGreetings||[])].map(t=>fillVars(t,nw)),si:0,hidden:false,t:now(),meta:null});
+  S.worlds.push(nw);S.activeWorldId=nw.id;dirty.add(nw.id);markDirty();
+  if(panelKind)openPanel(panelKind);renderAll();
+  toast(nw.floors.length?`已进入「${nw.name}」。${(c.altGreetings||[]).length?'第一楼可左右切换备选开场白，':''}在下方输入你的第一段回复吧`:`已进入「${nw.name}」。点「让 AI 写开场」或直接输入你的第一段`,6000);
 }
 function importCardText(txt){try{const data=JSON.parse(txt);importCard(new File([JSON.stringify(data)],'card.json',{type:'application/json'}))}catch(e){toast('不是合法的 JSON：'+e.message,4000)}}
 function stEntryToLore(e,group){const pos=e.position;return {id:uid(),title:e.comment||e.name||(e.keys||[])[0]||'条目',keys:(e.keys||e.key||[]).filter(Boolean),secondaryKeys:(e.secondary_keys||e.keysecondary||[]).filter(Boolean),selective:!!e.selective,caseSensitive:!!e.case_sensitive,order:e.insertion_order??e.order??100,content:e.content||'',enabled:e.enabled!==false&&!e.disable,always:!!e.constant,group}}
@@ -926,7 +942,7 @@ function renderTop(){const w=world();$('#worldTitle').textContent=w.name;$('#who
 function renderCtx(){const w=world();const p=buildPrompt(w,{userText:$('#msg').value});const kb=p.bytes/KB;const el=$('#ctx');el.className=kb>60?'bad':kb>S.settings.warnKB?'warn':'';const lastEnd=w.summaries.reduce((m,s)=>Math.max(m,+String(s.range).split('-')[1]||0),0);const pending=w.floors.filter(f=>f.n>lastEnd&&!f.hidden).length-(S.settings.keepRecent||0);const needSum=pending>=(S.settings.autoSumEvery||20);$('#ctxLabel').textContent=`上下文 ${kb.toFixed(1)} / 64 KB${p.omitted?` · 已自动省略前 ${p.omitted} 楼`:''}${needSum?` · 建议总结（${pending} 楼未总结）`:''}`;if(needSum&&!renderCtx._warned){renderCtx._warned=true;toast(`已有 ${pending} 楼没有总结，去「记忆」或 ➕ 面板点一下「总结」吧`,5000)}if(!needSum)renderCtx._warned=false;$('#ctxBar').style.width=Math.min(100,kb/64*100)+'%';el.title=kb>S.settings.warnKB?'上下文偏大：建议去「记忆」总结早期楼层，或隐藏楼层。隐藏后仍可被检索。':'';return p}
 function renderFloors(){
   const w=world();const box=$('#floors');
-  if(!w.floors.length){const c=chars(w)[0];box.innerHTML=`<div class="empty"><h3>${esc(w.name)}</h3>${c?`<p>主角 ${esc(c.name)} 已就位。</p>${c.firstMessage?`<button class="btn p" id="useFirst">用 ${esc(c.name)} 的开场白开始</button> `:''}<button class="btn" id="aiOpen">让 AI 写开场</button>`:'<p>先去左侧「世界」勾选在场角色。</p>'}</div>`;const uf=$('#useFirst');if(uf)uf.onclick=()=>{w.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage,...(c.altGreetings||[])],si:0,hidden:false,t:now(),meta:null});markDirty(w.id);renderAll()};const ao=$('#aiOpen');if(ao)ao.onclick=()=>generate({mode:'continue',continueText:'（请写下这个故事的开场：交代时间、地点、氛围，让在场角色登场。）'});return}
+  if(!w.floors.length){const c=chars(w)[0];box.innerHTML=`<div class="empty"><h3>${esc(w.name)}</h3>${c?`<p>主角 ${esc(c.name)} 已就位。</p>${c.firstMessage?`<button class="btn p" id="useFirst">用 ${esc(c.name)} 的开场白开始</button> `:''}<button class="btn" id="aiOpen">让 AI 写开场</button>`:'<p>这个世界还没有角色。</p><button class="btn p" data-nav="chars">去角色库选一个 ▶ 开始</button> <button class="btn" data-nav="world">或在「世界」里勾选在场角色</button>'}</div>`;const uf=$('#useFirst');if(uf)uf.onclick=()=>{w.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage,...(c.altGreetings||[])],si:0,hidden:false,t:now(),meta:null});markDirty(w.id);renderAll()};const ao=$('#aiOpen');if(ao)ao.onclick=()=>generate({mode:'continue',continueText:'（请写下这个故事的开场：交代时间、地点、氛围，让在场角色登场。）'});return}
   const last=w.floors[w.floors.length-1];
   box.innerHTML=w.floors.map(f=>`<article class="floor ${f.role} ${f.hidden?'hid':''}" data-f="${f.id}" id="f${f.id}">
     <div class="lbl">${floorAvatar(f,w)}<b>${esc(labelOf(f,w))}</b><span>#${f.n}</span>${f.model?`<span class="tiny">${esc(f.model)}</span>`:''}${f.hidden?'<span class="chip">已隐藏 · 仍可检索</span>':''}${f.swipes.length>1?`<span class="chip">${f.si+1}/${f.swipes.length}</span>`:''}</div>
