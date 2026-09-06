@@ -178,6 +178,32 @@ pre.pv{white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-s
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--surface);transition:left .15s}
 .sw.on{background:var(--accent)}.sw.on::after{left:17px}
 #mobileTabs{display:none}
+/* ===== phone ===== */
+#drawerBody.phone{display:flex;flex-direction:column;overflow:hidden;padding:0}
+.wa{display:flex;flex-direction:column;height:100%;min-height:0;font-family:var(--sans)}
+.wa .bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
+.wa .bar b{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa .list{flex:1;overflow:auto;padding:8px 10px}
+.wa .item{display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:12px;cursor:pointer}
+.wa .item:hover{background:var(--surface2)}
+.wa .item .t{flex:1;min-width:0}.wa .item .t b{font-weight:500;display:block}.wa .item .t span{font-size:12px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wa .badge{min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:12px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+.wa .msgs{flex:1;overflow:auto;padding:12px 12px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.wa .day{align-self:center;font-size:11px;color:var(--muted);background:var(--surface2);padding:2px 10px;border-radius:10px;margin:6px 0}
+.bub{max-width:82%;padding:8px 12px;border-radius:16px;font-size:15px;line-height:1.5;word-break:break-word;position:relative}
+.bub.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px}
+.bub.them{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:4px}
+.bub .who{font-size:11px;color:var(--accent);margin-bottom:2px}
+.bub .tm{font-size:10px;opacity:.6;margin-top:2px;text-align:right}
+.bub.tx{background:var(--gold-soft);border:1px dashed var(--gold);color:var(--ink);min-width:160px}
+.bub.tx .amt{font-size:22px;font-family:var(--display);color:var(--gold)}
+.bub.typing{color:var(--muted);font-style:italic}
+.wa .in{display:flex;gap:6px;padding:8px 10px max(8px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--surface);align-items:flex-end}
+.wa .in textarea{min-height:40px;max-height:120px;border-radius:20px;padding:9px 14px;font-size:15px}
+.wa .wallet{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--gold-soft);color:var(--ink);border-radius:14px;margin:10px}
+.wa .wallet b{font-family:var(--display);font-size:22px;color:var(--gold)}
+#plusBtn .dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--bad)}
+#cbar .ib{position:relative}
 
 @media (max-width:900px){
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
@@ -399,6 +425,7 @@ function buildPrompt(w,opts={}){
     `【当前状态】\n日期：${w.state.date||'—'}　时间：${w.state.time||'—'}　地点：${w.state.place||'—'}　天气：${w.state.weather||'—'}\n在场：${w.state.present||'—'}`,
     w.relations.length?`【人物关系】\n${w.relations.map(r=>`${r.a} ↔ ${r.b}：${r.label}`).join('\n')}`:'',
     w.notes.length?`【重要记忆点】\n${w.notes.slice(-15).map(n=>`(#${n.n}) ${n.text}`).join('\n')}`:'',
+    phoneDigest(w),
   ];
   const rules=`【回复规则】
 - ${pov}；写小说正文，${LENGTHS.find(l=>l.id===st.length)?.label.split('·')[1].trim()||'约800字'}（这是硬性要求，宁可多写环境与心理也要达到字数）。
@@ -424,6 +451,14 @@ function buildPrompt(w,opts={}){
   if(turns[turns.length-1].role==='assistant')turns.push({role:'user',content:opts.continueText||'（请继续推进剧情，不要重复上文。）'});
   const all=[first,...turns];
   return {turns:all,bytes:all.reduce((a,t)=>a+bytes(t.content),0),omitted,recall,lore,inContext};
+}
+function phoneDigest(w){
+  const ph=w.phone;if(!ph||!ph.chats.some(c=>c.msgs.length))return '';
+  const parts=[];
+  for(const c of ph.chats){if(!c.msgs.length)continue;const names=c.memberIds.map(id=>S.characters.find(x=>x.id===id)?.name).filter(Boolean);
+    const head=c.type==='group'?`群聊「${c.name}」（成员：${names.join('、')}、${w.user.name}；群里所有成员都知道这些内容）`:`${names[0]} 与 ${w.user.name} 的私聊（只有他们两人知道，其他角色一概不知情，不得提及）`;
+    parts.push(`◆ ${head}\n${c.msgs.slice(-10).map(m=>`[${m.time||''}] ${m.from==='user'?w.user.name:(S.characters.find(x=>x.id===m.from)?.name||'?')}：${m.amount?`（转账 ¥${m.amount}）`:''}${m.text||''}`).join('\n')}`)}
+  return parts.length?`【手机聊天记录（WhatsApp）】\n${parts.join('\n\n')}`:'';
 }
 function parseState(text){
   const m=text.match(/<state>([\s\S]*?)<\/state>\s*$/); if(!m)return {body:text.trim(),meta:null};
@@ -740,7 +775,7 @@ function renderFloors(){
 function floorAvatar(f,w){if(f.role==='user')return '';const c=f.charId?S.characters.find(x=>x.id===f.charId):(chars(w).length===1?chars(w)[0]:null);const u=c&&assetUrl(c.avatarId);return u?`<img src="${u}" alt="">`:''}
 function fl(id){return world().floors.find(f=>f.id===id)}
 function scrollBottom(){const r=$('#reader');r.scrollTop=r.scrollHeight}
-function renderAll(){renderTop();renderFloors();renderQuick();renderCtx();if($('#drawer').classList.contains('open'))renderDrawer();scrollBottom()}
+function renderAll(){renderTop();renderFloors();renderQuick();renderCtx();renderPlusDot();if($('#drawer').classList.contains('open'))renderDrawer();scrollBottom()}
 function renderQuick(){$('#quick').innerHTML=S.settings.quick.map(q=>`<button data-q="${esc(q)}">${esc(q)}</button>`).join('');$$('[data-q]').forEach(el=>el.onclick=()=>insertAtCursor($('#msg'),el.dataset.q))}
 function insertAtCursor(ta,txt){const s=ta.selectionStart,e=ta.selectionEnd;const v=ta.value;let ins=txt,cur=s+txt.length;if(txt.length===2&&/[「『（【]/.test(txt[0])){const sel=v.slice(s,e);ins=txt[0]+sel+txt[1];cur=s+1+sel.length}ta.value=v.slice(0,s)+ins+v.slice(e);ta.selectionStart=ta.selectionEnd=cur;ta.focus();ta.dispatchEvent(new Event('input'))}
 function setStatus(t,keep){const el=$('#status');el.textContent=t||'';if(keep)setTimeout(()=>{if(el.textContent===t)el.textContent=''},4000)}
@@ -836,12 +871,13 @@ ${old?'用户已经写了开头，请顺着补完：'+old:''}
 }
 
 /* ---------------- drawer ---------------- */
-const DTABS=[['state','状态'],['rel','关系'],['notes','记忆点'],['lore','世界书'],['mem','检索'],['prompt','提示词预览']];
+const DTABS=[['phone','小手机'],['state','状态'],['rel','关系'],['notes','记忆点'],['lore','世界书'],['mem','检索'],['prompt','提示词预览']];
 let dtab='state';
 function openDrawer(t){if(t)dtab=t;$('#drawer').classList.add('open');renderDrawer()}
 function renderDrawer(){
   const w=world();$('#drawerTabs').innerHTML=DTABS.map(([k,l])=>`<button class="tab ${dtab===k?'on':''}" data-dt="${k}">${l}</button>`).join('');$$('[data-dt]').forEach(el=>el.onclick=()=>{dtab=el.dataset.dt;renderDrawer()});
-  const b=$('#drawerBody');b.innerHTML='';
+  const b=$('#drawerBody');b.innerHTML='';b.classList.toggle('phone',dtab==='phone');
+  if(dtab==='phone')return renderPhone(b);
   if(dtab==='state'){const st=w.state;const c=chars(w)[0];b.innerHTML=`<dl class="kv"><dt>日期</dt><dd>${esc(st.date||'—')}</dd><dt>时间</dt><dd>${esc(st.time||'—')}</dd><dt>地点</dt><dd>${esc(st.place||'—')}</dd><dt>天气</dt><dd>${esc(st.weather||'—')}</dd><dt>在场</dt><dd>${esc(st.present||'—')}</dd></dl>
     <details class="acc" style="margin-top:14px"><summary>偷看 ${esc(c?.name||'角色')} 的心声</summary><div class="body" style="font-family:var(--serif);color:var(--ink2)">${esc(st.inner||'（还没有心声）')}</div></details>
     <p class="tiny">状态由每楼回复末尾的状态块自动更新；也可以手动改：</p>
@@ -856,6 +892,71 @@ function renderDrawer(){
   if(dtab==='lore')renderLore(b,true);
   if(dtab==='mem')renderMemory(b,true);
   if(dtab==='prompt'){const p=buildPrompt(w,{userText:$('#msg').value});b.innerHTML=`<p class="tiny">这就是下次点「发送」时实际发给 AI 的完整内容（${(p.bytes/KB).toFixed(1)} KB，${p.turns.length} 段；世界书 ${p.lore.length} 条；FTS 检索 ${p.recall.length} 楼${p.omitted?'；省略最早 '+p.omitted+' 楼':''}）。</p><pre class="pv">${esc(p.turns.map(t=>`━━ ${t.role==='user'?'USER':'ASSISTANT'} ━━\n${t.content}`).join('\n\n'))}</pre>`}
+}
+/* ---------------- phone (WhatsApp) ---------------- */
+let phoneChat=null, phoneBusy=false;
+function ensurePhone(w){if(!w.phone)w.phone={chats:[],wallet:{balance:3000,tx:[]}};for(const c of chars(w)){if(!w.phone.chats.some(x=>x.type==='dm'&&x.memberIds[0]===c.id))w.phone.chats.push({id:uid(),type:'dm',name:c.name,memberIds:[c.id],msgs:[],unread:0})}return w.phone}
+function chatName(c){return c.type==='group'?c.name:(S.characters.find(x=>x.id===c.memberIds[0])?.name||c.name)}
+function nameOf(id,w){return id==='user'?w.user.name:(S.characters.find(x=>x.id===id)?.name||'?')}
+function unreadTotal(w){return (w.phone?.chats||[]).reduce((a,c)=>a+(c.unread||0),0)}
+function renderPlusDot(){const w=world();const n=unreadTotal(w);let d=$('#plusBtn .dot');if(n&&!d){d=document.createElement('span');d.className='dot';$('#plusBtn').appendChild(d)}if(!n&&d)d.remove()}
+function renderPhone(b){
+  const w=world();const ph=ensurePhone(w);
+  if(!phoneChat||!ph.chats.some(c=>c.id===phoneChat)){phoneChat=null;
+    b.innerHTML=`<div class="wa"><div class="wallet"><span>钱包余额</span><b>¥${ph.wallet.balance.toLocaleString()}</b></div>
+    <div class="list">${ph.chats.map(c=>{const last=c.msgs[c.msgs.length-1];const cc=c.type==='dm'?S.characters.find(x=>x.id===c.memberIds[0]):null;return `<div class="item" data-chat="${c.id}">${cc?avatar(cc):`<span class="ava" style="background:var(--gold)">群</span>`}<div class="t"><b>${esc(chatName(c))}</b><span>${last?esc((last.from==='user'?'我：':'')+(last.amount?`[转账 ¥${last.amount}] `:'')+(last.text||'')):'还没有消息'}</span></div>${c.unread?`<span class="badge">${c.unread}</span>`:''}</div>`}).join('')}
+    <div class="row" style="padding:10px 8px"><button class="btn sm" id="newGroup">＋ 新建群聊</button></div></div></div>`;
+    $$('[data-chat]',b).forEach(el=>el.onclick=()=>{phoneChat=el.dataset.chat;const c=ph.chats.find(x=>x.id===phoneChat);c.unread=0;markDirty(w.id);renderPlusDot();renderPhone(b)});
+    $('#newGroup',b).onclick=()=>modal(`<h3>新建群聊</h3><label class="f">群名</label><input type="text" id="gName" value="夜聊小队"><label class="f">成员</label>${chars(w).map(c=>`<label class="row" style="padding:6px 0;cursor:pointer"><input type="checkbox" data-gm="${c.id}" checked>${avatar(c)}<span>${esc(c.name)}</span></label>`).join('')}<div class="row" style="margin-top:14px"><button class="btn p" id="gOk">创建</button><button class="btn ghost" id="gNo">取消</button></div>`,m=>{$('#gOk',m).onclick=()=>{const ids=$$('[data-gm]:checked',m).map(x=>x.dataset.gm);if(ids.length<2)return toast('群聊至少两位角色');ph.chats.push({id:uid(),type:'group',name:$('#gName',m).value||'群聊',memberIds:ids,msgs:[],unread:0});markDirty(w.id);closeModal();renderPhone(b)};$('#gNo',m).onclick=closeModal});
+    return}
+  const c=ph.chats.find(x=>x.id===phoneChat);const members=c.memberIds.map(id=>S.characters.find(x=>x.id===id)).filter(Boolean);
+  b.innerHTML=`<div class="wa"><div class="bar"><button class="btn sm ghost" id="phBack">←</button>${c.type==='dm'&&members[0]?avatar(members[0]):''}<b>${esc(chatName(c))}</b><span class="tiny">${c.type==='group'?members.map(m=>m.name).join('、'):(w.state.time||'')}</span>${c.type==='group'?'<button class="btn sm ghost danger" id="phDelChat" title="解散群聊">解散</button>':'<button class="btn sm ghost" id="phClear" title="清空记录">清空</button>'}</div>
+  <div class="msgs" id="phMsgs">${c.msgs.length?c.msgs.map(m=>bubble(m,c,w)).join(''):'<div class="day">还没有消息，先说点什么吧</div>'}</div>
+  <div class="in"><button class="ib btn" id="phTx" title="转账">¥</button><textarea id="phIn" placeholder="发消息…"></textarea><button class="btn p" id="phSend">发送</button></div></div>`;
+  $('#phBack',b).onclick=()=>{phoneChat=null;renderPhone(b)};
+  const dc=$('#phDelChat',b);if(dc)dc.onclick=()=>{if(!confirm('解散这个群聊？'))return;ph.chats=ph.chats.filter(x=>x.id!==c.id);phoneChat=null;markDirty(w.id);renderPhone(b)};
+  const cl=$('#phClear',b);if(cl)cl.onclick=()=>{if(!confirm('清空这段聊天记录？'))return;c.msgs=[];markDirty(w.id);renderPhone(b)};
+  const ta=$('#phIn',b);ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#phSend',b).click()}};
+  $('#phSend',b).onclick=()=>{const t=ta.value.trim();if(!t||phoneBusy)return;ta.value='';pushMsg(c,{from:'user',text:t});renderPhone(b);replyPhone(c,b)};
+  $('#phTx',b).onclick=()=>{const a=+prompt('转账金额（¥）','200');if(!a||a<=0)return;if(a>ph.wallet.balance)return toast('余额不够');const note=prompt('留言（可空）','')||'';ph.wallet.balance-=a;ph.wallet.tx.push({t:now(),amount:-a,to:chatName(c),note});pushMsg(c,{from:'user',text:note,amount:a});renderPhone(b);replyPhone(c,b)};
+  const box=$('#phMsgs',b);box.scrollTop=box.scrollHeight;ta.focus();
+}
+function bubble(m,c,w){const me=m.from==='user';const who=c.type==='group'&&!me?`<div class="who">${esc(nameOf(m.from,w))}</div>`:'';if(m.amount)return `<div class="bub tx ${me?'me':'them'}">${who}<div class="tiny">${me?'你向 '+esc(chatName(c))+' 转账':esc(nameOf(m.from,w))+' 向你转账'}</div><div class="amt">¥${m.amount.toLocaleString()}</div>${m.text?`<div>${esc(m.text)}</div>`:''}<div class="tm">${esc(m.time||'')}</div></div>`;return `<div class="bub ${me?'me':'them'}">${who}${esc(m.text).replace(/\n/g,'<br>')}<div class="tm">${esc(m.time||'')}</div></div>`}
+function pushMsg(c,m){const w=world();c.msgs.push({id:uid(),t:now(),time:w.state.time||'',...m});markDirty(w.id)}
+async function replyPhone(c,b){
+  const w=world();if(!AI.ok())return toast('AI 不可用');
+  const members=c.memberIds.map(id=>S.characters.find(x=>x.id===id)).filter(Boolean);if(!members.length)return;
+  const ph=w.phone;const others=ph.chats.filter(x=>x.id!==c.id&&x.type==='group'&&x.msgs.length&&x.memberIds.some(id=>c.memberIds.includes(id)));
+  const story=w.floors.filter(f=>!f.hidden).slice(-6).map(f=>`(#${f.n}) ${f.role==='user'?w.user.name:labelOf(f,w)}：${floorText(f).slice(0,500)}`).join('\n');
+  const lore=triggeredLore(w,c.msgs.slice(-6).map(m=>m.text||'').join(' '));
+  const prompt=`你在扮演${members.map(m=>'「'+m.name+'」').join('')}，正在用 WhatsApp 和 ${w.user.name} ${c.type==='group'?`在群聊「${c.name}」里`:'私聊'}。
+【${w.user.name}】${w.user.desc}
+${members.map(m=>charBlock(m,w)).join('\n\n')}
+【此刻世界状态】${w.state.date||''} ${w.state.time||''}，${w.state.place||''}，${w.state.weather||''}；在场：${w.state.present||''}
+【人物关系】${w.relations.map(r=>`${r.a}↔${r.b}：${r.label}`).join('；')}
+【重要记忆点】${w.notes.slice(-10).map(n=>n.text).join('；')}
+${lore.length?`【相关设定】\n${lore.map(e=>e.title+'：'+fillVars(e.content,w)).join('\n')}\n`:''}【剧情里最近发生的事】
+${story||'（刚开始）'}
+${others.length?`【${members.map(m=>m.name).join('/')}也在的其他群聊（他们知道这些）】\n${others.map(x=>`群「${x.name}」：\n${x.msgs.slice(-8).map(m=>nameOf(m.from,w)+'：'+(m.text||'')).join('\n')}`).join('\n')}\n`:''}【这个聊天的记录（最近）】
+${c.msgs.slice(-30).map(m=>`${nameOf(m.from,w)}：${m.amount?`[转账 ¥${m.amount}] `:''}${m.text||''}`).join('\n')}
+
+【规则】
+- 像真人在手机上打字：每条很短（多数不超过 25 字），可以连发 1-4 条，口语化，用词、标点、表情/颜文字、省略号、语气词都要符合各自人设（有的人惜字如金，有的人一条接一条）。
+- 不写动作描写、不写旁白、不加引号，不替 ${w.user.name} 说话。
+- 结合此刻的世界状态：如果他正在忙、在睡、在直播，可以晚回、敷衍、只回一个字，甚至这轮不回（返回空数组）。
+- 群聊里各成员按性格回复，不必每个人都回；私聊里只能用这个角色的口吻。
+- 私聊内容其他角色不知道；不要提及你不该知道的私聊。
+- 如果剧情合理，可以转账（例如替对方付钱、发红包），用 "amount" 字段，数字，附一句话。
+只回复 JSON 数组，例如：[{"from":"${members[0].name}","text":"嗯"},{"from":"${members[0].name}","text":"到家了？"}]，或转账 {"from":"名字","text":"拿去买奶茶","amount":50}。`;
+  phoneBusy=true;const box=$('#phMsgs',b);if(box){const t=document.createElement('div');t.className='bub them typing';t.textContent='对方正在输入…';box.appendChild(t);box.scrollTop=box.scrollHeight}
+  try{const r=await AI.json(prompt,{tier:'quick'});const list=Array.isArray(r)?r:[];
+    for(const m of list){if(!m||(!m.text&&!m.amount))continue;const who=members.find(x=>x.name===m.from)||members[0];const amount=Number(m.amount)||0;if(amount>0){ph.wallet.balance+=amount;ph.wallet.tx.push({t:now(),amount,from:who.name,note:m.text||''})}
+      await new Promise(r=>setTimeout(r,350+Math.min(1200,String(m.text||'').length*40)));
+      pushMsg(c,{from:who.id,text:String(m.text||''),amount:amount||undefined});if(phoneChat!==c.id||!$('#drawer').classList.contains('open')||dtab!=='phone')c.unread=(c.unread||0)+1;
+      if(phoneChat===c.id&&dtab==='phone'){const bx=$('#phMsgs');if(bx){bx.querySelector('.typing')?.remove();bx.insertAdjacentHTML('beforeend',bubble(c.msgs[c.msgs.length-1],c,w));if(list.indexOf(m)<list.length-1){const t=document.createElement('div');t.className='bub them typing';t.textContent='对方正在输入…';bx.appendChild(t)}bx.scrollTop=bx.scrollHeight}}}
+    if(!list.length)toast(`${members.map(m=>m.name).join('、')} 没有回复……`);
+  }catch(e){toast('回复失败：'+(e.message||e.code),4000)}
+  finally{phoneBusy=false;$('#phMsgs .typing')?.remove();markDirty(w.id);renderPlusDot();if(phoneChat===c.id&&dtab==='phone'&&$('#drawer').classList.contains('open'))renderPhone($('#drawerBody'))}
 }
 function relGraph(w){
   const names=[...new Set(w.relations.flatMap(r=>[r.a,r.b]))];if(!names.length)return '';
