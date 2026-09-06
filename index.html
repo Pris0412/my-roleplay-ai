@@ -286,6 +286,36 @@ details.inner .voice{font-family:var(--serif);margin-top:10px;padding:12px 14px;
 .banner.danger{background:var(--danger-soft);color:var(--danger)}
 .banner.good{background:var(--good-soft);color:var(--good)}
 
+/* ---------- 首页 / 编辑器增强 ---------- */
+.continue{display:flex;gap:16px;align-items:center;padding:18px 20px;border:1px solid var(--accent);border-radius:16px;background:var(--surface);margin-bottom:22px;cursor:pointer;box-shadow:0 0 0 4px var(--accent-soft)}
+.continue .c-title{font-family:var(--display);font-size:1.4em;letter-spacing:.03em}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.hc{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.hc-img{height:200px;background-size:cover;background-position:center top;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:3.2em;color:#fff}
+.hc-body{padding:14px 16px 16px}
+.hc-desc{font-size:.9em;line-height:1.5;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chip.on{background:var(--accent-soft);color:var(--accent-ink)}
+.chip.add{border:1px dashed var(--line-strong);background:transparent}
+button.chip{border:none;cursor:pointer}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tabs button{border:none;background:transparent;border-radius:10px 10px 0 0;padding:8px 16px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.active{color:var(--accent-ink);border-bottom-color:var(--accent);background:var(--accent-soft)}
+.drop{border:2px dashed var(--line-strong);border-radius:14px;padding:16px;text-align:center;color:var(--muted);font-size:.9em}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.block.marker{background:var(--accent-soft);border-color:transparent}
+.block.marker .b-head b{color:var(--accent-ink)}
+.grip{cursor:grab;color:var(--faint);letter-spacing:-2px;user-select:none;padding:0 2px}
+.block.dragging{opacity:.4}
+.block.drop-before{box-shadow:0 -3px 0 0 var(--accent)}
+.block.drop-after{box-shadow:0 3px 0 0 var(--accent)}
+.block.lore .b-head{margin-bottom:0;cursor:pointer}
+.block.lore.open .b-head{margin-bottom:12px}
+.block.lore .caret{color:var(--muted);transition:transform .15s}
+.block.lore.open .caret{transform:rotate(90deg)}
+.block.lore .dot{width:10px;height:10px;border-radius:50%;background:var(--good);flex-shrink:0}
+.block.lore .dot.const{background:#4C8DFF}
+.favatar{width:26px;height:26px;border-radius:50%;background-size:cover;background-position:center;display:inline-flex;align-items:center;justify-content:center;font-size:.85em;color:#fff;font-family:var(--display)}
+#btn-reply-opts{display:none}
 /* ---------- mobile ---------- */
 #tabbar{display:none}
 @media (max-width:860px){
@@ -299,6 +329,9 @@ details.inner .voice{font-family:var(--serif);margin-top:10px;padding:12px 14px;
   #storybar{padding:8px 10px}
   #storybar .ctx-meter .bar{width:70px}
   #storybar .lbl{display:none}
+  .composer-tools select,.composer-tools .tool-lbl{display:none}
+  #btn-reply-opts{display:inline-block}
+  .hc-img{height:150px}
   #storybar .small.ghost{padding:4px 9px;font-size:1em}
   .toast{bottom:96px}
   .floor .actions{opacity:1}
@@ -314,6 +347,8 @@ details.inner .voice{font-family:var(--serif);margin-top:10px;padding:12px 14px;
   </nav>
   <div id="main">
 
+    <!-- ================= 首页 ================= -->
+    <section class="view" id="view-home"><div class="page"><div class="page-inner" id="home-page"></div></div></section>
     <!-- ================= 剧情 ================= -->
     <section class="view" id="view-story">
       <div id="story-col">
@@ -358,9 +393,10 @@ details.inner .voice{font-family:var(--serif);margin-top:10px;padding:12px 14px;
               <span class="tool-lbl">模型</span>
               <select id="sel-model"></select>
               <div class="send">
+                <button id="btn-reply-opts" title="抢话 / 长度 / 模型">⚙ 回复设置</button>
                 <button id="btn-inspire" title="根据 uu 的人设与上下文，帮你起草一段回复">✦ 灵感</button>
                 <button id="btn-stop" hidden>■ 停止</button>
-                <button class="primary" id="btn-send">发送</button>
+                <button class="primary" id="btn-send">继续</button>
               </div>
             </div>
           </div>
@@ -431,12 +467,16 @@ const now=()=>Date.now();
 let toastT; function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),ms);}
 
 /* ---------------- 默认预设 / 提示词 ---------------- */
+const MARKERS={char:'角色卡',npcs:'NPC 名册',user:'用户人设',lore_before:'世界书 · 角色前',lore_after:'世界书 · 角色后',memory:'长期记忆 · 总结',recall:'相关回忆 · 记忆检索',state:'世界状态',history:'对话历史（楼层）',rules:'回复规则'};
+const MB=m=>({id:uid(),name:MARKERS[m],enabled:true,content:'',marker:m});
 const DEFAULT_PRESET=()=>({id:'p_default',name:'小说体 · 默认',blocks:[
  {id:uid(),name:'总纲',enabled:true,content:'你是一位中文小说作者，正在与我合写一部长篇。你负责扮演 {{char}} 以及世界里除 {{user}} 之外的所有人物；我扮演 {{user}}。用第三人称、过去式的小说笔法写作：有环境、有心理、有细节，对白自然，不写作者旁白，不总结，不问“接下来想怎么做”。'},
  {id:uid(),name:'开放世界',enabled:true,content:'这是一个开放世界：{{user}} 不在场时，{{char}} 和各位 NPC 也在过自己的生活；请让世界有自己的节奏与偶然。人物要有一致的性格与记忆，会记得之前发生的事，也会因为经历而改变。'},
+ MB('lore_before'),MB('char'),MB('npcs'),MB('user'),MB('lore_after'),MB('memory'),MB('recall'),MB('state'),
  {id:uid(),name:'知识边界',enabled:true,content:'{{char}} 只知道自己亲历、亲耳听到、或在群聊里看到的事；{{user}} 与其他 NPC 的私聊内容 {{char}} 一概不知道，除非有人告诉了他/她。'},
  {id:uid(),name:'禁则',enabled:true,content:'不要替 {{user}} 做重大决定，不要跳过时间（除非我明确要求），不要在结尾用提问收束。避免套话与陈词滥调，避免每段都以人名开头。'},
- {id:uid(),name:'状态回传',enabled:true,content:'正文写完后，另起一行，输出且仅输出一段 <state>…</state>，内含一个 JSON 对象：{"time":"世界时间 如 6月14日 周六 21:40","location":"当前地点","weather":"天气","mood":"{{char}} 当前情绪（≤8字）","inner":"{{char}} 此刻的心声（1-2句，第一人称）","doing":"{{char}} 正在做什么","npcs":[{"name":"NPC名","where":"在哪","doing":"在做什么"}],"relations":[{"a":"人物A","b":"人物B","label":"关系（≤6字）","note":"这一楼里关系的变化（可省略）"}],"memory":"这一楼最值得被记住的一件事（≤40字，可为空）"}'}
+ {id:uid(),name:'状态回传',enabled:true,content:'正文写完后，另起一行，输出且仅输出一段 <state>…</state>，内含一个 JSON 对象：{"time":"世界时间 如 6月14日 周六 21:40","location":"当前地点","weather":"天气","mood":"{{char}} 当前情绪（≤8字）","inner":"{{char}} 此刻的心声（1-2句，第一人称）","doing":"{{char}} 正在做什么","npcs":[{"name":"NPC名","where":"在哪","doing":"在做什么"}],"relations":[{"a":"人物A","b":"人物B","label":"关系（≤6字）","note":"这一楼里关系的变化（可省略）"}],"memory":"这一楼最值得被记住的一件事（≤40字，可为空）"}'},
+ MB('history'),MB('rules')
 ]});
 const DEFAULT_SUMMARY_PROMPT='请把下面这些楼层的剧情总结成可供长期记忆的条目。要求：\n1. 按时间顺序，保留关键事件、人物之间关系的变化、重要的承诺/秘密/物品/地点；\n2. 保留人物原话中最关键的一两句；\n3. 用第三人称，控制在 400 字以内；\n4. 最后单独一行列出“未解决的线索：…”。';
 const REPLY_MODES={
@@ -465,7 +505,7 @@ function seedState(){
  return {
   version:1,
   settings:{theme:'auto',fontSize:19,proseFont:'serif',uiSize:17,contextBudget:24000,modelTier:'default',backendModel:'',replyMode:'expand',length:'800',backendUrl:'http://localhost:3939',cloudSync:true,summaryPrompt:DEFAULT_SUMMARY_PROMPT,
-    shortcuts:['「」','……','——','（）','*','—','uu：','沈聿：'],lastView:'story'},
+    shortcuts:['「」','……','——','（）','*','—','uu：','沈聿：'],lastView:'home'},
   user:{name:'uu',description:'25 岁，做插画为生，嘴上不饶人但心软，记性很好，讨厌别人替她做决定。喜欢下雨天、便利店和把话说得很轻的人。'},
   presets:[DEFAULT_PRESET()],activePresetId:'p_default',
   lorebooks:[
@@ -522,6 +562,12 @@ function seedState(){
 let S=null;
 function load(){try{const r=localStorage.getItem(KEY);if(r){const s=JSON.parse(r);if(s&&s.worlds)return s;}}catch(e){}return null;}
 S=load()||seedState();
+function migrate(s){s.settings.loreScanDepth??=4;s.settings.loreRecursive??=false;
+ for(const p of s.presets){if(!p.blocks.some(b=>b.marker)){const txt=p.blocks.filter(b=>!/状态回传/.test(b.name)),st=p.blocks.filter(b=>/状态回传/.test(b.name));p.blocks=[...txt.slice(0,2),MB('lore_before'),MB('char'),MB('npcs'),MB('user'),MB('lore_after'),MB('memory'),MB('recall'),MB('state'),...txt.slice(2),...st,MB('history'),MB('rules')];}}
+ for(const b of s.lorebooks||[]){b.enabled??=true;b.charId??=null;for(const e of b.entries){e.secondary??='';e.logic??='and_any';e.order??=100;e.position??='before';e.depth??=2;e.probability??=100;e.caseSensitive??=false;e.wholeWords??=false;}}
+ for(const c of s.chars){c.image??=null;c.tags??=[];c.creatorNotes??='';c.card.alternates??=[];c.card.systemPrompt??='';c.card.postHistory??='';}
+ s.user.image??=null;s.version=2;return s;}
+migrate(S);
 let saveT,ftsT; function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('本地保存失败：'+e.message);} clearTimeout(saveT);saveT=setTimeout(cloudSave,2500);clearTimeout(ftsT);ftsT=setTimeout(ftsSync,3000);}
 /* 本地后端在线时，把索引镜像进 SQLite FTS5（永久记忆库） */
 async function ftsSync(){if(!AI.backendOk)return;try{const rows=[...MEM.docs.entries()].map(([id,d])=>({id,worldId:d.worldId,no:d.no,who:d.who,kind:d.kind,text:d.text}));await fetch(S.settings.backendUrl.replace(/\/$/,'')+'/api/memory/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rows})});}catch(e){}}
@@ -563,55 +609,79 @@ function memSearch(q,{worldId=W().id,limit=10,exclude=new Set()}={}){
 function snippet(text,q,len=90){const gs=[...grams(q)].filter(g=>g.length>1);let pos=-1;for(const g of gs){const p=text.indexOf(g);if(p>=0&&(pos<0||p<pos))pos=p;}
  const st=Math.max(0,(pos<0?0:pos)-20);let s=text.slice(st,st+len);let h=esc(s);for(const g of gs)h=h.replaceAll(esc(g),'<mark>'+esc(g)+'</mark>');return (st>0?'…':'')+h+(st+len<text.length?'…':'');}
 
-/* ---------------- 世界书触发 ---------------- */
+/* ---------------- 世界书触发（SillyTavern 式） ---------------- */
 function memoryBook(w){let b=S.lorebooks.find(x=>x.kind==='memory'&&x.worldId===w.id);if(!b){b={id:'lb_mem_'+w.id,name:w.name+' · 记忆',worldId:w.id,kind:'memory',entries:[]};S.lorebooks.push(b);}return b;}
+function loreBooksFor(w){const c=C(w);return (S.lorebooks||[]).filter(b=>b.kind!=='memory'&&b.enabled!==false&&((!b.worldId&&!b.charId)||b.worldId===w.id||(b.charId&&b.charId===c.id)));}
+function splitKeys(k){return Array.isArray(k)?k.map(x=>String(x).trim()).filter(Boolean):String(k||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean);}
+function matchKey(text,k,e){if(!e.caseSensitive){text=text.toLowerCase();k=k.toLowerCase();}if(e.wholeWords&&/^[\w\s'-]+$/.test(k)){return new RegExp('(^|[^\\w])'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^\\w]|$)').test(text);}return text.includes(k);}
+function entryHit(e,t){if(e.constant)return true;const ks=splitKeys(e.keys);if(!ks.length||!ks.some(k=>matchKey(t,k,e)))return false;
+ const sec=splitKeys(e.secondary);if(!sec.length)return true;const any=sec.some(k=>matchKey(t,k,e)),all=sec.every(k=>matchKey(t,k,e));
+ return ({and_any:any,and_all:all,not_any:!any,not_all:!all})[e.logic||'and_any'];}
 function activeLoreEntries(w,scanText){
- const out=[];const books=(S.lorebooks||[]).filter(b=>b.kind!=='memory'&&(!b.worldId||b.worldId===w.id));
- const t=scanText.toLowerCase();
- for(const b of books)for(const e of b.entries){if(!e.enabled)continue;
-  if(e.constant){out.push({book:b.name,...e});continue;}
-  const keys=(e.keys||'').split(/[,，、]/).map(k=>k.trim().toLowerCase()).filter(Boolean);
-  if(keys.some(k=>t.includes(k)))out.push({book:b.name,...e});}
+ const out=[];const seen=new Set();
+ const pass=t=>{let added=false;for(const b of loreBooksFor(w))for(const e of b.entries){if(!e.enabled||seen.has(e.id))continue;let hit=entryHit(e,t);
+   if(hit&&!e.constant&&(e.probability??100)<100&&Math.random()*100>e.probability)hit=false;
+   if(hit){seen.add(e.id);out.push({book:b.name,...e});added=true;}}return added;};
+ pass(scanText);
+ if(S.settings.loreRecursive){let n=0;while(n++<3&&pass(out.map(e=>e.content).join('\n')));}
+ out.sort((a,b)=>(b.order??100)-(a.order??100));
  return out;
 }
 
-/* ---------------- 上下文预算与提示词组装 ---------------- */
+/* ---------------- 上下文预算与提示词组装（按预设顺序） ---------------- */
 function estTokens(s){return Math.ceil(String(s).length*0.9);}
 function buildPrompt(userText,{inspire=false,upTo=Infinity,lastOverride=null}={}){
  const w=W(),c=C(w),st=S.settings;const vis=visibleFloors(w).filter(f=>!f.hidden&&f.role!=='system'&&f.no<=upTo);
- const segs=[];
- const preset=P();for(const b of preset.blocks)if(b.enabled)segs.push(['预设 · '+b.name,fill(b.content,w)]);
- const card=[`姓名：${c.name}`,c.card.description&&`设定：${c.card.description}`,c.card.personality&&`性格：${c.card.personality}`,c.card.scenario&&`情境：${c.card.scenario}`,c.card.example&&`说话示例：${c.card.example}`].filter(Boolean).join('\n');
- segs.push(['角色卡 · '+c.name,card]);
- if(c.npcs?.length)segs.push(['NPC 名册',c.npcs.map(n=>`${n.name}（${n.gender||'?'}，${n.age||'?'}岁）：${n.look||''}；性格：${n.personality||''}；与 ${c.name}：${n.relChar||'—'}；与 ${S.user.name}：${n.relUser||'—'}`).join('\n')]);
- segs.push(['用户人设 · '+S.user.name,S.user.description||'']);
- const recentText=vis.slice(-4).map(floorText).join('\n')+'\n'+userText;
- const lore=activeLoreEntries(w,recentText);if(lore.length)segs.push(['世界书（'+lore.length+' 条触发）',lore.map(e=>`【${e.title}】${e.content}`).join('\n')]);
- const mem=memoryBook(w).entries.filter(e=>e.enabled);if(mem.length)segs.push(['长期记忆 · 剧情总结',mem.map(e=>`〔第${e.title}楼〕${e.content}`).join('\n')]);
- // 检索：用 用户输入 + 最近一楼 做查询，排除即将送入的楼层
- const budget=st.contextBudget;let used=segs.reduce((a,[,t])=>a+estTokens(t),0);
+ const scanText=vis.slice(-(st.loreScanDepth||4)).map(floorText).join('\n')+'\n'+userText;
+ const lore=activeLoreEntries(w,scanText);
+ const loreTxt=list=>list.map(e=>`【${e.title}】${e.content}`).join('\n');
+ const loreB=lore.filter(e=>(e.position||'before')==='before'),loreA=lore.filter(e=>e.position==='after'),loreD=lore.filter(e=>e.position==='depth');
+ const card=[`姓名：${c.name}`,c.card.description&&`设定：${fill(c.card.description,w)}`,c.card.personality&&`性格：${fill(c.card.personality,w)}`,c.card.scenario&&`情境：${fill(c.card.scenario,w)}`,c.card.example&&`说话示例：\n${fill(c.card.example,w)}`].filter(Boolean).join('\n');
+ const npcs=(c.npcs||[]).map(n=>`${n.name}（${n.gender||'?'}，${n.age||'?'}岁）：${n.look||''}；性格：${n.personality||''}；与 ${c.name}：${n.relChar||'—'}；与 ${S.user.name}：${n.relUser||'—'}`).join('\n');
+ const persona=`${S.user.name}：${S.user.description||''}`;
+ const mem=memoryBook(w).entries.filter(e=>e.enabled).map(e=>`〔第${e.title}楼${e.chapter?' · '+e.chapter:''}〕${e.content}`).join('\n');
+ const rel=(w.relations||[]).map(r=>`${r.a} ↔ ${r.b}：${r.label}`).join('；');
+ const state=`时间：${w.clock.time}；地点：${w.clock.location}；天气：${w.clock.weather}\n${c.name} 的状态：${w.status.mood||'—'}，${w.status.doing||'—'}\n关系：${rel}\n记忆点：${(w.memoryPoints||[]).slice(-8).map(m=>m.text).join('；')}`;
+ const rule=inspire
+  ?`现在请你暂时切换：以 ${S.user.name} 的口吻与人设，替我起草 ${S.user.name} 的下一段回应（动作+台词，150-300 字，第三人称小说体，只写 ${S.user.name}，不要写 ${c.name} 的反应，不要输出 <state>）。`
+  :`回复规则：${fill(REPLY_MODES[st.replyMode],w)}\n篇幅：本次回复正文约 ${st.length} 字（允许 ±20%），分自然段。`;
+ // 先按预设顺序拼出固定部分（不含检索），算预算
+ const preset=P();const before=[],after=[];let afterHist=false;let recallSlot=null;
+ const push=(name,t)=>{if(!String(t||'').trim())return;(afterHist?after:before).push([name,t]);};
+ if(c.card.systemPrompt)push('角色自带提示',fill(c.card.systemPrompt,w));
+ for(const b of preset.blocks){if(!b.enabled)continue;
+  switch(b.marker||''){
+   case '':push(b.name,fill(b.content,w));break;
+   case 'char':push('角色卡 · '+c.name,card);break;
+   case 'npcs':push('NPC 名册',npcs);break;
+   case 'user':push('用户人设',persona);break;
+   case 'lore_before':push(`世界书 · 角色前（${loreB.length} 条）`,loreTxt(loreB));break;
+   case 'lore_after':push(`世界书 · 角色后（${loreA.length} 条）`,loreTxt(loreA));break;
+   case 'memory':push('长期记忆 · 剧情总结',mem);break;
+   case 'recall':recallSlot={list:afterHist?after:before,index:(afterHist?after:before).length};break;
+   case 'state':push('世界状态',state);break;
+   case 'history':afterHist=true;break;
+   case 'rules':push('回复规则',rule);break;
+  }}
+ if(c.card.postHistory)after.push(['角色自带后置提示',fill(c.card.postHistory,w)]);
+ const budget=st.contextBudget;let used=[...before,...after].reduce((a,[,t])=>a+estTokens(t),0);
  const turns=[];let i=vis.length-1;const included=new Set();
  for(;i>=0;i--){const f=vis[i];const tk=estTokens(floorText(f));if(used+tk>budget*0.8&&turns.length>=2)break;used+=tk;turns.unshift(f);included.add(w.id+'|'+f.id);}
  const dropped=i+1;
  const q=(userText||'')+' '+(vis.length?floorText(vis[vis.length-1]).slice(-200):'');
  const hits=memSearch(q,{worldId:w.id,limit:10,exclude:included}).filter(h=>h.kind==='floor');
- if(hits.length)segs.push(['相关回忆（记忆检索，'+hits.length+' 条）',hits.map(h=>`〔第${h.no}楼 · ${h.who}〕${h.text.slice(0,300)}`).join('\n')]);
- const rel=(w.relations||[]).map(r=>`${r.a} ↔ ${r.b}：${r.label}`).join('；');
- segs.push(['世界状态',`时间：${w.clock.time}；地点：${w.clock.location}；天气：${w.clock.weather}\n${c.name} 的状态：${w.status.mood}，${w.status.doing}\n关系：${rel}\n记忆点：${(w.memoryPoints||[]).slice(-8).map(m=>m.text).join('；')}`]);
- const rule=inspire
-  ?`现在请你暂时切换：以 ${S.user.name} 的口吻与人设，替我起草 ${S.user.name} 的下一段回应（动作+台词，150-300 字，第三人称小说体，只写 ${S.user.name}，不要写 ${c.name} 的反应，不要输出 <state>）。`
-  :`回复规则：${fill(REPLY_MODES[st.replyMode],w)}\n篇幅：本次回复正文约 ${st.length} 字（允许 ±20%），分自然段。`;
- segs.push(['回复规则',rule]);
- const instruction=segs.map(([n,t])=>`## ${n}\n${t}`).join('\n\n');
- const msgs=[{role:'user',content:instruction}];
+ if(recallSlot&&hits.length){recallSlot.list.splice(recallSlot.index,0,[`相关回忆（记忆检索，${hits.length} 条）`,hits.map(h=>`〔第${h.no}楼 · ${h.who}〕${h.text.slice(0,300)}`).join('\n')]);used+=estTokens(hits.map(h=>h.text.slice(0,300)).join(''));}
+ const seg=arr=>arr.map(([n,t])=>`## ${n}\n${t}`).join('\n\n');
+ const msgs=[{role:'user',content:seg(before)||'（无指令）'}];
  for(const f of turns){const role=f.role==='user'?'user':'assistant';const t=`〔第${f.no}楼〕\n`+floorText(f);
-  if(msgs.length&&msgs[msgs.length-1].role===role&&msgs.length>1)msgs[msgs.length-1].content+='\n\n'+t;else msgs.push({role,content:t});}
- const last=lastOverride||(userText.trim()?`〔第${nextNo(w)}楼 · ${S.user.name}〕\n${userText.trim()}`:(inspire?'请开始起草。':'（请让剧情自然地继续。）'));
+  if(msgs.length>1&&msgs[msgs.length-1].role===role)msgs[msgs.length-1].content+='\n\n'+t;else msgs.push({role,content:t});}
+ for(const e of loreD){const d=Math.max(1,e.depth||1);const idx=Math.max(1,msgs.length-d+1);if(idx<msgs.length)msgs[idx].content=`〔世界书 · ${e.title}〕${e.content}\n\n`+msgs[idx].content;else msgs.push({role:'user',content:`〔世界书 · ${e.title}〕${e.content}`});}
+ let last=lastOverride||(userText.trim()?`〔第${nextNo(w)}楼 · ${S.user.name}〕\n${userText.trim()}`:(inspire?'请开始起草。':'（请让剧情自然地继续。）'));
+ if(after.length)last+='\n\n'+seg(after);
  if(msgs[msgs.length-1].role==='user')msgs[msgs.length-1].content+='\n\n'+last;else msgs.push({role:'user',content:last});
  used+=estTokens(last);
- return {msgs,segs,used,budget,dropped,turns,hits,lore};
+ return {msgs,segs:[...before,...after],used,budget,dropped,turns,hits,lore};
 }
-
 /* ---------------- AI 适配层 ---------------- */
 const AI={mode:'none',sample:null,backendOk:false,models:[],
  async init(){
@@ -650,6 +720,7 @@ function errCopy(e){const m={not_granted:'你没有允许这个页面使用你�
    视图、交互、AI 动作
    ===================================================================== */
 const ICONS={
+ home:'<svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
  story:'<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5"/><path d="M8 7h8M8 11h6"/></svg>',
  phone:'<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/></svg>',
  forum:'<svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
@@ -662,14 +733,14 @@ const ICONS={
  settings:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
  more:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'
 };
-const NAV=[['story','剧情'],['phone','小手机'],['forum','论坛'],['diary','日记'],['records','记录'],['memory','记忆'],['chars','角色'],['presets','预设'],['lore','世界书'],['settings','设置']];
+const NAV=[['home','首页'],['story','剧情'],['phone','小手机'],['forum','论坛'],['diary','日记'],['records','记录'],['memory','记忆'],['chars','角色'],['presets','预设'],['lore','世界书'],['settings','设置']];
 let view='story';
 function buildNav(){
  $('#rail').insertAdjacentHTML('beforeend',NAV.map(([k,l])=>`<button class="navbtn" data-view="${k}" title="${l}">${ICONS[k]}<span>${l}</span><span class="badge" data-badge="${k}" hidden></span></button>`).join(''));
- $('#tabbar').innerHTML=[['story','剧情'],['phone','小手机'],['memory','记忆'],['records','记录'],['more','更多']].map(([k,l])=>`<button class="navbtn" data-view="${k}">${ICONS[k]}<span>${l}</span><span class="badge" data-badge="${k}" hidden></span></button>`).join('');
+ $('#tabbar').innerHTML=[['home','首页'],['story','剧情'],['phone','小手机'],['memory','记忆'],['more','更多']].map(([k,l])=>`<button class="navbtn" data-view="${k}">${ICONS[k]}<span>${l}</span><span class="badge" data-badge="${k}" hidden></span></button>`).join('');
  $$('.navbtn').forEach(b=>b.onclick=()=>{const v=b.dataset.view;if(v==='more')return moreSheet();showView(v);});
 }
-function moreSheet(){modal({title:'更多',body:`<div class="grid2">${NAV.filter(([k])=>!['story','phone','memory','records'].includes(k)).map(([k,l])=>`<button data-v="${k}" style="padding:16px;font-size:1.05em">${l}</button>`).join('')}</div>`,foot:[]});
+function moreSheet(){modal({title:'更多',body:`<div class="grid2">${NAV.filter(([k])=>!['home','story','phone','memory'].includes(k)).map(([k,l])=>`<button data-v="${k}" style="padding:16px;font-size:1.05em">${l}</button>`).join('')}</div>`,foot:[]});
  $$('#m-body [data-v]').forEach(b=>b.onclick=()=>{closeModal();showView(b.dataset.v);});}
 const RENDER={};
 function showView(v){view=v;S.settings.lastView=v;$$('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));$$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));RENDER[v]?.();save();}
@@ -713,7 +784,8 @@ function floorEl(f,w,c){
  const el=document.createElement('article');el.className='floor '+f.role+(f.hidden?' is-hidden':'');el.dataset.id=f.id;el.tabIndex=0;
  const who=f.role==='user'?S.user.name:f.role==='char'?c.name:'系统';
  const alts=f.alts.length>1?`<span class="alts"><button data-act="prev" title="上一个版本">‹</button><span class="num">${f.alt+1}/${f.alts.length}</span><button data-act="next" title="下一个版本">›</button></span>`:'';
- el.innerHTML=`<div class="meta"><span class="num">第 ${f.no} 楼</span><span class="who">${esc(who)}</span><span>${esc(f.worldTime||'')}</span>${alts}</div><div class="body">${f.role==='system'?esc(floorText(f)):paras(floorText(f))}</div>
+ const av=f.role==='char'?`<span class="favatar" style="${charImgStyle(c)}">${c.image?'':esc(c.avatar||c.name[0])}</span>`:f.role==='user'&&S.user.image?`<span class="favatar" style="background-image:url(${S.user.image})"></span>`:'';
+ el.innerHTML=`<div class="meta"><span class="num">第 ${f.no} 楼</span>${av}<span class="who">${esc(who)}</span><span>${esc(f.worldTime||'')}</span>${alts}</div><div class="body">${f.role==='system'?esc(floorText(f)):paras(floorText(f))}</div>
  <div class="actions">${f.role==='char'?'<button data-act="regen" title="刷出一个不同的回复">↻ 刷</button>':''}<button data-act="edit">✎ 编辑</button><button data-act="branch" title="从这一楼开一条平行剧情线">⑂ 分支</button><button data-act="rewind" title="回到这一楼，删除之后的楼层">⟲ 回溯</button><button data-act="hide">${f.hidden?'◉ 取消隐藏':'◌ 隐藏'}</button><button data-act="del">✕</button></div>`;
  el.addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a){el.classList.toggle('touched');return;}floorAction(a,f,w,el);});
  return el;
@@ -814,7 +886,7 @@ function createWorld(charId,name){const c=S.chars.find(x=>x.id===charId);const b
  clock:{time:'第一天 08:00',location:'未定',weather:'晴'},status:{mood:'平静',inner:'',doing:'',npcs:(c.npcs||[]).map(n=>({name:n.name,where:'',doing:''}))},
  relations:[{a:S.user.name,b:c.name,label:'初识',history:[{no:0,label:'初识',note:''}]},...(c.npcs||[]).map(n=>({a:S.user.name,b:n.name,label:(n.relUser||'').slice(0,6)||'认识',history:[]}))],memoryPoints:[],
  phone:{wallet:{balance:1000,tx:[]},chats:[{id:uid(),name:c.name,type:'dm',with:c.name,messages:[]},...(c.npcs||[]).map(n=>({id:uid(),name:n.name,type:'dm',with:n.name,messages:[]}))],ig:[]},forum:{boards:[{name:'广场',threads:[]}]},diary:[],hiddenUpTo:0};
- if(c.card.first){w.floors.push({id:uid(),no:1,branchId:bid,role:'char',alts:[fill(c.card.first,w)],alt:0,hidden:false,ts:now(),worldTime:w.clock.time});}
+ if(c.card.first){w.floors.push({id:uid(),no:1,branchId:bid,role:'char',alts:[c.card.first,...(c.card.alternates||[]).filter(a=>a.trim())].map(a=>fill(a,w)),alt:0,hidden:false,ts:now(),worldTime:w.clock.time});}
  S.worlds.push(w);S.activeWorldId=w.id;memoryBook(w);memIndexAll();save();return w;}
 
 /* ----- 状态面板 ----- */
@@ -997,83 +1069,199 @@ async function summarize(from,to,hide){
 }
 
 /* =====================================================================
-   角色 / NPC / 用户人设
+   角色 / NPC / 用户人设（SillyTavern 角色卡 V2/V3 兼容）
    ===================================================================== */
-let selChar=null;
-function renderChars(){const el=$('#chars-page');const c=S.chars.find(x=>x.id===selChar)||C();selChar=c?.id;
- el.innerHTML=`<div class="page-head"><div><h2>角色</h2><p>最多 5 个角色，每个角色可以有多个世界。</p></div><div class="row"><button class="small" id="ch-import">⇧ 导入角色卡（PNG / JSON）</button><button class="small primary" id="ch-new" ${S.chars.length>=5?'disabled':''}>＋ 新角色</button></div></div>
- <div class="grid2" style="margin-bottom:18px">${S.chars.map(x=>`<div class="char-card ${x.id===selChar?'active':''}" data-c="${x.id}"><span class="avatar lg" style="background:${esc(x.color||'')};color:#fff">${esc(x.avatar||x.name[0])}</span><div><b style="font-size:1.1em">${esc(x.name)}</b><div class="sub">${esc((x.card.description||'').slice(0,50))}</div><div class="sub num">${S.worlds.filter(w=>w.charId===x.id).length} 个世界 · ${(x.npcs||[]).length} 个 NPC</div></div></div>`).join('')}</div>
- ${c?`<div class="card"><div class="row" style="margin-bottom:10px"><h3 style="margin:0">角色卡 · ${esc(c.name)}</h3><span class="grow"></span><button class="small" id="ch-world">＋ 用这个角色开新世界</button><button class="small danger" id="ch-del">删除角色</button></div>
-  <div class="grid2"><label class="field"><span>名字</span><input type="text" data-cf="name" value="${esc(c.name)}"></label><div class="row"><label class="field grow"><span>头像字</span><input type="text" data-cf="avatar" value="${esc(c.avatar||'')}" maxlength="2"></label><label class="field grow"><span>头像色</span><input type="text" data-cf="color" value="${esc(c.color||'#3E5F73')}"></label></div></div>
-  <label class="field"><span>设定（外貌、身份、背景）</span><textarea data-card="description">${esc(c.card.description)}</textarea></label>
-  <label class="field"><span>性格</span><textarea data-card="personality">${esc(c.card.personality)}</textarea></label>
-  <label class="field"><span>情境（世界开局时的处境）</span><textarea data-card="scenario">${esc(c.card.scenario)}</textarea></label>
-  <label class="field"><span>开场白（新世界的第 1 楼，可用 {{user}} {{char}}）</span><textarea data-card="first">${esc(c.card.first||'')}</textarea></label>
-  <label class="field"><span>说话示例</span><textarea data-card="example">${esc(c.card.example||'')}</textarea></label></div>
- <div class="card"><div class="row" style="margin-bottom:10px"><h3 style="margin:0">NPC</h3><span class="grow"></span><button class="small primary" id="npc-gen">✦ 生成 NPC</button><button class="small" id="npc-add">＋ 手动添加</button></div>
-  <p class="muted">输入一句“她是 ${esc(c.name)} 的妹妹，和 ${esc(S.user.name)} 是同事”，其余性格、性别、样貌随机生成。</p>
-  <div class="grid2">${(c.npcs||[]).map(n=>`<div class="npc-card"><div class="row"><b>${esc(n.name)}</b><span class="tag">${esc(n.gender||'')} · ${esc(String(n.age||'?'))}岁</span><span class="grow"></span><button class="small ghost" data-nedit="${n.id}">✎</button><button class="small ghost" data-ndel="${n.id}">✕</button></div><div class="tag">${esc(n.look||'')}</div><div>${esc(n.personality||'')}</div><div class="tag">与 ${esc(c.name)}：${esc(n.relChar||'—')}<br>与 ${esc(S.user.name)}：${esc(n.relUser||'—')}</div></div>`).join('')||'<p class="muted">还没有 NPC。</p>'}</div></div>`:''}
- <div class="card"><h3>我的人设 · ${esc(S.user.name)}</h3><div class="grid2"><label class="field"><span>名字</span><input type="text" id="u-name" value="${esc(S.user.name)}"></label></div><label class="field"><span>人设（灵感功能会照着这个替你写）</span><textarea id="u-desc">${esc(S.user.description)}</textarea></label></div>`;
+let selChar=null,charTab='card';
+function charImgStyle(c){return c.image?`background-image:url(${c.image});background-size:cover;background-position:center;color:transparent`:`background:${esc(c.color||'#3E5F73')};color:#fff`;}
+function renderChars(){const el=$('#chars-page');const c=S.chars.find(x=>x.id===selChar)||C();selChar=c?.id;const cd=c?.card||{};
+ el.innerHTML=`<div class="page-head"><div><h2>角色</h2><p>最多 5 个角色。支持导入 SillyTavern 的 PNG / JSON 角色卡，也能导出回去。</p></div><div class="row"><button class="small" id="ch-import">⇧ 导入角色卡</button><button class="small primary" id="ch-new" ${S.chars.length>=5?'disabled':''}>＋ 新角色</button></div></div>
+ <div class="drop" id="ch-drop">把 PNG / JSON 角色卡拖到这里，或点上面的「导入角色卡」</div>
+ <div class="hgrid" style="margin:16px 0 20px">${S.chars.map(x=>`<div class="char-card ${x.id===selChar?'active':''}" data-c="${x.id}"><span class="avatar lg" style="${charImgStyle(x)}">${esc(x.avatar||x.name[0])}</span><div style="min-width:0"><b style="font-size:1.1em">${esc(x.name)}</b><div class="sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((x.card.description||'').slice(0,40)||'还没写设定')}</div><div class="sub num">${S.worlds.filter(w=>w.charId===x.id).length} 个世界 · ${(x.npcs||[]).length} 个 NPC</div></div></div>`).join('')}</div>
+ ${c?`<div class="card">
+  <div class="row" style="margin-bottom:14px"><span class="avatar lg" id="ch-avatar" style="${charImgStyle(c)};cursor:pointer" title="点击更换头像">${esc(c.avatar||c.name[0])}</span><div class="grow"><h3 style="margin:0">${esc(c.name)}</h3><div class="muted" style="font-size:.85em">${(c.tags||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join(' ')||'没有标签'}</div></div>
+   <button class="small primary" id="ch-world">＋ 开新世界</button><button class="small" id="ch-export-json" title="导出 JSON（SillyTavern V2）">⇩ JSON</button><button class="small" id="ch-export-png" title="导出 PNG 角色卡（需要头像图片）">⇩ PNG</button><button class="small danger" id="ch-del">删除</button></div>
+  <div class="tabs" id="ch-tabs">${[['card','角色卡'],['adv','高级'],['npc','NPC']].map(([k,l])=>`<button class="${charTab===k?'active':''}" data-tab="${k}">${l}</button>`).join('')}</div>
+  <div ${charTab!=='card'?'hidden':''}>
+   <div class="grid2"><label class="field"><span>名字</span><input type="text" data-cf="name" value="${esc(c.name)}"></label><label class="field"><span>标签（逗号分隔）</span><input type="text" data-cf="tags" value="${esc((c.tags||[]).join(', '))}"></label></div>
+   <label class="field"><span>设定 Description（外貌、身份、背景）</span><textarea data-card="description" style="min-height:140px">${esc(cd.description||'')}</textarea></label>
+   <label class="field"><span>性格 Personality</span><textarea data-card="personality">${esc(cd.personality||'')}</textarea></label>
+   <label class="field"><span>情境 Scenario</span><textarea data-card="scenario">${esc(cd.scenario||'')}</textarea></label>
+   <label class="field"><span>开场白 First message（新世界的第 1 楼；可用 {{user}} {{char}}）</span><textarea data-card="first">${esc(cd.first||'')}</textarea></label>
+   <label class="field"><span>备用开场白 Alternate greetings（开新世界时可左右切换）</span><div id="alt-list">${(cd.alternates||[]).map((a,i)=>`<div class="row" style="align-items:flex-start;margin-bottom:8px"><textarea data-alt="${i}" style="min-height:70px">${esc(a)}</textarea><button class="small ghost" data-altdel="${i}">✕</button></div>`).join('')}</div><button class="small" id="alt-add">＋ 添加备用开场白</button></label>
+   <label class="field"><span>对话示例 Example dialogue</span><textarea data-card="example">${esc(cd.example||'')}</textarea></label>
+  </div>
+  <div ${charTab!=='adv'?'hidden':''}>
+   <p class="muted">这些字段对应 SillyTavern 角色卡的高级设置。留空即不生效。</p>
+   <label class="field"><span>角色专属系统提示 System prompt（会放在预设最前面）</span><textarea data-card="systemPrompt">${esc(cd.systemPrompt||'')}</textarea></label>
+   <label class="field"><span>后置指令 Post-history instructions（会放在对话之后）</span><textarea data-card="postHistory">${esc(cd.postHistory||'')}</textarea></label>
+   <label class="field"><span>创作者备注 Creator notes（不会送给 AI）</span><textarea data-cf="creatorNotes" style="min-height:70px">${esc(c.creatorNotes||'')}</textarea></label>
+   <div class="grid2"><label class="field"><span>头像字（没有图片时显示）</span><input type="text" data-cf="avatar" value="${esc(c.avatar||'')}" maxlength="2"></label><label class="field"><span>头像底色</span><input type="text" data-cf="color" value="${esc(c.color||'#3E5F73')}"></label></div>
+   <div class="row"><button class="small" id="ch-img">⇧ 上传头像图片</button>${c.image?'<button class="small ghost" id="ch-img-del">移除图片</button>':''}</div>
+   <p class="muted" style="margin-top:14px">绑定到这个角色的世界书：${S.lorebooks.filter(b=>b.charId===c.id).map(b=>`<span class="pill accent">${esc(b.name)}</span>`).join(' ')||'无（在世界书页把作用范围设为这个角色）'}</p>
+  </div>
+  <div ${charTab!=='npc'?'hidden':''}>
+   <div class="row" style="margin-bottom:10px"><p class="muted grow" style="margin:0">输入一句“她是 ${esc(c.name)} 的妹妹，和 ${esc(S.user.name)} 是同事”，其余性格、性别、样貌随机生成。</p><button class="small primary" id="npc-gen">✦ 生成 NPC</button><button class="small" id="npc-add">＋ 手动添加</button></div>
+   <div class="grid2">${(c.npcs||[]).map(n=>`<div class="npc-card"><div class="row"><b>${esc(n.name)}</b><span class="tag">${esc(n.gender||'')} · ${esc(String(n.age||'?'))}岁</span><span class="grow"></span><button class="small ghost" data-nedit="${n.id}">✎</button><button class="small ghost" data-ndel="${n.id}">✕</button></div><div class="tag">${esc(n.look||'')}</div><div>${esc(n.personality||'')}</div><div class="tag">与 ${esc(c.name)}：${esc(n.relChar||'—')}<br>与 ${esc(S.user.name)}：${esc(n.relUser||'—')}</div></div>`).join('')||'<p class="muted">还没有 NPC。</p>'}</div>
+  </div></div>`:''}
+ <div class="card"><div class="row" style="margin-bottom:10px"><span class="avatar lg" id="u-avatar" style="${S.user.image?`background-image:url(${S.user.image});background-size:cover;background-position:center;color:transparent`:''};cursor:pointer" title="点击上传头像">${esc((S.user.name||'我')[0])}</span><h3 style="margin:0">我的人设 · ${esc(S.user.name)}</h3></div><div class="grid2"><label class="field"><span>名字</span><input type="text" id="u-name" value="${esc(S.user.name)}"></label></div><label class="field"><span>人设（“灵感”会照着这个替你写）</span><textarea id="u-desc">${esc(S.user.description)}</textarea></label></div>`;
  $$('[data-c]',el).forEach(x=>x.onclick=()=>{selChar=x.dataset.c;renderChars();});
- $$('[data-cf]',el).forEach(i=>i.onchange=()=>{c[i.dataset.cf]=i.value;save();renderChars();});
+ $$('#ch-tabs button',el).forEach(b=>b.onclick=()=>{charTab=b.dataset.tab;renderChars();});
+ $$('[data-cf]',el).forEach(i=>i.onchange=()=>{const k=i.dataset.cf;c[k]=k==='tags'?splitKeys(i.value):i.value;save();renderChars();});
  $$('[data-card]',el).forEach(i=>i.onchange=()=>{c.card[i.dataset.card]=i.value;save();});
+ $$('[data-alt]',el).forEach(i=>i.onchange=()=>{c.card.alternates[+i.dataset.alt]=i.value;save();});$$('[data-altdel]',el).forEach(b=>b.onclick=()=>{c.card.alternates.splice(+b.dataset.altdel,1);save();renderChars();});
+ $('#alt-add')&&($('#alt-add').onclick=()=>{(c.card.alternates=c.card.alternates||[]).push('');save();renderChars();});
  $('#u-name').onchange=e=>{S.user.name=e.target.value.trim()||'uu';save();renderChars();};$('#u-desc').onchange=e=>{S.user.description=e.target.value;save();};
- $('#ch-new').onclick=()=>{if(S.chars.length>=5)return;promptBox('新角色的名字','',v=>{if(!v)return;const nc={id:uid(),name:v,avatar:v[0],color:'#'+['3E5F73','6B4E3D','4E6B3D','5A4E6B','6B3D4E'][S.chars.length%5],card:{description:'',personality:'',scenario:'',first:'',example:''},npcs:[]};S.chars.push(nc);selChar=nc.id;save();renderChars();});};
+ $('#u-avatar').onclick=()=>pickFile('image/*',async f=>{S.user.image=await readImage(f,256);save();renderChars();});
+ $('#ch-new').onclick=()=>{if(S.chars.length>=5)return;promptBox('新角色的名字','',v=>{if(!v)return;const nc=newChar(v);S.chars.push(nc);selChar=nc.id;charTab='card';save();renderChars();});};
+ $('#ch-import').onclick=()=>pickFile('.png,.json',importCard);
+ const drop=$('#ch-drop');drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};drop.ondragleave=()=>drop.classList.remove('over');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');for(const f of e.dataTransfer.files)importCard(f);};
  if(c){$('#ch-world').onclick=()=>promptBox('新世界的名字','',v=>{createWorld(c.id,v||'新世界');showView('story');});
-  $('#ch-del').onclick=()=>confirmBox(`删除 ${c.name} 及其全部世界？`,()=>{if(S.chars.length<=1)return toast('至少保留一个角色');S.chars=S.chars.filter(x=>x.id!==c.id);S.worlds=S.worlds.filter(w=>w.charId!==c.id);if(!S.worlds.length)createWorld(S.chars[0].id,'新世界');S.activeWorldId=S.worlds[0].id;selChar=null;memIndexAll();save();renderChars();});
+  $('#ch-avatar').onclick=()=>pickFile('image/*',async f=>{c.image=await readImage(f,512);save();renderChars();});
+  $('#ch-img').onclick=()=>$('#ch-avatar').click();$('#ch-img-del')&&($('#ch-img-del').onclick=()=>{c.image=null;save();renderChars();});
+  $('#ch-export-json').onclick=()=>saveFile(`${c.name}.json`,JSON.stringify(toCardV2(c),null,2));
+  $('#ch-export-png').onclick=()=>exportCardPng(c);
+  $('#ch-del').onclick=()=>confirmBox(`删除 ${c.name} 及其全部世界？`,()=>{if(S.chars.length<=1)return toast('至少保留一个角色');S.chars=S.chars.filter(x=>x.id!==c.id);S.worlds=S.worlds.filter(w=>w.charId!==c.id);S.lorebooks=S.lorebooks.filter(b=>b.charId!==c.id&&S.worlds.some(w=>w.id===b.worldId)||(!b.worldId&&b.charId!==c.id));if(!S.worlds.length)createWorld(S.chars[0].id,'新世界');S.activeWorldId=S.worlds[0].id;selChar=null;memIndexAll();save();renderChars();});
   $('#npc-add').onclick=()=>npcModal(c,null);$$('[data-nedit]',el).forEach(b=>b.onclick=()=>npcModal(c,c.npcs.find(n=>n.id===b.dataset.nedit)));
   $$('[data-ndel]',el).forEach(b=>b.onclick=()=>{c.npcs=c.npcs.filter(n=>n.id!==b.dataset.ndel);save();renderChars();});
   $('#npc-gen').onclick=()=>promptBox('描述这个 NPC 或 TA 的关系','',async v=>{if(!v)return;if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),4000);toast('正在生成…');
    try{const j=await AI.chat([{role:'user',content:`主角 ${c.name}：${c.card.description}\n用户 ${S.user.name}：${S.user.description}\n已有 NPC：${(c.npcs||[]).map(n=>n.name).join('、')||'无'}\n请根据描述创建一个新 NPC：「${v}」。未指定的性别、年龄、样貌、性格请随机而合理地生成，要有记忆点。只输出 JSON：{"name":"中文名","gender":"性别","age":数字,"look":"样貌一句话","personality":"性格两句话","relChar":"与 ${c.name} 的关系","relUser":"与 ${S.user.name} 的关系"}`}],{json:true});
     c.npcs.push({id:uid(),name:j.name||'无名',gender:j.gender||'',age:j.age||'',look:j.look||'',personality:j.personality||'',relChar:j.relChar||'',relUser:j.relUser||''});save();renderChars();}catch(e){toast(errCopy(e),5000);}},'例如：沈聿的妹妹，大学生，和 uu 在同一家咖啡店打过工');}
- $('#ch-import').onclick=()=>pickFile('.png,.json',importCard);
 }
+function newChar(name){return {id:uid(),name,avatar:name[0],color:'#'+['3E5F73','6B4E3D','4E6B3D','5A4E6B','6B3D4E'][S.chars.length%5],image:null,tags:[],creatorNotes:'',card:{description:'',personality:'',scenario:'',first:'',alternates:[],example:'',systemPrompt:'',postHistory:''},npcs:[]};}
 function npcModal(c,n){const v=n||{};modal({title:n?'编辑 NPC':'添加 NPC',body:`<div class="grid2"><label class="field"><span>名字</span><input type="text" id="n-name" value="${esc(v.name||'')}"></label><div class="row"><label class="field grow"><span>性别</span><input type="text" id="n-g" value="${esc(v.gender||'')}"></label><label class="field grow"><span>年龄</span><input type="text" id="n-a" value="${esc(String(v.age||''))}"></label></div></div><label class="field"><span>样貌</span><input type="text" id="n-look" value="${esc(v.look||'')}"></label><label class="field"><span>性格</span><textarea id="n-p" style="min-height:70px">${esc(v.personality||'')}</textarea></label><label class="field"><span>与 ${esc(c.name)} 的关系</span><input type="text" id="n-rc" value="${esc(v.relChar||'')}"></label><label class="field"><span>与 ${esc(S.user.name)} 的关系</span><input type="text" id="n-ru" value="${esc(v.relUser||'')}"></label>`,
  foot:[{label:'取消',onClick:closeModal},{label:'保存',cls:'primary',onClick:()=>{const o={id:v.id||uid(),name:$('#n-name').value.trim(),gender:$('#n-g').value,age:$('#n-a').value,look:$('#n-look').value,personality:$('#n-p').value,relChar:$('#n-rc').value,relUser:$('#n-ru').value};if(!o.name)return;if(n)Object.assign(n,o);else c.npcs.push(o);save();closeModal();renderChars();}}]});}
 function pickFile(accept,cb){const f=$('#file-in');f.accept=accept;f.value='';f.onchange=()=>{if(f.files[0])cb(f.files[0]);};f.click();}
-async function importCard(file){try{let data;if(file.name.endsWith('.json'))data=JSON.parse(await file.text());else data=readPngCard(new Uint8Array(await file.arrayBuffer()));
- const d=data.data||data;const nc={id:uid(),name:d.name||'导入角色',avatar:(d.name||'角')[0],color:'#6B4E3D',card:{description:d.description||'',personality:d.personality||'',scenario:d.scenario||'',first:d.first_mes||'',example:d.mes_example||''},npcs:[]};
- if(S.chars.length>=5)return toast('已有 5 个角色，先删一个');S.chars.push(nc);selChar=nc.id;
- if(d.character_book?.entries?.length){S.lorebooks.push({id:uid(),name:nc.name+' · 角色书',worldId:null,kind:'normal',entries:d.character_book.entries.map(e=>({id:uid(),title:e.comment||e.name||(e.keys||[]).join(',')||'条目',keys:(e.keys||[]).join(','),content:e.content||'',constant:!!e.constant,enabled:e.enabled!==false}))});}
- save();renderChars();toast('已导入 '+nc.name+(d.character_book?'（含角色书）':''));}catch(e){toast('导入失败：'+e.message,5000);}}
-function readPngCard(u8){if(u8[0]!==0x89||u8[1]!==0x50)throw new Error('不是 PNG 文件');let p=8;const dv=new DataView(u8.buffer);const td=new TextDecoder();
- while(p<u8.length){const len=dv.getUint32(p);const type=td.decode(u8.slice(p+4,p+8));if(type==='tEXt'){const body=u8.slice(p+8,p+8+len);const z=body.indexOf(0);const key=td.decode(body.slice(0,z));if(key==='chara'||key==='ccv3'){const b64=td.decode(body.slice(z+1));const bin=atob(b64);const bytes=Uint8Array.from(bin,ch=>ch.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}}p+=12+len;}
- throw new Error('PNG 里没有角色卡数据（chara 块）');}
+function readImage(file,max){return new Promise((ok,no)=>{const img=new Image();img.onload=()=>{const sc=Math.min(1,max/Math.max(img.width,img.height));const cv=document.createElement('canvas');cv.width=Math.round(img.width*sc);cv.height=Math.round(img.height*sc);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);ok(cv.toDataURL('image/jpeg',.86));};img.onerror=()=>no(new Error('图片无法读取'));img.src=URL.createObjectURL(file);});}
+/* ----- 导入 ----- */
+async function importCard(file){try{let data,image=null;
+ if(/\.json$/i.test(file.name))data=JSON.parse(await file.text());
+ else{data=readPngCard(new Uint8Array(await file.arrayBuffer()));image=await readImage(file,512).catch(()=>null);}
+ const d=data.data||data;if(!d.name&&!d.description)throw new Error('文件里没有角色信息');
+ if(S.chars.length>=5)return toast('已有 5 个角色，先删一个');
+ const nc=newChar(d.name||'导入角色');nc.image=image;nc.tags=Array.isArray(d.tags)?d.tags:[];nc.creatorNotes=d.creator_notes||d.creatorcomment||'';
+ Object.assign(nc.card,{description:d.description||'',personality:d.personality||'',scenario:d.scenario||'',first:d.first_mes||'',alternates:Array.isArray(d.alternate_greetings)?d.alternate_greetings:[],example:d.mes_example||'',systemPrompt:d.system_prompt||'',postHistory:d.post_history_instructions||''});
+ S.chars.push(nc);selChar=nc.id;charTab='card';
+ if(d.character_book?.entries?.length){S.lorebooks.push(bookFromSpec(d.character_book,nc));}
+ save();renderChars();toast('已导入 '+nc.name+(d.character_book?.entries?.length?'（含角色书，已绑定到该角色）':''),4000);}catch(e){toast('导入失败：'+e.message,5000);}}
+function bookFromSpec(book,c){return {id:uid(),name:(book.name||c.name+' · 角色书'),worldId:null,charId:c.id,kind:'normal',enabled:true,entries:(book.entries||[]).map(e=>({id:uid(),title:e.comment||e.name||splitKeys(e.keys).join(',')||'条目',keys:splitKeys(e.keys).join(', '),secondary:splitKeys(e.secondary_keys).join(', '),logic:['and_any','not_all','not_any','and_all'][e.extensions?.selectiveLogic??0]||'and_any',content:e.content||'',constant:!!e.constant,enabled:e.enabled!==false,order:e.insertion_order??e.extensions?.order??100,position:e.position==='after_char'?'after':(e.extensions?.position===4?'depth':'before'),depth:e.extensions?.depth??2,probability:e.extensions?.probability??100,caseSensitive:!!e.case_sensitive,wholeWords:!!e.extensions?.match_whole_words}))};}
+function readPngCard(u8){if(u8[0]!==0x89||u8[1]!==0x50)throw new Error('不是 PNG 文件');let p=8;const dv=new DataView(u8.buffer,u8.byteOffset);const td=new TextDecoder();let found=null;
+ while(p+8<=u8.length){const len=dv.getUint32(p);const type=td.decode(u8.slice(p+4,p+8));if(type==='tEXt'){const body=u8.slice(p+8,p+8+len);const z=body.indexOf(0);const key=td.decode(body.slice(0,z));if(key==='ccv3'||(key==='chara'&&!found)){const b64=td.decode(body.slice(z+1));const bin=atob(b64);found=JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,ch=>ch.charCodeAt(0))));if(key==='ccv3')break;}}p+=12+len;}
+ if(!found)throw new Error('PNG 里没有角色卡数据');return found;}
+/* ----- 导出 ----- */
+function toCardV2(c){const cd=c.card;const books=S.lorebooks.filter(b=>b.charId===c.id&&b.kind!=='memory');
+ const data={name:c.name,description:cd.description||'',personality:cd.personality||'',scenario:cd.scenario||'',first_mes:cd.first||'',mes_example:cd.example||'',creator_notes:c.creatorNotes||'',system_prompt:cd.systemPrompt||'',post_history_instructions:cd.postHistory||'',alternate_greetings:cd.alternates||[],tags:c.tags||[],creator:'',character_version:'',extensions:{}};
+ if(books.length)data.character_book={name:books[0].name,entries:books.flatMap(b=>b.entries).map((e,i)=>({id:i,keys:splitKeys(e.keys),secondary_keys:splitKeys(e.secondary),comment:e.title,content:e.content,constant:!!e.constant,selective:!!splitKeys(e.secondary).length,insertion_order:e.order??100,enabled:e.enabled!==false,position:e.position==='after'?'after_char':'before_char',case_sensitive:!!e.caseSensitive,extensions:{position:e.position==='depth'?4:(e.position==='after'?1:0),depth:e.depth??2,probability:e.probability??100,selectiveLogic:{and_any:0,not_all:1,not_any:2,and_all:3}[e.logic||'and_any'],match_whole_words:!!e.wholeWords}}))};
+ return {spec:'chara_card_v2',spec_version:'2.0',data};}
+async function exportCardPng(c){if(!c.image)return toast('先在「高级」里上传一张头像图片，PNG 卡需要图片');
+ const img=new Image();img.src=c.image;await img.decode();const cv=document.createElement('canvas');cv.width=img.width;cv.height=img.height;cv.getContext('2d').drawImage(img,0,0);
+ const blob=await new Promise(r=>cv.toBlob(r,'image/png'));const png=new Uint8Array(await blob.arrayBuffer());
+ const json=JSON.stringify(toCardV2(c));const b64=btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+ const chunk=pngChunk('tEXt',new Uint8Array([...new TextEncoder().encode('chara'),0,...new TextEncoder().encode(b64)]));
+ const ihdrEnd=8+4+4+13+4;const out=new Uint8Array(png.length+chunk.length);out.set(png.slice(0,ihdrEnd),0);out.set(chunk,ihdrEnd);out.set(png.slice(ihdrEnd),ihdrEnd+chunk.length);
+ saveFile(`${c.name}.png`,out);}
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u8){let c=0xFFFFFFFF;for(const b of u8)c=CRC_T[(c^b)&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function pngChunk(type,data){const t=new TextEncoder().encode(type);const out=new Uint8Array(12+data.length);const dv=new DataView(out.buffer);dv.setUint32(0,data.length);out.set(t,4);out.set(data,8);dv.setUint32(8+data.length,crc32(out.slice(4,8+data.length)));return out;}
+async function saveFile(name,data){try{const dl=window.claude?.use?await window.claude.use('downloads'):null;if(dl){await dl.save({filename:name,data});toast('已保存 '+name);return;}}catch(e){if(e.code!=='declined')toast('保存失败：'+errCopy(e));return;}
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data]));a.download=name;a.click();toast('已下载 '+name);}
 
 /* =====================================================================
-   预设
+   预设（提示词管理器，SillyTavern 式：可排序、可开关、含占位块）
    ===================================================================== */
-function renderPresets(){const el=$('#presets-page');const p=P();
- el.innerHTML=`<div class="page-head"><div><h2>预设</h2><p>提示词的骨架。每一块可以开关、排序、改写；用 {{char}} {{user}} 代指人物。</p></div><div class="row"><select id="pr-sel" style="width:auto">${S.presets.map(x=>`<option value="${x.id}" ${x.id===p.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button class="small" id="pr-new">＋ 新预设</button><button class="small" id="pr-dup">复制</button><button class="small danger" id="pr-del">删除</button></div></div>
- <div id="pr-blocks">${p.blocks.map((b,i)=>`<div class="block ${b.enabled?'':'off'}" data-b="${b.id}"><div class="b-head"><label class="switch"><input type="checkbox" data-en ${b.enabled?'checked':''}></label><input type="text" data-name value="${esc(b.name)}"><button class="small ghost" data-up ${i===0?'disabled':''}>↑</button><button class="small ghost" data-down ${i===p.blocks.length-1?'disabled':''}>↓</button><button class="small ghost" data-del>✕</button></div><textarea data-content>${esc(b.content)}</textarea></div>`).join('')}</div><button id="pr-addb">＋ 添加一块</button>`;
- $('#pr-sel').onchange=e=>{S.activePresetId=e.target.value;save();renderPresets();};
- $('#pr-new').onclick=()=>promptBox('预设名','',v=>{if(!v)return;const np={id:uid(),name:v,blocks:[{id:uid(),name:'总纲',enabled:true,content:''}]};S.presets.push(np);S.activePresetId=np.id;save();renderPresets();});
+function renderPresets(){const el=$('#presets-page');const p=P();const total=p.blocks.filter(b=>b.enabled).reduce((a,b)=>a+(b.marker?0:estTokens(fill(b.content))),0);
+ el.innerHTML=`<div class="page-head"><div><h2>预设</h2><p>发给 AI 的内容按这里的顺序拼装。金色的是系统占位块（角色卡、世界书、对话历史…），只能排序和开关；其余是你写的文字块。</p></div>
+  <div class="row"><select id="pr-sel" style="width:auto">${S.presets.map(x=>`<option value="${x.id}" ${x.id===p.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button class="small" id="pr-new">＋ 新建</button><button class="small" id="pr-dup">复制</button><button class="small" id="pr-import" title="导入 SillyTavern 聊天补全预设 JSON">⇧ 导入</button><button class="small" id="pr-export">⇩ 导出</button><button class="small danger" id="pr-del">删除</button></div></div>
+ <div class="row" style="margin-bottom:12px"><input type="text" id="pr-name" value="${esc(p.name)}" style="max-width:320px"><span class="pill num">文字块约 ${total} tokens</span><span class="grow"></span><button class="small" id="pr-addb">＋ 添加文字块</button><button class="small ghost" id="pr-reset" title="恢复默认预设的块与顺序">恢复默认</button></div>
+ <div id="pr-blocks">${p.blocks.map((b,i)=>`<div class="block ${b.enabled?'':'off'} ${b.marker?'marker':''}" data-b="${b.id}" draggable="true">
+  <div class="b-head"><span class="grip" title="拖动排序">⋮⋮</span><label class="switch"><input type="checkbox" data-en ${b.enabled?'checked':''}></label>
+   ${b.marker?`<b class="grow">${esc(b.name)}</b><span class="pill accent">系统</span>`:`<input type="text" data-name value="${esc(b.name)}"><span class="pill num">${estTokens(fill(b.content))}</span>`}
+   <button class="small ghost" data-up ${i===0?'disabled':''}>↑</button><button class="small ghost" data-down ${i===p.blocks.length-1?'disabled':''}>↓</button>${b.marker?'':'<button class="small ghost" data-del>✕</button>'}</div>
+  ${b.marker?`<div class="muted" style="font-size:.85em">${esc(MARKER_HELP[b.marker]||'')}</div>`:`<textarea data-content>${esc(b.content)}</textarea>`}</div>`).join('')}</div>`;
+ $('#pr-sel').onchange=e=>{S.activePresetId=e.target.value;save();renderPresets();};$('#pr-name').onchange=e=>{p.name=e.target.value||p.name;save();renderPresets();};
+ $('#pr-new').onclick=()=>promptBox('预设名','',v=>{if(!v)return;const np=DEFAULT_PRESET();np.id=uid();np.name=v;S.presets.push(np);S.activePresetId=np.id;save();renderPresets();});
  $('#pr-dup').onclick=()=>{const np=JSON.parse(JSON.stringify(p));np.id=uid();np.name=p.name+' 副本';np.blocks.forEach(b=>b.id=uid());S.presets.push(np);S.activePresetId=np.id;save();renderPresets();};
  $('#pr-del').onclick=()=>{if(S.presets.length<=1)return toast('至少保留一个预设');confirmBox('删除预设 '+p.name+'？',()=>{S.presets=S.presets.filter(x=>x.id!==p.id);S.activePresetId=S.presets[0].id;save();renderPresets();});};
+ $('#pr-reset').onclick=()=>confirmBox('把这个预设恢复成默认的块与顺序？你写的文字会丢失。',()=>{const d=DEFAULT_PRESET();p.blocks=d.blocks;save();renderPresets();});
  $('#pr-addb').onclick=()=>{p.blocks.push({id:uid(),name:'新块',enabled:true,content:''});save();renderPresets();};
+ $('#pr-export').onclick=()=>saveFile(`${p.name}.json`,JSON.stringify(presetToST(p),null,2));
+ $('#pr-import').onclick=()=>pickFile('.json',async f=>{try{const j=JSON.parse(await f.text());const np=presetFromST(j,f.name.replace(/\.json$/i,''));S.presets.push(np);S.activePresetId=np.id;save();renderPresets();toast('已导入预设 '+np.name);}catch(e){toast('导入失败：'+e.message,5000);}});
+ const move=(b,to)=>{const k=p.blocks.indexOf(b);p.blocks.splice(k,1);p.blocks.splice(to,0,b);save();renderPresets();};
  $$('#pr-blocks .block').forEach(bl=>{const b=p.blocks.find(x=>x.id===bl.dataset.b);const i=()=>p.blocks.indexOf(b);
-  $('[data-en]',bl).onchange=e=>{b.enabled=e.target.checked;save();renderPresets();};$('[data-name]',bl).onchange=e=>{b.name=e.target.value;save();};$('[data-content]',bl).onchange=e=>{b.content=e.target.value;save();};
-  $('[data-up]',bl).onclick=()=>{const k=i();if(k>0){p.blocks.splice(k,1);p.blocks.splice(k-1,0,b);save();renderPresets();}};$('[data-down]',bl).onclick=()=>{const k=i();if(k<p.blocks.length-1){p.blocks.splice(k,1);p.blocks.splice(k+1,0,b);save();renderPresets();}};
-  $('[data-del]',bl).onclick=()=>{p.blocks=p.blocks.filter(x=>x!==b);save();renderPresets();};});
+  $('[data-en]',bl).onchange=e=>{b.enabled=e.target.checked;save();renderPresets();};
+  $('[data-name]',bl)&&($('[data-name]',bl).onchange=e=>{b.name=e.target.value;save();});$('[data-content]',bl)&&($('[data-content]',bl).onchange=e=>{b.content=e.target.value;save();renderPresets();});
+  $('[data-up]',bl).onclick=()=>{if(i()>0)move(b,i()-1);};$('[data-down]',bl).onclick=()=>{if(i()<p.blocks.length-1)move(b,i()+1);};
+  $('[data-del]',bl)&&($('[data-del]',bl).onclick=()=>{p.blocks=p.blocks.filter(x=>x!==b);save();renderPresets();});});
+ makeSortable($('#pr-blocks'),'.block',(fromId,toIdx)=>{const b=p.blocks.find(x=>x.id===fromId);move(b,toIdx);});
 }
+const MARKER_HELP={char:'当前角色的名字、设定、性格、情境与对话示例。',npcs:'该角色的 NPC 名册（性别、样貌、性格、关系）。',user:'你的人设。',lore_before:'位置为「角色前」的已触发世界书条目。',lore_after:'位置为「角色后」的已触发世界书条目。',memory:'该世界已归档的剧情总结（长期记忆）。',recall:'根据你的输入自动检索到的旧楼层（≤10 楼）。',state:'世界时间、地点、天气、角色状态、关系与记忆点。',history:'楼层对话本身。在这之后的块会放在对话之后（相当于后置指令）。',rules:'抢话模式与篇幅要求。'};
+function makeSortable(box,sel,onMove){let dragId=null;$$(sel,box).forEach(it=>{it.addEventListener('dragstart',e=>{dragId=it.dataset.b||it.dataset.e;it.classList.add('dragging');e.dataTransfer.effectAllowed='move';});it.addEventListener('dragend',()=>{it.classList.remove('dragging');$$(sel,box).forEach(x=>x.classList.remove('drop-before','drop-after'));});
+  it.addEventListener('dragover',e=>{e.preventDefault();const r=it.getBoundingClientRect();const before=e.clientY<r.top+r.height/2;$$(sel,box).forEach(x=>x.classList.remove('drop-before','drop-after'));it.classList.add(before?'drop-before':'drop-after');});
+  it.addEventListener('drop',e=>{e.preventDefault();if(!dragId)return;const items=$$(sel,box);const r=it.getBoundingClientRect();let idx=items.indexOf(it);if(e.clientY>=r.top+r.height/2)idx++;const from=items.findIndex(x=>(x.dataset.b||x.dataset.e)===dragId);if(from<idx)idx--;if(from!==idx)onMove(dragId,idx);dragId=null;});});}
+/* ----- SillyTavern 预设互转 ----- */
+const ST_MARKER={charDescription:'char',charPersonality:'char',scenario:'char',dialogueExamples:'char',worldInfoBefore:'lore_before',worldInfoAfter:'lore_after',chatHistory:'history',personaDescription:'user'};
+function presetFromST(j,fallbackName){const prompts=j.prompts||[];if(!prompts.length)throw new Error('不是 SillyTavern 聊天补全预设（缺少 prompts）');
+ const orderList=(j.prompt_order||[]).find(o=>String(o.character_id)==='100001')||(j.prompt_order||[])[0];const order=orderList?orderList.order:prompts.map(p=>({identifier:p.identifier,enabled:p.enabled!==false}));
+ const blocks=[];const seenMarker=new Set();
+ for(const o of order){const pr=prompts.find(p=>p.identifier===o.identifier);if(!pr)continue;
+  if(pr.marker){const m=ST_MARKER[pr.identifier];if(!m||seenMarker.has(m))continue;seenMarker.add(m);blocks.push({id:uid(),name:MARKERS[m],enabled:o.enabled!==false,content:'',marker:m});}
+  else blocks.push({id:uid(),name:pr.name||pr.identifier,enabled:o.enabled!==false,content:String(pr.content||''),role:pr.role||'system'});}
+ for(const m of ['npcs','memory','recall','state','rules'])if(!seenMarker.has(m)){const at=m==='rules'?blocks.length:Math.max(0,blocks.findIndex(b=>b.marker==='history'));blocks.splice(at<0?blocks.length:at,0,{id:uid(),name:MARKERS[m],enabled:true,content:'',marker:m});}
+ return {id:uid(),name:j.name||fallbackName||'导入的预设',blocks};}
+function presetToST(p){const inv={char:'charDescription',lore_before:'worldInfoBefore',lore_after:'worldInfoAfter',history:'chatHistory',user:'personaDescription'};
+ const prompts=[],order=[];for(const b of p.blocks){if(b.marker){const id=inv[b.marker];if(!id)continue;prompts.push({identifier:id,name:b.name,marker:true,system_prompt:true,enabled:b.enabled});order.push({identifier:id,enabled:b.enabled});}
+  else{const id='moye_'+b.id;prompts.push({identifier:id,name:b.name,system_prompt:true,role:b.role||'system',content:b.content,enabled:b.enabled,marker:false,injection_position:0,injection_depth:4});order.push({identifier:id,enabled:b.enabled});}}
+ return {name:p.name,prompts,prompt_order:[{character_id:100001,order}]};}
 
 /* =====================================================================
-   世界书
+   世界书（SillyTavern 式：主/次关键词、逻辑、位置、深度、顺序、概率、导入导出）
    ===================================================================== */
-let selBook=null;
-function renderLore(){const el=$('#lore-page');const w=W();const books=S.lorebooks;let b=books.find(x=>x.id===selBook)||books.find(x=>x.worldId===w.id&&x.kind!=='memory')||books[0];selBook=b?.id;
- el.innerHTML=`<div class="page-head"><div><h2>世界书</h2><p>常驻条目每次都送入；触发条目在最近几楼或你的输入里出现关键词时才送入。</p></div><div class="row"><select id="lb-sel" style="width:auto">${books.map(x=>`<option value="${x.id}" ${x.id===selBook?'selected':''}>${esc(x.name)}${x.kind==='memory'?'（记忆）':x.worldId?'':'（通用）'}</option>`).join('')}</select><button class="small" id="lb-new">＋ 新世界书</button><button class="small danger" id="lb-del">删除</button></div></div>
- ${b?`<div class="row" style="margin-bottom:14px"><label class="field grow" style="margin:0"><span>名字</span><input type="text" id="lb-name" value="${esc(b.name)}"></label><label class="field" style="margin:0"><span>作用范围</span><select id="lb-scope" style="width:auto"><option value="" ${!b.worldId?'selected':''}>所有世界</option>${S.worlds.map(x=>`<option value="${x.id}" ${b.worldId===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div>
- <div id="lb-entries">${b.entries.map(e=>`<div class="block ${e.enabled?'':'off'}" data-e="${e.id}"><div class="b-head"><label class="switch"><input type="checkbox" data-en ${e.enabled?'checked':''}></label><input type="text" data-title value="${esc(e.title)}" placeholder="标题"><label class="switch"><input type="checkbox" data-const ${e.constant?'checked':''}> 常驻</label><button class="small ghost" data-del>✕</button></div><input type="text" data-keys value="${esc(e.keys||'')}" placeholder="触发关键词，用逗号分隔（常驻条目不需要）" style="margin-bottom:8px"><textarea data-content>${esc(e.content)}</textarea></div>`).join('')||'<p class="muted">还没有条目。</p>'}</div><button id="lb-adde">＋ 添加条目</button>`:''}`;
- $('#lb-sel').onchange=e=>{selBook=e.target.value;renderLore();};
- $('#lb-new').onclick=()=>promptBox('世界书名','',v=>{if(!v)return;const nb={id:uid(),name:v,worldId:w.id,kind:'normal',entries:[]};books.push(nb);selBook=nb.id;save();renderLore();});
+let selBook=null,loreOpen=new Set(),loreFilter='';
+function renderLore(){const el=$('#lore-page');const w=W();const books=S.lorebooks;let b=books.find(x=>x.id===selBook)||books.find(x=>x.worldId===w.id&&x.kind!=='memory')||books.find(x=>x.kind!=='memory')||books[0];selBook=b?.id;
+ const scope=x=>x.kind==='memory'?'记忆':x.worldId?'世界：'+(S.worlds.find(v=>v.id===x.worldId)?.name||'?'):x.charId?'角色：'+(S.chars.find(c=>c.id===x.charId)?.name||'?'):'全局';
+ const entries=b?b.entries.filter(e=>!loreFilter||(e.title+' '+e.keys+' '+e.content).toLowerCase().includes(loreFilter.toLowerCase())):[];
+ el.innerHTML=`<div class="page-head"><div><h2>世界书</h2><p>常驻条目每次都送入；触发条目在最近 ${S.settings.loreScanDepth||4} 楼或你的输入里命中关键词时才送入。</p></div>
+  <div class="row"><select id="lb-sel" style="width:auto;max-width:260px">${books.map(x=>`<option value="${x.id}" ${x.id===selBook?'selected':''}>${x.enabled===false?'⏸ ':''}${esc(x.name)}（${scope(x)}）</option>`).join('')}</select><button class="small" id="lb-new">＋ 新建</button><button class="small" id="lb-import" title="导入 SillyTavern 世界书 JSON">⇧ 导入</button><button class="small" id="lb-export">⇩ 导出</button><button class="small danger" id="lb-del">删除</button></div></div>
+ ${b?`<div class="card" style="margin-bottom:16px"><div class="row"><label class="field grow" style="margin:0"><span>名字</span><input type="text" id="lb-name" value="${esc(b.name)}"></label>
+  <label class="field" style="margin:0"><span>作用范围</span><select id="lb-scope" style="width:auto"><option value="" ${!b.worldId&&!b.charId?'selected':''}>全局（所有世界）</option>${S.chars.map(c=>`<option value="c:${c.id}" ${b.charId===c.id?'selected':''}>角色：${esc(c.name)}</option>`).join('')}${S.worlds.map(x=>`<option value="w:${x.id}" ${b.worldId===x.id?'selected':''}>世界：${esc(x.name)}</option>`).join('')}</select></label>
+  <label class="switch" style="margin-top:20px"><input type="checkbox" id="lb-on" ${b.enabled!==false?'checked':''}> 启用</label></div>
+  <div class="row" style="margin-top:10px"><label class="switch">扫描深度 <input type="number" id="lb-depth" value="${S.settings.loreScanDepth||4}" style="width:70px;padding:4px 8px"> 楼</label><label class="switch"><input type="checkbox" id="lb-rec" ${S.settings.loreRecursive?'checked':''}> 递归扫描（条目内容也能触发别的条目）</label><span class="grow"></span><span class="pill num">${b.entries.length} 条 · 约 ${b.entries.filter(e=>e.enabled).reduce((a,e)=>a+estTokens(e.content),0)} tokens</span></div></div>
+ <div class="row" style="margin-bottom:10px"><input type="text" id="lb-filter" placeholder="搜索条目…" value="${esc(loreFilter)}" style="max-width:280px"><button class="small ghost" id="lb-expand">全部展开</button><button class="small ghost" id="lb-collapse">全部收起</button><span class="grow"></span><button class="small primary" id="lb-adde">＋ 新条目</button></div>
+ <div id="lb-entries">${entries.map(e=>`<div class="block lore ${e.enabled?'':'off'} ${loreOpen.has(e.id)?'open':''}" data-e="${e.id}" draggable="true">
+   <div class="b-head" data-toggle><span class="grip">⋮⋮</span><span class="dot ${e.constant?'const':''}" title="${e.constant?'常驻':'关键词触发'}"></span><b class="grow ttl">${esc(e.title||'（无标题）')}</b><span class="muted" style="font-size:.82em;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.constant?'常驻':(e.keys||'没有关键词'))}</span><span class="pill num">${estTokens(e.content)}</span><label class="switch" data-stop><input type="checkbox" data-en ${e.enabled?'checked':''}></label><span class="caret">▸</span></div>
+   <div class="b-body" ${loreOpen.has(e.id)?'':'hidden'}>
+    <div class="grid2"><label class="field"><span>标题 / 备注</span><input type="text" data-f="title" value="${esc(e.title)}"></label><label class="field"><span>策略</span><select data-f="constant"><option value="0" ${!e.constant?'selected':''}>🟢 关键词触发</option><option value="1" ${e.constant?'selected':''}>🔵 常驻</option></select></label></div>
+    <div class="grid2"><label class="field"><span>主关键词（逗号分隔）</span><input type="text" data-f="keys" value="${esc(e.keys||'')}"></label><label class="field"><span>次关键词（可选）</span><div class="row"><select data-f="logic" style="width:auto"><option value="and_any" ${e.logic==='and_any'||!e.logic?'selected':''}>且含任一</option><option value="and_all" ${e.logic==='and_all'?'selected':''}>且含全部</option><option value="not_any" ${e.logic==='not_any'?'selected':''}>且不含任一</option><option value="not_all" ${e.logic==='not_all'?'selected':''}>且不全含</option></select><input type="text" class="grow" data-f="secondary" value="${esc(e.secondary||'')}"></div></label></div>
+    <label class="field"><span>内容</span><textarea data-f="content" style="min-height:110px">${esc(e.content)}</textarea></label>
+    <div class="row" style="gap:16px"><label class="field" style="margin:0"><span>插入位置</span><select data-f="position" style="width:auto"><option value="before" ${(e.position||'before')==='before'?'selected':''}>角色卡之前</option><option value="after" ${e.position==='after'?'selected':''}>角色卡之后</option><option value="depth" ${e.position==='depth'?'selected':''}>对话中 · 倒数第 N 楼</option></select></label>
+     <label class="field" style="margin:0"><span>深度 N</span><input type="number" data-f="depth" value="${e.depth??2}" style="width:80px"></label><label class="field" style="margin:0"><span>顺序（大的在前）</span><input type="number" data-f="order" value="${e.order??100}" style="width:90px"></label><label class="field" style="margin:0"><span>触发概率 %</span><input type="number" data-f="probability" value="${e.probability??100}" min="0" max="100" style="width:80px"></label>
+     <label class="switch" style="margin-top:18px"><input type="checkbox" data-f="caseSensitive" ${e.caseSensitive?'checked':''}> 区分大小写</label><label class="switch" style="margin-top:18px"><input type="checkbox" data-f="wholeWords" ${e.wholeWords?'checked':''}> 整词匹配</label><span class="grow"></span><button class="small ghost" data-dup style="margin-top:14px">复制</button><button class="small ghost danger" data-del style="margin-top:14px">删除</button></div>
+   </div></div>`).join('')||`<p class="muted">${loreFilter?'没有匹配的条目。':'还没有条目，点「新条目」开始。'}</p>`}</div>`:'<p class="muted">还没有世界书。</p>'}`;
+ $('#lb-sel').onchange=e=>{selBook=e.target.value;loreFilter='';renderLore();};
+ $('#lb-new').onclick=()=>promptBox('世界书名','',v=>{if(!v)return;const nb={id:uid(),name:v,worldId:w.id,charId:null,kind:'normal',enabled:true,entries:[]};books.push(nb);selBook=nb.id;save();renderLore();});
  $('#lb-del').onclick=()=>b&&confirmBox('删除世界书 '+b.name+'？',()=>{S.lorebooks=books.filter(x=>x!==b);selBook=null;memIndexAll();save();renderLore();});
- if(!b)return;$('#lb-name').onchange=e=>{b.name=e.target.value;save();};$('#lb-scope').onchange=e=>{b.worldId=e.target.value||null;save();};
- $('#lb-adde').onclick=()=>{b.entries.push({id:uid(),title:'新条目',keys:'',content:'',constant:false,enabled:true});save();renderLore();};
+ $('#lb-import').onclick=()=>pickFile('.json',async f=>{try{const j=JSON.parse(await f.text());const nb=bookFromST(j,f.name.replace(/\.json$/i,''));nb.worldId=null;nb.charId=null;S.lorebooks.push(nb);selBook=nb.id;save();renderLore();toast(`已导入「${nb.name}」，${nb.entries.length} 条（作用范围：全局，可在上方修改）`,4000);}catch(e){toast('导入失败：'+e.message,5000);}});
+ $('#lb-export').onclick=()=>b&&saveFile(`${b.name}.json`,JSON.stringify(bookToST(b),null,2));
+ if(!b)return;
+ $('#lb-name').onchange=e=>{b.name=e.target.value;save();renderLore();};$('#lb-on').onchange=e=>{b.enabled=e.target.checked;save();renderLore();};
+ $('#lb-scope').onchange=e=>{const v=e.target.value;b.worldId=v.startsWith('w:')?v.slice(2):null;b.charId=v.startsWith('c:')?v.slice(2):null;save();renderLore();};
+ $('#lb-depth').onchange=e=>{S.settings.loreScanDepth=Math.max(1,+e.target.value||4);save();renderLore();};$('#lb-rec').onchange=e=>{S.settings.loreRecursive=e.target.checked;save();};
+ $('#lb-filter').oninput=e=>{loreFilter=e.target.value;renderLore();$('#lb-filter').focus();const v=$('#lb-filter');v.setSelectionRange(v.value.length,v.value.length);};
+ $('#lb-expand').onclick=()=>{b.entries.forEach(e=>loreOpen.add(e.id));renderLore();};$('#lb-collapse').onclick=()=>{loreOpen.clear();renderLore();};
+ $('#lb-adde').onclick=()=>{const e=newEntry();b.entries.unshift(e);loreOpen.add(e.id);save();renderLore();$(`[data-e="${e.id}"] [data-f="title"]`)?.focus();};
  $$('#lb-entries .block').forEach(bl=>{const e=b.entries.find(x=>x.id===bl.dataset.e);
-  $('[data-en]',bl).onchange=ev=>{e.enabled=ev.target.checked;save();renderLore();};$('[data-title]',bl).onchange=ev=>{e.title=ev.target.value;save();};$('[data-const]',bl).onchange=ev=>{e.constant=ev.target.checked;save();};$('[data-keys]',bl).onchange=ev=>{e.keys=ev.target.value;save();};$('[data-content]',bl).onchange=ev=>{e.content=ev.target.value;if(b.kind==='memory')memIndexAll();save();};
-  $('[data-del]',bl).onclick=()=>{b.entries=b.entries.filter(x=>x!==e);memIndexAll();save();renderLore();};});
+  $('[data-toggle]',bl).onclick=ev=>{if(ev.target.closest('[data-stop]')||ev.target.closest('.grip'))return;loreOpen.has(e.id)?loreOpen.delete(e.id):loreOpen.add(e.id);renderLore();};
+  $('[data-en]',bl).onchange=ev=>{e.enabled=ev.target.checked;save();renderLore();};
+  $$('[data-f]',bl).forEach(i=>i.onchange=()=>{const k=i.dataset.f;let v=i.type==='checkbox'?i.checked:i.value;if(k==='constant')v=v==='1';if(['depth','order','probability'].includes(k))v=+v;e[k]=v;if(b.kind==='memory')memIndexAll();save();if(['title','keys','constant','content'].includes(k))renderLore();});
+  $('[data-dup]',bl).onclick=()=>{const c=JSON.parse(JSON.stringify(e));c.id=uid();c.title+=' 副本';b.entries.splice(b.entries.indexOf(e)+1,0,c);save();renderLore();};
+  $('[data-del]',bl).onclick=()=>confirmBox(`删除条目「${e.title}」？`,()=>{b.entries=b.entries.filter(x=>x!==e);memIndexAll();save();renderLore();});});
+ makeSortable($('#lb-entries'),'.block',(fromId,toIdx)=>{const e=b.entries.find(x=>x.id===fromId);const k=b.entries.indexOf(e);b.entries.splice(k,1);b.entries.splice(toIdx,0,e);save();renderLore();});
 }
+function newEntry(){return {id:uid(),title:'新条目',keys:'',secondary:'',logic:'and_any',content:'',constant:false,enabled:true,order:100,position:'before',depth:2,probability:100,caseSensitive:false,wholeWords:false};}
+/* ----- SillyTavern 世界书互转 ----- */
+function bookFromST(j,fallbackName){let list;if(j.entries&&!Array.isArray(j.entries))list=Object.values(j.entries);else if(Array.isArray(j.entries))list=j.entries;else throw new Error('不是世界书文件（缺少 entries）');
+ if(list.length&&list[0].keys!==undefined&&list[0].key===undefined){return Object.assign(bookFromSpec({name:j.name,entries:list},{id:null,name:fallbackName}),{charId:null,name:j.name||fallbackName});}
+ return {id:uid(),name:j.name||fallbackName||'导入的世界书',worldId:null,charId:null,kind:'normal',enabled:true,entries:list.map(e=>({id:uid(),title:e.comment||splitKeys(e.key).join(',')||'条目',keys:splitKeys(e.key).join(', '),secondary:splitKeys(e.keysecondary).join(', '),logic:['and_any','not_all','not_any','and_all'][e.selectiveLogic??0]||'and_any',content:e.content||'',constant:!!e.constant,enabled:!e.disable,order:e.order??100,position:e.position===1?'after':(e.position===4?'depth':'before'),depth:e.depth??2,probability:e.useProbability===false?100:(e.probability??100),caseSensitive:!!e.caseSensitive,wholeWords:!!e.matchWholeWords}))};}
+function bookToST(b){const entries={};b.entries.forEach((e,i)=>{entries[i]={uid:i,key:splitKeys(e.keys),keysecondary:splitKeys(e.secondary),comment:e.title,content:e.content,constant:!!e.constant,selective:!!splitKeys(e.secondary).length,selectiveLogic:{and_any:0,not_all:1,not_any:2,and_all:3}[e.logic||'and_any'],order:e.order??100,position:e.position==='after'?1:(e.position==='depth'?4:0),depth:e.depth??2,disable:!e.enabled,probability:e.probability??100,useProbability:true,caseSensitive:!!e.caseSensitive,matchWholeWords:!!e.wholeWords,excludeRecursion:false,displayIndex:i};});return {name:b.name,entries};}
 
 /* =====================================================================
    设置 / 备份 / 云同步
@@ -1098,12 +1286,10 @@ function renderSettings(){const el=$('#settings-page');if(!el)return;const st=S.
  $('#s-budget').onchange=e=>{st.contextBudget=Math.max(2000,+e.target.value||24000);save();};
  $$('[data-scdel]',el).forEach(b=>b.onclick=()=>{st.shortcuts.splice(+b.dataset.scdel,1);save();renderSettings();});$('#s-sc-add').onclick=()=>{const v=$('#s-sc-in').value;if(v){st.shortcuts.push(v);save();renderSettings();}};
  $('#s-cloud').onchange=e=>{st.cloudSync=e.target.checked;save();if(st.cloudSync)cloudSave();};
- $('#s-export').onclick=exportBackup;$('#s-import').onclick=()=>pickFile('.json',async f=>{try{const j=JSON.parse(await f.text());if(!j.worlds)throw new Error('不是墨夜书房的备份');confirmBox('用备份覆盖当前所有数据？',()=>{S=j;memIndexAll();save();applySettings();showView('story');toast('已恢复');});}catch(e){toast('恢复失败：'+e.message,5000);}});
+ $('#s-export').onclick=exportBackup;$('#s-import').onclick=()=>pickFile('.json',async f=>{try{const j=JSON.parse(await f.text());if(!j.worlds)throw new Error('不是墨夜书房的备份');confirmBox('用备份覆盖当前所有数据？',()=>{S=migrate(j);memIndexAll();save();applySettings();showView('story');toast('已恢复');});}catch(e){toast('恢复失败：'+e.message,5000);}});
  $('#s-reset').onclick=()=>confirmBox('这会清空当前所有数据并载入示例世界。建议先备份。',()=>{S=seedState();memIndexAll();save();applySettings();showView('story');});
 }
-async function exportBackup(){const name=`moye-backup-${new Date().toISOString().slice(0,10)}.json`;const data=JSON.stringify(S,null,1);
- try{const dl=window.claude?.use?await window.claude.use('downloads'):null;if(dl){await dl.save({filename:name,data});toast('备份已保存');return;}}catch(e){if(e.code!=='declined')toast('保存失败：'+errCopy(e));return;}
- const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;a.click();toast('备份已下载');}
+async function exportBackup(){saveFile(`moye-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(S,null,1));}
 const cloud={db:null,status:'未连接（只在 claude.ai 里可用）',saving:false};
 async function cloudInit(){try{if(!window.claude?.use)return;cloud.db=await window.claude.use('db');if(!cloud.db){cloud.status='此环境不支持云同步';return;}
  const m=await cloud.db.doc('airp/manifest').get();if(m.exists){const d=m.data();if(d.savedAt&&d.savedAt>(S.savedAt||0)){const parts=[];for(let i=0;i<d.chunks;i++){const c=await cloud.db.doc('airp/chunk_'+i).get();parts.push(c.data()?.t||'');}const j=JSON.parse(parts.join(''));if(j.worlds){S=j;memIndexAll();applySettings();showView(S.settings.lastView||'story');cloud.status='已从云端载入较新的存档（'+new Date(d.savedAt).toLocaleString()+'）';toast('已同步云端存档');renderSettings();return;}}}
@@ -1111,10 +1297,30 @@ async function cloudInit(){try{if(!window.claude?.use)return;cloud.db=await wind
 async function cloudSave(){if(!cloud.db||!S.settings.cloudSync||cloud.saving)return;cloud.saving=true;try{S.savedAt=now();const s=JSON.stringify(S);const CH=180000;const n=Math.ceil(s.length/CH);for(let i=0;i<n;i++)await cloud.db.doc('airp/chunk_'+i).set({t:s.slice(i*CH,(i+1)*CH)});await cloud.db.doc('airp/manifest').set({savedAt:S.savedAt,chunks:n});cloud.status='已同步 · '+new Date(S.savedAt).toLocaleTimeString();const el=$('#s-cloud-st');if(el)el.textContent=cloud.status;}catch(e){cloud.status='同步失败：'+(e.message||e.code);}cloud.saving=false;}
 
 /* =====================================================================
+   首页（角色与世界总览）
+   ===================================================================== */
+function renderHome(){const el=$('#home-page');const w=W(),c=C(w);const vis=w?visibleFloors(w):[];
+ el.innerHTML=`<div class="page-head"><div><h2>书房</h2><p>选一个角色，进入一个世界。</p></div><div class="row"><button class="small" id="h-import">⇧ 导入角色卡</button><button class="small primary" id="h-new" ${S.chars.length>=5?'disabled':''}>＋ 新角色</button></div></div>
+ ${w?`<div class="continue" id="h-continue"><span class="avatar lg" style="${charImgStyle(c)}">${esc(c.avatar||c.name[0])}</span><div class="grow"><div class="eyebrow">继续上次</div><div class="c-title">${esc(w.name)} <span class="muted">· ${esc(c.name)}</span></div><div class="muted" style="font-size:.9em">第 ${vis.length} 楼 · ${esc(w.clock.time)} · ${esc(w.clock.location)}</div></div><button class="primary">继续阅读 →</button></div>`:''}
+ <div class="hgrid">${S.chars.map(x=>{const ws=S.worlds.filter(v=>v.charId===x.id);return `<div class="hc"><div class="hc-img" style="${x.image?`background-image:url(${x.image})`:`background:${esc(x.color||'#3E5F73')}`}">${x.image?'':`<span>${esc(x.avatar||x.name[0])}</span>`}</div><div class="hc-body"><div class="row" style="justify-content:space-between"><b style="font-size:1.15em">${esc(x.name)}</b><button class="small ghost" data-edit="${x.id}">✎ 编辑</button></div><div class="muted hc-desc">${esc((x.card.description||'').slice(0,80)||'还没写设定')}</div><div class="chips" style="margin-top:8px">${ws.map(v=>`<button class="chip ${v.id===S.activeWorldId?'on':''}" data-w="${v.id}">${esc(v.name)} <span class="muted num">${v.floors.length}</span></button>`).join('')}<button class="chip add" data-new="${x.id}">＋ 新世界</button></div></div></div>`;}).join('')}</div>`;
+ $('#h-continue')&&($('#h-continue').onclick=()=>showView('story'));
+ $('#h-import').onclick=()=>pickFile('.png,.json',async f=>{await importCard(f);renderHome();});
+ $('#h-new').onclick=()=>promptBox('新角色的名字','',v=>{if(!v)return;const nc=newChar(v);S.chars.push(nc);selChar=nc.id;charTab='card';save();showView('chars');});
+ $$('[data-edit]',el).forEach(b=>b.onclick=()=>{selChar=b.dataset.edit;charTab='card';showView('chars');});
+ $$('[data-w]',el).forEach(b=>b.onclick=()=>{S.activeWorldId=b.dataset.w;save();showView('story');});
+ $$('[data-new]',el).forEach(b=>b.onclick=()=>{const cc=S.chars.find(x=>x.id===b.dataset.new);promptBox('新世界的名字','',v=>{createWorld(cc.id,v||'新世界');showView('story');},cc.card.first?'开场白会作为第 1 楼；有备用开场白时可在第 1 楼左右切换':'这个角色还没有开场白，进入后直接点「继续」让 TA 开场');});
+}
+/* 手机端：回复设置 */
+$('#btn-reply-opts').onclick=()=>{const mk=(id,label)=>{const src=$(id);return `<label class="field"><span>${label}</span><select data-mirror="${id}">${src.innerHTML}</select></label>`;};
+ modal({title:'回复设置',body:mk('#sel-mode','抢话')+mk('#sel-len','长度')+mk('#sel-model','模型'),foot:[{label:'完成',cls:'primary',onClick:closeModal}]});
+ $$('#m-body [data-mirror]').forEach(s=>{const src=$(s.dataset.mirror);s.value=src.value;s.onchange=()=>{src.value=s.value;src.dispatchEvent(new Event('change'));};});};
+$('#input').addEventListener('input',()=>{$('#btn-send').textContent=$('#input').value.trim()?'发送':'继续';});
+
+/* =====================================================================
    启动
    ===================================================================== */
-Object.assign(RENDER,{story:renderStory,phone:renderPhone,forum:renderForum,diary:renderDiary,records:renderRecords,memory:renderMemory,chars:renderChars,presets:renderPresets,lore:renderLore,settings:renderSettings});
-buildNav();applySettings();memIndexAll();renderModelSelect();showView(S.settings.lastView||'story');
+Object.assign(RENDER,{home:renderHome,story:renderStory,phone:renderPhone,forum:renderForum,diary:renderDiary,records:renderRecords,memory:renderMemory,chars:renderChars,presets:renderPresets,lore:renderLore,settings:renderSettings});
+buildNav();applySettings();memIndexAll();renderModelSelect();showView(S.settings.lastView||'home');
 AI.init().then(()=>{if(view==='story')renderMeter();if(AI.mode==='none')toast('演示模式：没有 AI 连接。在 claude.ai 里打开可直接用订阅额度。',6000);});
 cloudInit();
 window.addEventListener('beforeunload',()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}});
