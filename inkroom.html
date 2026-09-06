@@ -407,7 +407,9 @@ async function loadFromDb(){
     w.floors=floors;w._chunkCount=w.chunkCount;delete w.chunkCount;delete w.worldIds;worlds.push(w);
   }
   const assets={};for(const id of meta.assetIds||[]){const a=await DB.doc('assets/'+id).get();if(a.exists)assets[id]=a.data().data}
-  const {worldIds,assetIds,...rest}=meta; return {...rest,worlds,assets};
+  const {worldIds,assetIds,...rest}=meta;
+  // 平台交付的快照是冻结对象，必须深拷贝成可变数据，否则 push/赋值会报 object is not extensible
+  const out=clean({...rest,worlds,assets});out.worlds.forEach(w=>{w._chunkCount=(worlds.find(x=>x.id===w.id)||{})._chunkCount});return out;
 }
 function saveAll(){dirty.add('meta');S.worlds.forEach(w=>dirty.add(w.id));Object.keys(S.assets||{}).forEach(id=>dirty.add('asset:'+id));markDirty('meta')}
 function setAsset(id,dataUrl){S.assets=S.assets||{};if(dataUrl)S.assets[id]=dataUrl;else delete S.assets[id];markDirty('asset:'+id)}
