@@ -1,0 +1,1106 @@
+<title>墨夜书房</title>
+<meta name="description" content="沉浸式 AI 角色扮演书房：剧情、小手机、世界书、长期记忆。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&family=ZCOOL+XiaoWei&display=swap">
+<style>
+:root{
+  --bg:#F3F2EE; --surface:#FFFFFF; --raised:#ECEAE4; --sunk:#E6E3DB;
+  --text:#23262D; --muted:#6B6E76; --faint:#9A9CA3;
+  --accent:#B27418; --accent-soft:#F1E3C8; --accent-ink:#5A3A08;
+  --good:#3E8A65; --good-soft:#DDEDE3; --danger:#B8493A; --danger-soft:#F4DCD8; --warn:#A8651E;
+  --line:#DDDAD2; --line-strong:#C9C5BA;
+  --shadow:0 10px 30px rgba(30,25,10,.10);
+  --user-tint:#F7F0E2;
+  --display:'ZCOOL XiaoWei','Noto Serif SC',serif;
+  --serif:'Noto Serif SC','Songti SC','SimSun',serif;
+  --sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+  --ui:17px; --prose:19px; --prose-font:var(--serif);
+  --rail:84px; --dock:340px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171D; --surface:#1D2028; --raised:#262A34; --sunk:#111318;
+    --text:#E8E3D8; --muted:#9A968C; --faint:#6E6B64;
+    --accent:#E0A75A; --accent-soft:#3A2E1B; --accent-ink:#F6DDB0;
+    --good:#7FB59A; --good-soft:#1F3129; --danger:#D9776A; --danger-soft:#3A2420; --warn:#E0A75A;
+    --line:#2E323D; --line-strong:#3D4250;
+    --shadow:0 12px 36px rgba(0,0,0,.45);
+    --user-tint:#211F1A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171D; --surface:#1D2028; --raised:#262A34; --sunk:#111318;
+  --text:#E8E3D8; --muted:#9A968C; --faint:#6E6B64;
+  --accent:#E0A75A; --accent-soft:#3A2E1B; --accent-ink:#F6DDB0;
+  --good:#7FB59A; --good-soft:#1F3129; --danger:#D9776A; --danger-soft:#3A2420; --warn:#E0A75A;
+  --line:#2E323D; --line-strong:#3D4250;
+  --shadow:0 12px 36px rgba(0,0,0,.45);
+  --user-tint:#211F1A;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:var(--ui);line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 14px;line-height:1.3;transition:background .15s,border-color .15s}
+button:hover{border-color:var(--line-strong);background:var(--raised)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+button.primary:hover{filter:brightness(1.07)}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.ghost:hover{background:var(--raised);color:var(--text)}
+button.small{padding:4px 10px;font-size:.88em;border-radius:8px}
+button.danger{color:var(--danger);border-color:var(--danger-soft)}
+button:disabled{opacity:.5;cursor:default}
+input[type=text],input[type=number],input[type=date],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;width:100%}
+textarea{resize:vertical;min-height:90px;line-height:1.6}
+select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 55%,calc(100% - 12px) 55%;background-size:6px 6px;background-repeat:no-repeat;padding-right:32px}
+label.field{display:block;margin-bottom:14px}
+label.field>span{display:block;font-size:.85em;color:var(--muted);margin-bottom:5px;letter-spacing:.04em}
+h1,h2,h3,h4{margin:0;font-weight:500;text-wrap:balance}
+h2{font-family:var(--display);font-size:1.7em;letter-spacing:.02em}
+h3{font-size:1.15em;font-weight:600}
+.eyebrow{font-size:.78em;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.faint{color:var(--faint)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:.82em;background:var(--raised);color:var(--muted);white-space:nowrap}
+.pill.accent{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.danger{background:var(--danger-soft);color:var(--danger)}
+.badge{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:.75em;display:inline-flex;align-items:center;justify-content:center;font-weight:600}
+[hidden]{display:none!important}
+
+/* ---------- app shell ---------- */
+#app{display:grid;grid-template-columns:var(--rail) 1fr;height:100dvh;overflow:hidden}
+#rail{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:stretch;padding:14px 8px;gap:4px;overflow-y:auto}
+#rail .logo{font-family:var(--display);font-size:1.25em;text-align:center;line-height:1.15;padding:6px 0 14px;color:var(--accent);letter-spacing:.06em}
+.navbtn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px;border-radius:12px;border:none;background:transparent;color:var(--muted);font-size:.8em;position:relative}
+.navbtn svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.navbtn:hover{background:var(--raised);color:var(--text)}
+.navbtn.active{background:var(--accent-soft);color:var(--accent-ink)}
+.navbtn .badge{position:absolute;top:6px;right:10px}
+#main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.view{display:none;flex:1;min-height:0;overflow:hidden}
+.view.active{display:flex;flex-direction:column}
+.page{flex:1;overflow-y:auto;padding:28px clamp(16px,4vw,48px) 60px}
+.page-inner{max-width:920px;margin:0 auto}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.page-head p{margin:4px 0 0;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.card+.card{margin-top:16px}
+.card h3{margin-bottom:12px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.list{display:flex;flex-direction:column}
+.list-item{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line);cursor:pointer}
+.list-item:last-child{border-bottom:none}
+.list-item:hover{background:var(--raised)}
+.list-item.active{background:var(--accent-soft)}
+.avatar{width:44px;height:44px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:1.2em;background:var(--raised);flex-shrink:0;font-family:var(--display)}
+.avatar.lg{width:64px;height:64px;font-size:1.7em}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:12px;box-shadow:var(--shadow);z-index:200;font-size:.95em;max-width:90vw;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* ---------- story ---------- */
+#view-story{flex-direction:row}
+#story-col{flex:1;display:flex;flex-direction:column;min-width:0}
+#storybar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface);flex-wrap:wrap}
+#storybar .world-btn{display:flex;align-items:center;gap:10px;border:none;background:transparent;padding:4px 8px;border-radius:12px}
+#storybar .world-btn:hover{background:var(--raised)}
+#storybar .world-name{font-family:var(--display);font-size:1.25em;letter-spacing:.03em}
+#storybar .world-sub{font-size:.8em;color:var(--muted)}
+.ctx-meter{display:flex;align-items:center;gap:8px;font-size:.82em;color:var(--muted)}
+.ctx-meter .bar{width:110px;height:6px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.ctx-meter .bar i{display:block;height:100%;background:var(--good);width:0%}
+.ctx-meter.warn .bar i{background:var(--warn)}
+.ctx-meter.over .bar i{background:var(--danger)}
+#floors{flex:1;overflow-y:auto;padding:26px clamp(14px,4vw,40px) 40px;scroll-behavior:smooth}
+.chapter-head{max-width:46em;margin:0 auto 26px;text-align:center}
+.chapter-head .title{font-family:var(--display);font-size:1.9em;letter-spacing:.06em}
+.chapter-head .sub{color:var(--muted);font-size:.9em;margin-top:6px}
+.floor{max-width:46em;margin:0 auto 22px;position:relative;font-family:var(--prose-font);font-size:var(--prose);line-height:1.95}
+.floor .meta{font-family:var(--sans);font-size:.72em;color:var(--faint);display:flex;align-items:center;gap:10px;margin-bottom:6px;letter-spacing:.04em}
+.floor .meta .who{color:var(--muted);font-weight:500}
+.floor .meta .alts{display:inline-flex;align-items:center;gap:2px;margin-left:auto}
+.floor .meta .alts button{padding:0 6px;border:none;background:transparent;color:var(--muted);font-size:1.05em}
+.floor .body p{margin:0 0 .9em;text-align:justify;text-justify:inter-ideograph}
+.floor .body p:last-child{margin-bottom:0}
+.floor .body em{color:var(--muted);font-style:normal}
+.floor .body q,.floor .body .say{color:var(--accent-ink)}
+.floor.user{padding-left:18px;border-left:3px solid var(--accent);background:linear-gradient(90deg,var(--user-tint),transparent 70%);border-radius:0 12px 12px 0;padding-top:10px;padding-bottom:10px;padding-right:12px}
+.floor.system .body{font-family:var(--sans);font-size:.85em;color:var(--muted);text-align:center;padding:8px;border:1px dashed var(--line);border-radius:10px}
+.floor .actions{font-family:var(--sans);font-size:.74em;display:flex;gap:2px;margin-top:8px;opacity:0;transition:opacity .15s;flex-wrap:wrap}
+.floor:hover .actions,.floor:focus-within .actions,.floor.touched .actions{opacity:1}
+.floor .actions button{border:none;background:transparent;color:var(--muted);padding:3px 8px;border-radius:8px}
+.floor .actions button:hover{background:var(--raised);color:var(--text)}
+.floor.streaming .body::after{content:"▍";color:var(--accent);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.floor .body textarea{width:100%;font-family:var(--prose-font);font-size:1em;line-height:1.8;min-height:160px}
+.hidden-bar{max-width:46em;margin:0 auto 22px;text-align:center;font-size:.85em;color:var(--muted);border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:8px}
+.hidden-bar button{margin-left:8px}
+.floor.is-hidden{opacity:.55}
+.floor.is-hidden .meta::after{content:"已隐藏 · 不入上下文";color:var(--warn)}
+
+#composer{border-top:1px solid var(--line);background:var(--surface);padding:10px 16px 12px}
+#composer .inner{max-width:52em;margin:0 auto}
+.shortcuts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.shortcuts button{padding:3px 10px;font-size:.88em;border-radius:8px;background:var(--raised);border-color:transparent}
+#composer textarea{min-height:70px;max-height:40vh;font-family:var(--prose-font);font-size:calc(var(--prose) - 1px);line-height:1.7;border-radius:12px}
+.composer-tools{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.composer-tools select{width:auto;padding:6px 30px 6px 10px;font-size:.88em;border-radius:8px}
+.composer-tools .send{margin-left:auto;display:flex;gap:8px}
+.tool-lbl{font-size:.78em;color:var(--faint);margin-right:-4px}
+
+/* dock (状态面板) */
+#dock{width:var(--dock);border-left:1px solid var(--line);background:var(--surface);overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+#dock h3{font-family:var(--display);font-weight:400;font-size:1.25em;letter-spacing:.04em}
+.dock-block{border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.dock-block .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.92em}
+.dock-block .kv span:nth-child(odd){color:var(--muted)}
+details.inner summary{cursor:pointer;color:var(--muted);font-size:.9em;list-style:none;display:flex;align-items:center;gap:8px}
+details.inner summary::before{content:"▸";transition:transform .15s}
+details.inner[open] summary::before{transform:rotate(90deg)}
+details.inner .voice{font-family:var(--serif);margin-top:10px;padding:12px 14px;border-left:3px solid var(--accent);background:var(--user-tint);border-radius:0 10px 10px 0;line-height:1.8}
+.npc-line{display:flex;gap:10px;align-items:baseline;font-size:.92em;padding:4px 0;border-bottom:1px dashed var(--line)}
+.npc-line:last-child{border-bottom:none}
+.npc-line b{font-weight:500;min-width:3.2em}
+
+/* ---------- phone ---------- */
+#view-phone .page{display:flex;justify-content:center;align-items:flex-start}
+.phone{width:min(420px,100%);height:min(820px,calc(100dvh - 60px));background:var(--sunk);border:10px solid var(--text);border-radius:44px;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow);position:relative}
+.phone .statusbar{display:flex;justify-content:space-between;padding:10px 24px 4px;font-size:.78em;color:var(--muted)}
+.phone .screen{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.phone .homebar{height:26px;display:flex;align-items:center;justify-content:center}
+.phone .homebar i{width:120px;height:5px;border-radius:3px;background:var(--line-strong)}
+.apps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 8px;padding:26px 22px}
+.app{display:flex;flex-direction:column;align-items:center;gap:6px;border:none;background:transparent;padding:0;font-size:.78em;color:var(--text);position:relative}
+.app .icon{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:1.7em;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.app .badge{position:absolute;top:-6px;right:14px}
+.app-screen{display:none;flex:1;flex-direction:column;min-height:0;background:var(--surface)}
+.app-screen.active{display:flex}
+.app-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
+.app-head b{font-weight:600;flex:1}
+.app-body{flex:1;overflow-y:auto;min-height:0}
+.chatlist .list-item{padding:12px 14px}
+.chatlist .preview{font-size:.85em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bubbles{padding:14px 12px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.bubble{max-width:78%;padding:9px 13px;border-radius:16px;background:var(--surface);font-size:.95em;line-height:1.5;border:1px solid var(--line);position:relative}
+.bubble.me{align-self:flex-end;background:var(--accent-soft);border-color:transparent;color:var(--accent-ink)}
+.bubble .from{font-size:.75em;color:var(--muted);margin-bottom:2px}
+.bubble .time{font-size:.7em;color:var(--faint);text-align:right;margin-top:2px}
+.bubble.money{background:var(--good-soft);border-color:transparent;color:var(--good);font-weight:500}
+.bubble.sys{align-self:center;background:transparent;border:none;color:var(--faint);font-size:.8em}
+.chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:var(--surface)}
+.chat-input input{flex:1}
+.ig-post{border-bottom:1px solid var(--line);padding:12px 14px}
+.ig-post .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.ig-post .pic{height:210px;border-radius:12px;display:flex;align-items:flex-end;padding:12px;color:#fff;font-family:var(--serif);text-shadow:0 1px 6px rgba(0,0,0,.5);font-size:1.05em}
+.ig-post .caption{margin-top:8px;font-size:.95em}
+.ig-post .stats{font-size:.8em;color:var(--muted);margin-top:4px}
+.wallet{padding:22px 18px}
+.wallet .balance{font-size:2.4em;font-family:var(--display);letter-spacing:.04em}
+.tx{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:.95em}
+.tx .amt.in{color:var(--good)} .tx .amt.out{color:var(--danger)}
+
+/* ---------- forum / diary ---------- */
+.board-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.board-tabs button.active{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink)}
+.thread{padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.thread:hover .t-title{color:var(--accent)}
+.t-title{font-weight:600;font-size:1.05em}
+.t-meta{font-size:.82em;color:var(--muted);margin-top:2px}
+.t-post{padding:14px 0;border-bottom:1px dashed var(--line);font-family:var(--serif);line-height:1.8}
+.t-post .who{font-family:var(--sans);font-size:.82em;color:var(--muted);margin-bottom:4px}
+.diary-entry{font-family:var(--serif);font-size:calc(var(--prose) - 1px);line-height:1.95;padding:22px 0;border-bottom:1px solid var(--line)}
+.diary-entry .date{font-family:var(--display);color:var(--accent);letter-spacing:.06em;margin-bottom:6px}
+.diary-entry .lock{font-family:var(--sans);font-size:.8em;color:var(--muted)}
+
+/* ---------- records ---------- */
+.graph{width:100%;height:auto;display:block}
+.graph text{font-family:var(--sans);fill:var(--text);font-size:14px}
+.graph .node circle{fill:var(--surface);stroke:var(--accent);stroke-width:2}
+.graph .node.user circle{fill:var(--accent)}
+.graph .node.user text{fill:var(--text)}
+.graph .edge{stroke:var(--line-strong);stroke-width:2.5;cursor:pointer}
+.graph .edge:hover,.graph .edge.sel{stroke:var(--accent);stroke-width:4}
+.graph .elabel{font-size:12px;fill:var(--muted);pointer-events:none}
+.hist{border-left:2px solid var(--line);padding-left:14px;margin-left:6px}
+.hist div{padding:6px 0;font-size:.95em}
+.hist div b{font-weight:500;color:var(--accent-ink)}
+.mp{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:.95em}
+.mp .no{color:var(--muted);min-width:4.5em;font-variant-numeric:tabular-nums}
+
+/* ---------- memory ---------- */
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+.stat b{display:block;font-size:1.7em;font-family:var(--display);color:var(--accent)}
+.stat span{font-size:.82em;color:var(--muted)}
+.result{padding:12px 0;border-bottom:1px solid var(--line);font-size:.95em}
+.result mark{background:var(--accent-soft);color:var(--accent-ink);padding:0 2px;border-radius:3px}
+.result .r-meta{font-size:.8em;color:var(--muted);margin-bottom:2px;display:flex;gap:10px}
+.sum-entry{padding:12px 0;border-bottom:1px solid var(--line)}
+.sum-entry .r-meta{display:flex;gap:10px;align-items:center;font-size:.85em;color:var(--muted);margin-bottom:4px}
+.sum-entry pre{white-space:pre-wrap;font-family:var(--serif);margin:0;font-size:.95em;line-height:1.7}
+
+/* ---------- editors ---------- */
+.block{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+.block .b-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.block .b-head input[type=text]{flex:1;padding:6px 10px}
+.block textarea{font-size:.95em}
+.block.off{opacity:.55}
+.switch{display:inline-flex;align-items:center;gap:6px;font-size:.85em;color:var(--muted);cursor:pointer;white-space:nowrap}
+.switch input{width:auto;margin:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{background:var(--raised);padding:3px 10px;border-radius:999px;font-size:.85em;display:inline-flex;align-items:center;gap:6px}
+.chip button{border:none;background:transparent;padding:0 2px;color:var(--muted)}
+.char-card{display:flex;gap:14px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:14px;cursor:pointer;background:var(--surface)}
+.char-card.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.char-card .sub{font-size:.85em;color:var(--muted)}
+.npc-card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:.95em}
+.npc-card b{font-weight:600}
+.npc-card .tag{font-size:.82em;color:var(--muted)}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed;inset:0;background:rgba(10,10,12,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:18px;width:min(760px,100%);max-height:90dvh;display:flex;flex-direction:column;box-shadow:var(--shadow);border:1px solid var(--line)}
+.modal .m-head{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:1px solid var(--line)}
+.modal .m-head h3{flex:1;font-family:var(--display);font-weight:400;font-size:1.3em}
+.modal .m-body{padding:18px 22px;overflow-y:auto}
+.modal .m-foot{padding:12px 22px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.prompt-pre{white-space:pre-wrap;font-family:var(--sans);font-size:.88em;line-height:1.6;background:var(--sunk);padding:14px;border-radius:12px;max-height:60vh;overflow:auto}
+.prompt-pre .seg{color:var(--accent);font-weight:600}
+.branch-node{display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+.branch-node.active{background:var(--accent-soft)}
+.branch-node .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.think{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:.9em}
+.think i{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite alternate}
+@keyframes pulse{to{opacity:.2}}
+.banner{padding:10px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent-ink);font-size:.92em;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner.danger{background:var(--danger-soft);color:var(--danger)}
+.banner.good{background:var(--good-soft);color:var(--good)}
+
+/* ---------- mobile ---------- */
+#tabbar{display:none}
+@media (max-width:860px){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #rail{display:none}
+  #tabbar{display:flex;border-top:1px solid var(--line);background:var(--surface);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  #tabbar .navbtn{flex:1;font-size:.74em;padding:6px 2px}
+  #view-story{flex-direction:column}
+  #dock{position:fixed;inset:0;top:auto;height:82dvh;width:100%;border-left:none;border-top:1px solid var(--line);border-radius:22px 22px 0 0;z-index:90;transform:translateY(100%);transition:transform .25s}
+  #dock.open{transform:none}
+  #storybar{padding:8px 10px}
+  #storybar .ctx-meter .bar{width:70px}
+  #storybar .lbl{display:none}
+  #storybar .small.ghost{padding:4px 9px;font-size:1em}
+  .toast{bottom:96px}
+  .floor .actions{opacity:1}
+  .page{padding:18px 14px 60px}
+  .phone{border-width:6px;border-radius:30px;height:calc(100dvh - 130px)}
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div id="app">
+  <nav id="rail" aria-label="主导航">
+    <div class="logo">墨夜<br>书房</div>
+  </nav>
+  <div id="main">
+
+    <!-- ================= 剧情 ================= -->
+    <section class="view" id="view-story">
+      <div id="story-col">
+        <div id="storybar">
+          <button class="world-btn" id="btn-world" title="切换世界 / 角色">
+            <span class="avatar" id="world-avatar">沈</span>
+            <span>
+              <div class="world-name" id="world-name">雨季</div>
+              <div class="world-sub" id="world-sub">沈聿 · 主线</div>
+            </span>
+          </button>
+          <span class="pill num" id="world-clock" title="世界时间">—</span>
+          <span class="grow"></span>
+          <div class="ctx-meter" id="ctx-meter" title="本次将送入模型的上下文">
+            <span>上下文</span><div class="bar"><i></i></div><span class="num" id="ctx-text">0%</span>
+          </div>
+          <button class="small ghost" id="btn-branches" title="存档与分支">⑂<span class="lbl"> 分支</span></button>
+          <button class="small ghost" id="btn-timeskip" title="推进世界时间">⏭<span class="lbl"> 推进时间</span></button>
+          <button class="small ghost" id="btn-preview" title="查看本次发给 AI 的完整提示词">⌘<span class="lbl"> 提示词</span></button>
+          <button class="small ghost" id="btn-dock" title="状态面板">◫<span class="lbl"> 状态</span></button>
+        </div>
+        <div id="floors"></div>
+        <div id="composer">
+          <div class="inner">
+            <div class="shortcuts" id="shortcuts"></div>
+            <textarea id="input" placeholder="写下 uu 的动作与台词……（留空发送 = 让剧情继续）"></textarea>
+            <div class="composer-tools">
+              <span class="tool-lbl">抢话</span>
+              <select id="sel-mode">
+                <option value="repeat">可复述我的话</option>
+                <option value="expand">复述并扩展（加动作表情）</option>
+                <option value="none">不抢话·不描写我</option>
+                <option value="expr">不抢话·可描写我的表情动作</option>
+              </select>
+              <span class="tool-lbl">长度</span>
+              <select id="sel-len">
+                <option value="300">短 · 300字</option>
+                <option value="800">中 · 800字</option>
+                <option value="1500">长 · 1500字</option>
+                <option value="3000">超长 · 3000字</option>
+              </select>
+              <span class="tool-lbl">模型</span>
+              <select id="sel-model"></select>
+              <div class="send">
+                <button id="btn-inspire" title="根据 uu 的人设与上下文，帮你起草一段回复">✦ 灵感</button>
+                <button id="btn-stop" hidden>■ 停止</button>
+                <button class="primary" id="btn-send">发送</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside id="dock" aria-label="状态面板"></aside>
+    </section>
+
+    <!-- ================= 小手机 ================= -->
+    <section class="view" id="view-phone">
+      <div class="page">
+        <div class="phone">
+          <div class="statusbar"><span id="ph-time">—</span><span>●●● ᯤ ▮</span></div>
+          <div class="screen">
+            <div class="app-screen active" id="ph-home" style="background:var(--sunk)">
+              <div class="apps" id="ph-apps"></div>
+              <div style="padding:0 22px;font-size:.8em;color:var(--muted)" id="ph-hint"></div>
+            </div>
+            <div class="app-screen" id="ph-wa"></div>
+            <div class="app-screen" id="ph-ig"></div>
+            <div class="app-screen" id="ph-pay"></div>
+            <div class="app-screen" id="ph-forum"></div>
+          </div>
+          <div class="homebar"><i></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 论坛 ================= -->
+    <section class="view" id="view-forum"><div class="page"><div class="page-inner" id="forum-page"></div></div></section>
+    <!-- ================= 日记 ================= -->
+    <section class="view" id="view-diary"><div class="page"><div class="page-inner" id="diary-page"></div></div></section>
+    <!-- ================= 记录 ================= -->
+    <section class="view" id="view-records"><div class="page"><div class="page-inner" id="records-page"></div></div></section>
+    <!-- ================= 记忆 ================= -->
+    <section class="view" id="view-memory"><div class="page"><div class="page-inner" id="memory-page"></div></div></section>
+    <!-- ================= 角色 ================= -->
+    <section class="view" id="view-chars"><div class="page"><div class="page-inner" id="chars-page"></div></div></section>
+    <!-- ================= 预设 ================= -->
+    <section class="view" id="view-presets"><div class="page"><div class="page-inner" id="presets-page"></div></div></section>
+    <!-- ================= 世界书 ================= -->
+    <section class="view" id="view-lore"><div class="page"><div class="page-inner" id="lore-page"></div></div></section>
+    <!-- ================= 设置 ================= -->
+    <section class="view" id="view-settings"><div class="page"><div class="page-inner" id="settings-page"></div></div></section>
+  </div>
+  <nav id="tabbar" aria-label="底部导航"></nav>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" role="dialog" aria-modal="true">
+  <div class="m-head"><h3 id="m-title">标题</h3><button class="ghost small" id="m-close">✕</button></div>
+  <div class="m-body" id="m-body"></div>
+  <div class="m-foot" id="m-foot"></div>
+</div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="file-in" hidden>
+<script>
+/* =====================================================================
+   墨夜书房 · AIRP 前端
+   单文件：状态 → localStorage；AI → claude.ai 订阅（sample 能力）或本地后端；
+   记忆检索 → JS 二元分词倒排索引（本地后端可换成 SQLite FTS5）
+   ===================================================================== */
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const uid=()=>Math.random().toString(36).slice(2,10);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KEY='moye.airp.v1';
+const now=()=>Date.now();
+let toastT; function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),ms);}
+
+/* ---------------- 默认预设 / 提示词 ---------------- */
+const DEFAULT_PRESET=()=>({id:'p_default',name:'小说体 · 默认',blocks:[
+ {id:uid(),name:'总纲',enabled:true,content:'你是一位中文小说作者，正在与我合写一部长篇。你负责扮演 {{char}} 以及世界里除 {{user}} 之外的所有人物；我扮演 {{user}}。用第三人称、过去式的小说笔法写作：有环境、有心理、有细节，对白自然，不写作者旁白，不总结，不问“接下来想怎么做”。'},
+ {id:uid(),name:'开放世界',enabled:true,content:'这是一个开放世界：{{user}} 不在场时，{{char}} 和各位 NPC 也在过自己的生活；请让世界有自己的节奏与偶然。人物要有一致的性格与记忆，会记得之前发生的事，也会因为经历而改变。'},
+ {id:uid(),name:'知识边界',enabled:true,content:'{{char}} 只知道自己亲历、亲耳听到、或在群聊里看到的事；{{user}} 与其他 NPC 的私聊内容 {{char}} 一概不知道，除非有人告诉了他/她。'},
+ {id:uid(),name:'禁则',enabled:true,content:'不要替 {{user}} 做重大决定，不要跳过时间（除非我明确要求），不要在结尾用提问收束。避免套话与陈词滥调，避免每段都以人名开头。'},
+ {id:uid(),name:'状态回传',enabled:true,content:'正文写完后，另起一行，输出且仅输出一段 <state>…</state>，内含一个 JSON 对象：{"time":"世界时间 如 6月14日 周六 21:40","location":"当前地点","weather":"天气","mood":"{{char}} 当前情绪（≤8字）","inner":"{{char}} 此刻的心声（1-2句，第一人称）","doing":"{{char}} 正在做什么","npcs":[{"name":"NPC名","where":"在哪","doing":"在做什么"}],"relations":[{"a":"人物A","b":"人物B","label":"关系（≤6字）","note":"这一楼里关系的变化（可省略）"}],"memory":"这一楼最值得被记住的一件事（≤40字，可为空）"}'}
+]});
+const DEFAULT_SUMMARY_PROMPT='请把下面这些楼层的剧情总结成可供长期记忆的条目。要求：\n1. 按时间顺序，保留关键事件、人物之间关系的变化、重要的承诺/秘密/物品/地点；\n2. 保留人物原话中最关键的一两句；\n3. 用第三人称，控制在 400 字以内；\n4. 最后单独一行列出“未解决的线索：…”。';
+const REPLY_MODES={
+ repeat:'你可以复述 {{user}} 刚才的台词与动作，把它们自然地织进叙事里。',
+ expand:'你可以复述 {{user}} 刚才的台词，并在不改变其意图的前提下补充合理的动作、表情与细节。',
+ none:'绝对不要替 {{user}} 说话、行动或描写 {{user}} 的表情动作；只写 {{char}} 与其他人物、环境的反应。',
+ expr:'不要替 {{user}} 说话或做出新的行动，但可以描写 {{user}} 已有动作的细微表情与身体反应。'
+};
+
+/* ---------------- 示例世界（首次打开时载入，可随时删除） ---------------- */
+function seedState(){
+ const charId='c_shenyu', worldId='w_yuji', branchId='b_main';
+ const npcs=[
+  {id:'n_linwan',name:'林晚',gender:'女',age:31,look:'短发，惯穿深色西装，笑起来有酒窝',personality:'利落、直接，嘴硬心软，习惯用工作填满生活',relChar:'合伙人，同一间事务所并肩七年',relUser:'见过几面，对 uu 保持礼貌的观察'},
+  {id:'n_zhouye',name:'周野',gender:'男',age:29,look:'高个子，手臂有一片海浪刺青',personality:'随性、话多、讲义气，永远知道城里哪家店最好吃',relChar:'不熟，只知道是 uu 常提起的那个“建筑师”',relUser:'uu 的发小，在旧城区开一家小酒馆'},
+  {id:'n_sumian',name:'苏眠',gender:'女',age:26,look:'长发，总戴一副圆框眼镜',personality:'温吞、敏感，喜欢观察人，写小说但从不给人看',relChar:'没有交集',relUser:'uu 的室友，两人合租两年'}
+ ];
+ const floors=[
+  f(1,'char','六月的雨已经下了十一天。\n\n沈聿站在事务所的落地窗前，看楼下积水里晃动的霓虹。工作台上摊着一张被反复修改的立面图，铅笔线条压着铅笔线条，像一场没有结论的争吵。\n\n门口的感应灯亮了一下。他没有回头，却在玻璃上看见了那个熟悉的倒影——头发被雨打湿，怀里护着一个纸袋。\n\n“你没带伞。”他说，声音不高，像在陈述一个事实。','6月14日 周六 21:10'),
+  f(2,'user','uu 把纸袋放在他桌上，纸袋角已经被雨浸软了。\n\n“楼下那家关东煮，最后两串萝卜。”她甩了甩头发上的水，“你已经三天没下楼吃饭了，林晚让我来看看你死没死。”','6月14日 周六 21:12'),
+  f(3,'char','沈聿终于转过身。\n\n窗外的雨声在这一刻忽然变得很近。他看了一眼纸袋，又看了一眼她湿透的肩膀，眉心压出一道浅浅的褶。他没有去拿食物，而是从衣架上取下自己的外套，越过桌子递过去。\n\n“林晚让你来，”他重复了一遍，语气里有一点不易察觉的东西，“所以你就来了。”\n\n他把桌角的图纸推开一些，给纸袋腾出位置。这个动作很小，但在这间永远被工作占满的房间里，已经算得上一种让步。\n\n“坐吧。萝卜凉了不好吃。”','6月14日 周六 21:15'),
+  f(4,'user','uu 接过外套，却没有穿，而是搭在椅背上，然后自顾自地拆开纸袋。\n\n“不是她让我来我就不来了吗？”她把一串萝卜递到他面前，“张嘴。”','6月14日 周六 21:16'),
+  f(5,'char','他沉默了两秒。\n\n这两秒里，雨点在玻璃上滑出几道弯曲的痕。沈聿低头咬住萝卜，热汤顺着竹签往下淌，他伸手去接，动作有些狼狈，全然不像那个在会议室里一句话就能让甲方闭嘴的人。\n\n“烫。”他说。\n\n“活该。”她笑了。\n\n他抬眼看她，目光在她带着水汽的睫毛上停了一瞬，又落回图纸。铅笔被他握在手里，转了半圈，最终没有落下去。\n\n“这张图，”他忽然开口，“我画了十一天。今天下午才想明白，问题不在立面，在我一直不肯把北边的窗开大。”他顿了顿，“怕光进来太多。”','6月14日 周六 21:20')
+ ];
+ function f(no,role,text,worldTime){return {id:'f'+no,no,branchId,role,alts:[text],alt:0,hidden:false,ts:now()-(6-no)*60000,worldTime};}
+ return {
+  version:1,
+  settings:{theme:'auto',fontSize:19,proseFont:'serif',uiSize:17,contextBudget:24000,modelTier:'default',backendModel:'',replyMode:'expand',length:'800',backendUrl:'http://localhost:3939',cloudSync:true,summaryPrompt:DEFAULT_SUMMARY_PROMPT,
+    shortcuts:['「」','……','——','（）','*','—','uu：','沈聿：'],lastView:'story'},
+  user:{name:'uu',description:'25 岁，做插画为生，嘴上不饶人但心软，记性很好，讨厌别人替她做决定。喜欢下雨天、便利店和把话说得很轻的人。'},
+  presets:[DEFAULT_PRESET()],activePresetId:'p_default',
+  lorebooks:[
+   {id:'lb_global',name:'通用 · 写作风格',worldId:null,kind:'normal',entries:[{id:uid(),title:'对白排版',keys:'',constant:true,enabled:true,content:'对白使用中文引号“”，一段一人；动作与心理穿插在对白之间，不集中堆叠。'}]},
+   {id:'lb_yuji',name:'雨季 · 世界设定',worldId:'w_yuji',kind:'normal',entries:[
+    {id:uid(),title:'旧城更新项目',keys:'旧城,纺织厂,立面,项目',constant:false,enabled:true,content:'河西老纺织厂改造项目，甲方是区政府，沈聿坚持保留锯齿形屋顶，与甲方僵持三周；周一要做最终汇报。'},
+    {id:uid(),title:'周野的酒馆',keys:'酒馆,梅子酒,周野',constant:false,enabled:true,content:'旧城区巷子深处的小酒馆“野”，只有八个座位，周野一人经营，营业到凌晨两点，常客都是不赶时间的人。'},
+    {id:uid(),title:'这座城市',keys:'',constant:true,enabled:true,content:'南方沿江城市，六月进入雨季，连绵阴雨可持续二十天以上；旧城区与新区隔江相望。'}]},
+   {id:'lb_mem_yuji',name:'雨季 · 记忆',worldId:'w_yuji',kind:'memory',entries:[]}
+  ],
+  chars:[{id:charId,name:'沈聿',avatar:'沈',color:'#3E5F73',card:{
+    description:'32 岁，建筑师，与林晚合开一家小型事务所。身高 186，常年深色衬衫，左手食指有一道旧的划伤。说话很少、很慢，但每句都算数。',
+    personality:'克制、寡言、自律到近乎苛刻；有极强的观察力，会记住别人不经意说过的话；不擅长表达情绪，用做事代替说话；一旦认定，便不会回头。',
+    scenario:'连绵的雨季。沈聿为一个旧城更新项目已经连续加班三周；uu 是他最常见到、也最不设防的人。',
+    first:'',example:'“我不是在赶你走。”他停顿，“我是怕你淋雨。”'},npcs}],
+  worlds:[{id:worldId,charId,name:'雨季',createdAt:now(),branches:[{id:branchId,name:'主线',parentId:null,forkAt:0,createdAt:now()}],activeBranchId:branchId,
+    floors,
+    clock:{time:'6月14日 周六 21:20',location:'事务所 · 三楼',weather:'大雨'},
+    status:{mood:'有点乱',inner:'她来了，就好。我不该想更多。至少今晚不该。',doing:'握着一支不肯落下的铅笔',npcs:[{name:'林晚',where:'家里',doing:'改明天汇报的 PPT，顺便给 uu 发了条消息'},{name:'周野',where:'酒馆',doing:'正在打烊，把最后一瓶酒留给了自己'},{name:'苏眠',where:'出租屋',doing:'在写没人看的小说，等 uu 回家'}]},
+    relations:[
+      {a:'uu',b:'沈聿',label:'暧昧的朋友',history:[{no:1,label:'常来送饭的朋友',note:'雨夜送来关东煮'},{no:3,label:'暧昧的朋友',note:'他把外套递给了她'}]},
+      {a:'沈聿',b:'林晚',label:'合伙人',history:[{no:0,label:'合伙人',note:'共事七年'}]},
+      {a:'uu',b:'周野',label:'发小',history:[{no:0,label:'发小',note:'一起长大'}]},
+      {a:'uu',b:'苏眠',label:'室友',history:[{no:0,label:'室友',note:'合租两年'}]},
+      {a:'uu',b:'林晚',label:'点头之交',history:[{no:0,label:'点头之交',note:''}]}
+    ],
+    memoryPoints:[{no:1,text:'雨季第十一天，uu 冒雨给沈聿送关东煮。'},{no:5,text:'沈聿承认图纸问题在于“不肯把北窗开大”，怕光进来太多。'}],
+    phone:{wallet:{balance:3260,tx:[{who:'林晚',amt:200,dir:'in',note:'关东煮报销 + 跑腿费',time:'6月14日 21:05'},{who:'周野',amt:-88,dir:'out',note:'上周的酒钱',time:'6月12日 23:40'}]},
+      chats:[
+        {id:'wa_char',name:'沈聿',type:'dm',with:'沈聿',messages:[{from:'沈聿',text:'到家了？',time:'6月13日 23:58'},{from:'uu',text:'到了。你别再通宵了',time:'6月14日 00:02'},{from:'沈聿',text:'嗯。',time:'6月14日 00:02'}]},
+        {id:'wa_linwan',name:'林晚',type:'dm',with:'林晚',messages:[{from:'林晚',text:'他三天没下楼了，你去看一眼？关东煮钱我转你',time:'6月14日 20:31'},{from:'林晚',text:'[转账 ¥200]',time:'6月14日 21:05',money:200},{from:'林晚',text:'别告诉他是我让你去的，他会觉得自己被监视 😂',time:'6月14日 21:06',unread:true}]},
+        {id:'wa_zhouye',name:'周野',type:'dm',with:'周野',messages:[{from:'周野',text:'周五来店里，新到一批梅子酒',time:'6月12日 18:20'},{from:'uu',text:'看情况',time:'6月12日 18:44'}]},
+        {id:'wa_group',name:'旧城更新小组',type:'group',members:['沈聿','林晚','uu'],messages:[{from:'林晚',text:'周一汇报，立面图今晚必须定稿 @沈聿',time:'6月14日 19:02'},{from:'沈聿',text:'知道。',time:'6月14日 19:03'}]}
+      ],
+      ig:[
+        {id:'ig1',author:'林晚',time:'6月14日 18:30',caption:'第七年的第一百个通宵。旧城不老，我们先老了。#旧城更新',bg:'linear-gradient(135deg,#2b3a4a,#6b7c8a)',scene:'事务所深夜的窗',likes:42},
+        {id:'ig2',author:'周野',time:'6月13日 22:10',caption:'新到的梅子酒，只卖给不赶时间的人。',bg:'linear-gradient(135deg,#5a3b2e,#c98a5a)',scene:'吧台上一排酒瓶',likes:118},
+        {id:'ig3',author:'沈聿',time:'6月10日 07:15',caption:'雨。',bg:'linear-gradient(160deg,#4a5a6a,#9aa8b5)',scene:'被雨打湿的窗玻璃，看不清街道',likes:9,unread:true}
+      ]},
+    forum:{boards:[
+      {name:'旧城茶话',threads:[{id:'t1',title:'有人知道河西那栋老纺织厂要改成什么吗？',author:'路过的猫',time:'6月13日',posts:[{who:'路过的猫',text:'听说是某个小事务所接的，图纸改了几十版，进度慢得离谱。'},{who:'夜班司机',text:'我天天晚上从那边过，三楼灯就没灭过。'},{who:'匿名',text:'慢一点好，别又改成那种玻璃盒子。'}]},
+        {id:'t2',title:'雨季第十一天，你们的鞋干了吗',author:'晾不干',time:'6月14日',posts:[{who:'晾不干',text:'我已经开始用吹风机吹鞋了。'},{who:'苏眠',text:'我室友今天又冒雨出门了，不知道去哪。'}]}]},
+      {name:'深夜食堂',threads:[{id:'t3',title:'旧城区那家小酒馆的梅子酒是真的好喝',author:'醉话',time:'6月13日',posts:[{who:'醉话',text:'老板是个话痨，但酒是真的。'},{who:'周野',text:'谢谢，明天继续话痨。'}]}]}
+    ]},
+    diary:[{date:'6月13日',mood:'疲惫',text:'第十天。北窗的问题解决不了，我在回避什么，自己心里清楚。\n\n她昨晚十一点五十八分回的消息，说到家了。我看了很久那三个字，然后关灯。\n\n林晚说我该休息。可我休息的时候，脑子里全是不该想的事。',unread:false},
+      {date:'6月14日',mood:'有点乱',text:'她来了。带着关东煮，头发湿的。\n\n我把外套给她，她没穿。我知道她不会穿，但我还是给了。\n\n今天想明白了：不是立面的问题，是我不肯开窗。写在这里，怕明天又忘了。',unread:true}],
+    hiddenUpTo:0
+  }],
+  activeWorldId:worldId
+ };
+}
+
+/* ---------------- 状态 ---------------- */
+let S=null;
+function load(){try{const r=localStorage.getItem(KEY);if(r){const s=JSON.parse(r);if(s&&s.worlds)return s;}}catch(e){}return null;}
+S=load()||seedState();
+let saveT,ftsT; function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('本地保存失败：'+e.message);} clearTimeout(saveT);saveT=setTimeout(cloudSave,2500);clearTimeout(ftsT);ftsT=setTimeout(ftsSync,3000);}
+/* 本地后端在线时，把索引镜像进 SQLite FTS5（永久记忆库） */
+async function ftsSync(){if(!AI.backendOk)return;try{const rows=[...MEM.docs.entries()].map(([id,d])=>({id,worldId:d.worldId,no:d.no,who:d.who,kind:d.kind,text:d.text}));await fetch(S.settings.backendUrl.replace(/\/$/,'')+'/api/memory/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rows})});}catch(e){}}
+const W=()=>S.worlds.find(w=>w.id===S.activeWorldId)||S.worlds[0];
+const C=w=>S.chars.find(c=>c.id===(w||W()).charId)||S.chars[0];
+const P=()=>S.presets.find(p=>p.id===S.activePresetId)||S.presets[0];
+function fill(t,w){const c=C(w);return String(t||'').replaceAll('{{char}}',c?.name||'角色').replaceAll('{{user}}',S.user.name||'你');}
+function floorText(fl){return fl.alts[fl.alt]??'';}
+
+/* 分支：可见楼层 = 祖先分支在分叉点之前的楼 + 本分支的楼 */
+function branchChain(w,bid){const out=[];let b=w.branches.find(x=>x.id===bid);while(b){out.unshift(b);b=w.branches.find(x=>x.id===b.parentId);}return out;}
+function visibleFloors(w=W()){
+ const chain=branchChain(w,w.activeBranchId);const res=[];
+ for(let i=0;i<chain.length;i++){const b=chain[i];const child=chain[i+1];const cut=child?child.forkAt:Infinity;
+  res.push(...w.floors.filter(f=>f.branchId===b.id&&f.no<=cut));}
+ return res.sort((a,b)=>a.no-b.no);
+}
+function nextNo(w=W()){const v=visibleFloors(w);return v.length?v[v.length-1].no+1:1;}
+
+/* ---------------- 记忆索引（二元分词倒排索引） ---------------- */
+const MEM={idx:new Map(),docs:new Map(),count:0};
+function grams(t){const s=String(t).toLowerCase().replace(/\s+/g,' ');const g=new Set();
+ const cjk=s.match(/[㐀-鿿]+/g)||[];for(const seg of cjk){if(seg.length===1)g.add(seg);for(let i=0;i<seg.length-1;i++)g.add(seg.slice(i,i+2));}
+ for(const w of s.match(/[a-z0-9]+/g)||[])g.add(w);return g;}
+function memIndexAll(){MEM.idx.clear();MEM.docs.clear();MEM.count=0;
+ for(const w of S.worlds)for(const fl of w.floors){if(fl.role==='system')continue;memAdd(w,fl);}
+ for(const w of S.worlds)for(const e of memoryBook(w).entries)memAddDoc(w.id+'|sum|'+e.id,{worldId:w.id,no:e.from||0,to:e.to||0,kind:'summary',text:e.content,who:'总结 '+e.title});}
+function memAdd(w,fl){memAddDoc(w.id+'|'+fl.id,{worldId:w.id,no:fl.no,kind:'floor',who:fl.role==='user'?S.user.name:C(w).name,text:floorText(fl),branchId:fl.branchId});}
+function memAddDoc(id,doc){if(MEM.docs.has(id))return;MEM.docs.set(id,doc);MEM.count++;for(const g of grams(doc.text)){if(!MEM.idx.has(g))MEM.idx.set(g,new Set());MEM.idx.get(g).add(id);}}
+function memSearch(q,{worldId=W().id,limit=10,exclude=new Set()}={}){
+ const qs=[...grams(q)];if(!qs.length)return[];const score=new Map();
+ for(const g of qs){const ids=MEM.idx.get(g);if(!ids)continue;const idf=Math.log(1+MEM.count/ids.size);
+  for(const id of ids){const d=MEM.docs.get(id);if(d.worldId!==worldId||exclude.has(id))continue;score.set(id,(score.get(id)||0)+idf);}}
+ return [...score.entries()].sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([id,sc])=>({id,score:sc,...MEM.docs.get(id)}));
+}
+function snippet(text,q,len=90){const gs=[...grams(q)].filter(g=>g.length>1);let pos=-1;for(const g of gs){const p=text.indexOf(g);if(p>=0&&(pos<0||p<pos))pos=p;}
+ const st=Math.max(0,(pos<0?0:pos)-20);let s=text.slice(st,st+len);let h=esc(s);for(const g of gs)h=h.replaceAll(esc(g),'<mark>'+esc(g)+'</mark>');return (st>0?'…':'')+h+(st+len<text.length?'…':'');}
+
+/* ---------------- 世界书触发 ---------------- */
+function memoryBook(w){let b=S.lorebooks.find(x=>x.kind==='memory'&&x.worldId===w.id);if(!b){b={id:'lb_mem_'+w.id,name:w.name+' · 记忆',worldId:w.id,kind:'memory',entries:[]};S.lorebooks.push(b);}return b;}
+function activeLoreEntries(w,scanText){
+ const out=[];const books=(S.lorebooks||[]).filter(b=>b.kind!=='memory'&&(!b.worldId||b.worldId===w.id));
+ const t=scanText.toLowerCase();
+ for(const b of books)for(const e of b.entries){if(!e.enabled)continue;
+  if(e.constant){out.push({book:b.name,...e});continue;}
+  const keys=(e.keys||'').split(/[,，、]/).map(k=>k.trim().toLowerCase()).filter(Boolean);
+  if(keys.some(k=>t.includes(k)))out.push({book:b.name,...e});}
+ return out;
+}
+
+/* ---------------- 上下文预算与提示词组装 ---------------- */
+function estTokens(s){return Math.ceil(String(s).length*0.9);}
+function buildPrompt(userText,{inspire=false,upTo=Infinity,lastOverride=null}={}){
+ const w=W(),c=C(w),st=S.settings;const vis=visibleFloors(w).filter(f=>!f.hidden&&f.role!=='system'&&f.no<=upTo);
+ const segs=[];
+ const preset=P();for(const b of preset.blocks)if(b.enabled)segs.push(['预设 · '+b.name,fill(b.content,w)]);
+ const card=[`姓名：${c.name}`,c.card.description&&`设定：${c.card.description}`,c.card.personality&&`性格：${c.card.personality}`,c.card.scenario&&`情境：${c.card.scenario}`,c.card.example&&`说话示例：${c.card.example}`].filter(Boolean).join('\n');
+ segs.push(['角色卡 · '+c.name,card]);
+ if(c.npcs?.length)segs.push(['NPC 名册',c.npcs.map(n=>`${n.name}（${n.gender||'?'}，${n.age||'?'}岁）：${n.look||''}；性格：${n.personality||''}；与 ${c.name}：${n.relChar||'—'}；与 ${S.user.name}：${n.relUser||'—'}`).join('\n')]);
+ segs.push(['用户人设 · '+S.user.name,S.user.description||'']);
+ const recentText=vis.slice(-4).map(floorText).join('\n')+'\n'+userText;
+ const lore=activeLoreEntries(w,recentText);if(lore.length)segs.push(['世界书（'+lore.length+' 条触发）',lore.map(e=>`【${e.title}】${e.content}`).join('\n')]);
+ const mem=memoryBook(w).entries.filter(e=>e.enabled);if(mem.length)segs.push(['长期记忆 · 剧情总结',mem.map(e=>`〔第${e.title}楼〕${e.content}`).join('\n')]);
+ // 检索：用 用户输入 + 最近一楼 做查询，排除即将送入的楼层
+ const budget=st.contextBudget;let used=segs.reduce((a,[,t])=>a+estTokens(t),0);
+ const turns=[];let i=vis.length-1;const included=new Set();
+ for(;i>=0;i--){const f=vis[i];const tk=estTokens(floorText(f));if(used+tk>budget*0.8&&turns.length>=2)break;used+=tk;turns.unshift(f);included.add(w.id+'|'+f.id);}
+ const dropped=i+1;
+ const q=(userText||'')+' '+(vis.length?floorText(vis[vis.length-1]).slice(-200):'');
+ const hits=memSearch(q,{worldId:w.id,limit:10,exclude:included}).filter(h=>h.kind==='floor');
+ if(hits.length)segs.push(['相关回忆（记忆检索，'+hits.length+' 条）',hits.map(h=>`〔第${h.no}楼 · ${h.who}〕${h.text.slice(0,300)}`).join('\n')]);
+ const rel=(w.relations||[]).map(r=>`${r.a} ↔ ${r.b}：${r.label}`).join('；');
+ segs.push(['世界状态',`时间：${w.clock.time}；地点：${w.clock.location}；天气：${w.clock.weather}\n${c.name} 的状态：${w.status.mood}，${w.status.doing}\n关系：${rel}\n记忆点：${(w.memoryPoints||[]).slice(-8).map(m=>m.text).join('；')}`]);
+ const rule=inspire
+  ?`现在请你暂时切换：以 ${S.user.name} 的口吻与人设，替我起草 ${S.user.name} 的下一段回应（动作+台词，150-300 字，第三人称小说体，只写 ${S.user.name}，不要写 ${c.name} 的反应，不要输出 <state>）。`
+  :`回复规则：${fill(REPLY_MODES[st.replyMode],w)}\n篇幅：本次回复正文约 ${st.length} 字（允许 ±20%），分自然段。`;
+ segs.push(['回复规则',rule]);
+ const instruction=segs.map(([n,t])=>`## ${n}\n${t}`).join('\n\n');
+ const msgs=[{role:'user',content:instruction}];
+ for(const f of turns){const role=f.role==='user'?'user':'assistant';const t=`〔第${f.no}楼〕\n`+floorText(f);
+  if(msgs.length&&msgs[msgs.length-1].role===role&&msgs.length>1)msgs[msgs.length-1].content+='\n\n'+t;else msgs.push({role,content:t});}
+ const last=lastOverride||(userText.trim()?`〔第${nextNo(w)}楼 · ${S.user.name}〕\n${userText.trim()}`:(inspire?'请开始起草。':'（请让剧情自然地继续。）'));
+ if(msgs[msgs.length-1].role==='user')msgs[msgs.length-1].content+='\n\n'+last;else msgs.push({role:'user',content:last});
+ used+=estTokens(last);
+ return {msgs,segs,used,budget,dropped,turns,hits,lore};
+}
+
+/* ---------------- AI 适配层 ---------------- */
+const AI={mode:'none',sample:null,backendOk:false,models:[],
+ async init(){
+  try{if(window.claude?.use){this.sample=await window.claude.use('sample');}}catch(e){this.sample=null;}
+  if(this.sample)this.mode='sample';
+  await this.probeBackend();
+  renderModelSelect();renderSettings();
+ },
+ async probeBackend(){
+  const url=S.settings.backendUrl;if(!url){this.backendOk=false;return;}
+  try{const r=await fetch(url.replace(/\/$/,'')+'/api/health',{signal:AbortSignal.timeout(2500)});const j=await r.json();this.backendOk=!!j.ok;this.models=j.models||[];if(this.backendOk)this.mode='backend';}
+  catch(e){this.backendOk=false;if(this.mode==='backend')this.mode=this.sample?'sample':'none';}
+ },
+ label(){return this.mode==='backend'?'本地后端 · Claude 订阅':this.mode==='sample'?'claude.ai 订阅额度':'未连接（演示模式）';},
+ async chat(msgs,{onText,signal,json=false,tier=null}={}){
+  if(this.mode==='backend'){
+   const r=await fetch(S.settings.backendUrl.replace(/\/$/,'')+'/api/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({messages:msgs,model:S.settings.backendModel||undefined,json}),signal});
+   if(!r.ok)throw {code:'upstream_error',message:await r.text()};
+   const rd=r.body.getReader();const dec=new TextDecoder();let buf='',text='';
+   while(true){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n');buf=lines.pop();for(const ln of lines){if(!ln.startsWith('data:'))continue;const d=JSON.parse(ln.slice(5));if(d.delta){text+=d.delta;onText?.({text,delta:d.delta});}if(d.error)throw {code:'upstream_error',message:d.error};}}
+   return json?parseJSON(text):{text};
+  }
+  if(this.mode==='sample'){
+   const opts={cache:false,signal,modelTier:tier||S.settings.modelTier,onText};
+   return json?await this.sample.json(msgs,opts):await this.sample(msgs,opts);
+  }
+  throw {code:'not_connected',message:'没有可用的 AI 连接'};
+ }
+};
+function parseJSON(t){try{return JSON.parse(t);}catch(e){}const m=t.match(/```(?:json)?\s*([\s\S]*?)```/);if(m){try{return JSON.parse(m[1]);}catch(e){}}const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a){try{return JSON.parse(t.slice(a,b+1));}catch(e){}}throw {code:'invalid_json',message:'返回内容不是 JSON',text:t};}
+function errCopy(e){const m={not_granted:'你没有允许这个页面使用你的 Claude 额度。',rate_limited:'请求太频繁了，稍等一下再试。',prompt_too_large:'提示词太长了，试试隐藏一些楼层或降低上下文预算。',cancelled:'已停止。',invalid_json:'AI 返回的格式不对，再试一次。',not_connected:'没有可用的 AI 连接：在 claude.ai 里打开本页可直接用订阅额度，或在“设置”里连接本地后端。',refused:'这次请求被拒绝了，换个写法试试。',session_expired:'登录状态过期了，刷新页面。'};return m[e?.code]||(e?.message||'出错了');}
+</script>
+<script>
+/* =====================================================================
+   视图、交互、AI 动作
+   ===================================================================== */
+const ICONS={
+ story:'<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5"/><path d="M8 7h8M8 11h6"/></svg>',
+ phone:'<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/></svg>',
+ forum:'<svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
+ diary:'<svg viewBox="0 0 24 24"><path d="M6 3h12v18H6z"/><path d="M9 3v18"/><path d="M12 8h4M12 11h4"/></svg>',
+ records:'<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7l7.5 1M7.5 8l3.5 8M16.5 10l-3.5 6"/></svg>',
+ memory:'<svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6c0 3 2 4.5 2 7h8c0-2.5 2-4 2-7a6 6 0 0 0-6-6z"/><path d="M9 20h6M10 22h4"/></svg>',
+ chars:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>',
+ presets:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/><circle cx="18" cy="12" r="2"/></svg>',
+ lore:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
+ settings:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
+ more:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'
+};
+const NAV=[['story','剧情'],['phone','小手机'],['forum','论坛'],['diary','日记'],['records','记录'],['memory','记忆'],['chars','角色'],['presets','预设'],['lore','世界书'],['settings','设置']];
+let view='story';
+function buildNav(){
+ $('#rail').insertAdjacentHTML('beforeend',NAV.map(([k,l])=>`<button class="navbtn" data-view="${k}" title="${l}">${ICONS[k]}<span>${l}</span><span class="badge" data-badge="${k}" hidden></span></button>`).join(''));
+ $('#tabbar').innerHTML=[['story','剧情'],['phone','小手机'],['memory','记忆'],['records','记录'],['more','更多']].map(([k,l])=>`<button class="navbtn" data-view="${k}">${ICONS[k]}<span>${l}</span><span class="badge" data-badge="${k}" hidden></span></button>`).join('');
+ $$('.navbtn').forEach(b=>b.onclick=()=>{const v=b.dataset.view;if(v==='more')return moreSheet();showView(v);});
+}
+function moreSheet(){modal({title:'更多',body:`<div class="grid2">${NAV.filter(([k])=>!['story','phone','memory','records'].includes(k)).map(([k,l])=>`<button data-v="${k}" style="padding:16px;font-size:1.05em">${l}</button>`).join('')}</div>`,foot:[]});
+ $$('#m-body [data-v]').forEach(b=>b.onclick=()=>{closeModal();showView(b.dataset.v);});}
+const RENDER={};
+function showView(v){view=v;S.settings.lastView=v;$$('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));$$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));RENDER[v]?.();save();}
+function badges(){const w=W();const wa=(w.phone.chats||[]).reduce((a,c)=>a+c.messages.filter(m=>m.unread).length,0)+(w.phone.ig||[]).filter(p=>p.unread).length;
+ const di=(w.diary||[]).filter(d=>d.unread).length;$$('[data-badge="phone"]').forEach(b=>{b.hidden=!wa;b.textContent=wa;});$$('[data-badge="diary"]').forEach(b=>{b.hidden=!di;b.textContent=di;});$$('[data-badge="more"]').forEach(b=>{b.hidden=!di;b.textContent=di;});}
+function applySettings(){const st=S.settings;const r=document.documentElement;r.style.setProperty('--prose',st.fontSize+'px');r.style.setProperty('--ui',st.uiSize+'px');r.style.setProperty('--prose-font',st.proseFont==='sans'?'var(--sans)':'var(--serif)');
+ if(st.theme==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',st.theme);}
+
+/* ---------------- modal ---------------- */
+function modal({title,body,foot=[],wide=false}){$('#m-title').textContent=title;const mb=$('#m-body');mb.innerHTML='';if(typeof body==='string')mb.innerHTML=body;else mb.append(body);
+ const mf=$('#m-foot');mf.innerHTML='';mf.hidden=!foot.length;for(const f of foot){const b=document.createElement('button');b.textContent=f.label;if(f.cls)b.className=f.cls;b.onclick=()=>f.onClick?.(b);mf.append(b);}
+ $('.modal').style.width=wide?'min(1000px,100%)':'';$('#overlay').classList.add('show');}
+function closeModal(){$('#overlay').classList.remove('show');}
+$('#m-close').onclick=closeModal;$('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+function confirmBox(msg,onYes,label='确定'){modal({title:'确认',body:`<p>${esc(msg)}</p>`,foot:[{label:'取消',onClick:closeModal},{label,cls:'primary',onClick:()=>{closeModal();onYes();}}]});}
+function promptBox(title,def,onOk,hint=''){modal({title,body:`<label class="field"><span>${esc(hint)}</span><input type="text" id="pb-in" value="${esc(def)}"></label>`,foot:[{label:'取消',onClick:closeModal},{label:'确定',cls:'primary',onClick:()=>{const v=$('#pb-in').value.trim();closeModal();onOk(v);}}]});setTimeout(()=>$('#pb-in')?.focus(),50);}
+
+/* =====================================================================
+   剧情
+   ===================================================================== */
+let gen={busy:false,ctl:null};
+function renderStory(){
+ const w=W(),c=C(w);
+ $('#world-avatar').textContent=c.avatar||c.name[0];$('#world-avatar').style.background=c.color||'';$('#world-avatar').style.color='#fff';
+ $('#world-name').textContent=w.name;const br=w.branches.find(b=>b.id===w.activeBranchId);$('#world-sub').textContent=`${c.name} · ${br?.name||'主线'}`;
+ $('#world-clock').textContent=w.clock.time;
+ const box=$('#floors');const vis=visibleFloors(w);const keep=box.scrollTop;box.innerHTML='';
+ box.insertAdjacentHTML('beforeend',`<div class="chapter-head"><div class="title">${esc(w.name)}</div><div class="sub">${esc(c.name)} × ${esc(S.user.name)} · ${vis.length} 楼 · ${esc(w.clock.location)} · ${esc(w.clock.weather)}</div></div>`);
+ const hid=vis.filter(f=>f.hidden);
+ if(hid.length){const first=hid[0].no,last=hid[hid.length-1].no;box.insertAdjacentHTML('beforeend',`<div class="hidden-bar">第 ${first}–${last} 楼中有 ${hid.length} 楼已隐藏，不再进入上下文，但仍可被记忆检索 <button class="small" id="btn-showhidden">${showHidden?'收起':'展开查看'}</button></div>`);$('#btn-showhidden').onclick=()=>{showHidden=!showHidden;renderStory();};}
+ for(const f of vis){if(f.hidden&&!showHidden)continue;box.append(floorEl(f,w,c));}
+ if(!vis.length)box.insertAdjacentHTML('beforeend',`<div class="floor system"><div class="body">这个世界还是空白的。写下第一段，或点“发送”让 ${esc(c.name)} 开场。</div></div>`);
+ box.scrollTop=keep||box.scrollHeight;
+ renderShortcuts();renderDock();renderMeter();$('#sel-mode').value=S.settings.replyMode;$('#sel-len').value=S.settings.length;badges();
+}
+let showHidden=false;
+function paras(t){return String(t).split(/\n{2,}|\n/).filter(x=>x.trim()).map(p=>'<p>'+esc(p).replace(/(“[^”]*”)/g,'<span class="say">$1</span>')+'</p>').join('');}
+function floorEl(f,w,c){
+ const el=document.createElement('article');el.className='floor '+f.role+(f.hidden?' is-hidden':'');el.dataset.id=f.id;el.tabIndex=0;
+ const who=f.role==='user'?S.user.name:f.role==='char'?c.name:'系统';
+ const alts=f.alts.length>1?`<span class="alts"><button data-act="prev" title="上一个版本">‹</button><span class="num">${f.alt+1}/${f.alts.length}</span><button data-act="next" title="下一个版本">›</button></span>`:'';
+ el.innerHTML=`<div class="meta"><span class="num">第 ${f.no} 楼</span><span class="who">${esc(who)}</span><span>${esc(f.worldTime||'')}</span>${alts}</div><div class="body">${f.role==='system'?esc(floorText(f)):paras(floorText(f))}</div>
+ <div class="actions">${f.role==='char'?'<button data-act="regen" title="刷出一个不同的回复">↻ 刷</button>':''}<button data-act="edit">✎ 编辑</button><button data-act="branch" title="从这一楼开一条平行剧情线">⑂ 分支</button><button data-act="rewind" title="回到这一楼，删除之后的楼层">⟲ 回溯</button><button data-act="hide">${f.hidden?'◉ 取消隐藏':'◌ 隐藏'}</button><button data-act="del">✕</button></div>`;
+ el.addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a){el.classList.toggle('touched');return;}floorAction(a,f,w,el);});
+ return el;
+}
+function floorAction(a,f,w,el){
+ if(a==='prev'||a==='next'){f.alt=(f.alt+(a==='next'?1:f.alts.length-1))%f.alts.length;save();renderStory();return;}
+ if(a==='regen')return regenFloor(f);
+ if(a==='edit'){const body=$('.body',el);const ta=document.createElement('textarea');ta.value=floorText(f);body.innerHTML='';body.append(ta);ta.focus();
+  const bar=document.createElement('div');bar.className='row';bar.style.marginTop='8px';bar.innerHTML='<button class="small primary">保存</button><button class="small">取消</button>';body.append(bar);
+  bar.children[0].onclick=()=>{f.alts[f.alt]=ta.value;MEM.docs.delete(w.id+'|'+f.id);memIndexAll();save();renderStory();};bar.children[1].onclick=()=>renderStory();return;}
+ if(a==='branch'){promptBox('新分支的名字',`分支 · 自第 ${f.no} 楼`,name=>{const b={id:uid(),name:name||('分支 '+f.no),parentId:w.activeBranchId,forkAt:f.no,createdAt:now()};w.branches.push(b);w.activeBranchId=b.id;save();renderStory();toast('已切到新分支，之后的楼层只属于这条线');},'从这一楼之后开始走平行剧情，原来的线保持不变');return;}
+ if(a==='rewind'){confirmBox(`回溯到第 ${f.no} 楼？当前分支里第 ${f.no} 楼之后的楼层会被删除（其他分支不受影响）。`,()=>{w.floors=w.floors.filter(x=>!(x.branchId===w.activeBranchId&&x.no>f.no));memIndexAll();save();renderStory();});return;}
+ if(a==='hide'){f.hidden=!f.hidden;save();renderStory();return;}
+ if(a==='del'){confirmBox(`删除第 ${f.no} 楼？`,()=>{w.floors=w.floors.filter(x=>x.id!==f.id);memIndexAll();save();renderStory();});}
+}
+function renderShortcuts(){const box=$('#shortcuts');box.innerHTML=S.settings.shortcuts.map((s,i)=>`<button data-i="${i}" title="插入">${esc(s)}</button>`).join('')+'<button class="ghost" id="sc-edit" title="编辑快捷键">＋</button>';
+ $$('#shortcuts [data-i]').forEach(b=>b.onclick=()=>insertText(S.settings.shortcuts[+b.dataset.i]));$('#sc-edit').onclick=()=>showView('settings');}
+function insertText(s){const ta=$('#input');const a=ta.selectionStart,b=ta.selectionEnd;const pair=/^(「」|（）|“”|『』|\(\)|\[\])$/.test(s);
+ if(pair){const sel=ta.value.slice(a,b);ta.value=ta.value.slice(0,a)+s[0]+sel+s[1]+ta.value.slice(b);ta.selectionStart=ta.selectionEnd=a+1+sel.length;}else{ta.value=ta.value.slice(0,a)+s+ta.value.slice(b);ta.selectionStart=ta.selectionEnd=a+s.length;}ta.focus();renderMeter();}
+function renderMeter(){const {used,budget,dropped}=buildPrompt($('#input').value);const pct=Math.round(used/budget*100);const m=$('#ctx-meter');m.classList.toggle('warn',pct>=70&&pct<100);m.classList.toggle('over',pct>=100||dropped>0);$('.bar i',m).style.width=Math.min(100,pct)+'%';$('#ctx-text').textContent=`${pct}%`+(dropped?` · ${dropped} 楼被挤出`:'');m.title=`约 ${used} / ${budget} tokens${dropped?`。最早的 ${dropped} 楼放不进上下文了，建议总结后隐藏它们。`:''}`;}
+function renderModelSelect(){const sel=$('#sel-model');if(AI.mode==='backend'&&AI.models.length){sel.innerHTML=AI.models.map(m=>`<option value="${esc(m.id)}">${esc(m.label||m.id)}</option>`).join('');sel.value=S.settings.backendModel||AI.models[0].id;sel.onchange=()=>{S.settings.backendModel=sel.value;save();};}
+ else{sel.innerHTML=`<option value="quick">快 · Haiku 级</option><option value="default">均衡 · Sonnet 级</option><option value="complex">最强 · Opus 级</option>`;sel.value=S.settings.modelTier;sel.onchange=()=>{S.settings.modelTier=sel.value;save();};}}
+
+/* ----- 生成 ----- */
+function splitState(text){const m=text.match(/<state>([\s\S]*?)(<\/state>|$)/);if(!m)return {body:text.trim(),state:null};let st=null;try{st=parseJSON(m[1]);}catch(e){}return {body:text.slice(0,m.index).trim(),state:st};}
+function applyState(w,st,no){if(!st||typeof st!=='object')return;
+ if(st.time)w.clock.time=st.time;if(st.location)w.clock.location=st.location;if(st.weather)w.clock.weather=st.weather;
+ for(const k of ['mood','inner','doing'])if(st[k])w.status[k]=st[k];
+ if(Array.isArray(st.npcs)&&st.npcs.length)w.status.npcs=st.npcs.filter(n=>n&&n.name).map(n=>({name:n.name,where:n.where||'',doing:n.doing||''}));
+ if(Array.isArray(st.relations))for(const r of st.relations){if(!r?.a||!r?.b||!r?.label)continue;let e=w.relations.find(x=>(x.a===r.a&&x.b===r.b)||(x.a===r.b&&x.b===r.a));
+  if(!e){e={a:r.a,b:r.b,label:r.label,history:[]};w.relations.push(e);}if(e.label!==r.label||r.note){e.history.push({no,label:r.label,note:r.note||''});e.label=r.label;}}
+ if(st.memory&&String(st.memory).trim())w.memoryPoints.push({no,text:String(st.memory).trim()});}
+function setBusy(b){gen.busy=b;$('#btn-send').disabled=b;$('#btn-inspire').disabled=b;$('#btn-stop').hidden=!b;}
+async function sendFloor(){
+ if(gen.busy)return;const w=W(),c=C(w);const text=$('#input').value.trim();
+ if(AI.mode==='none'){toast(errCopy({code:'not_connected'}),5000);if(text){addFloor(w,'user',text);$('#input').value='';renderStory();}return;}
+ const {msgs}=buildPrompt(text);
+ if(text){addFloor(w,'user',text);$('#input').value='';}
+ const fl=addFloor(w,'char','');fl.streaming=true;renderStory();const el=$(`.floor[data-id="${fl.id}"]`);el.classList.add('streaming');$('.body',el).innerHTML='<span class="think"><i></i>正在思考…</span>';$('#floors').scrollTop=$('#floors').scrollHeight;
+ await runGeneration(msgs,fl,w,el);
+}
+async function runGeneration(msgs,fl,w,el){
+ setBusy(true);gen.ctl=new AbortController();let full='';
+ try{const r=await AI.chat(msgs,{signal:gen.ctl.signal,onText:({text})=>{full=text;const {body}=splitState(text);$('.body',el).innerHTML=paras(body);}});full=r.text;
+  const {body,state}=splitState(full);fl.alts[fl.alt]=body;fl.worldTime=state?.time||w.clock.time;applyState(w,state,fl.no);memAdd(w,fl);
+ }catch(e){const {body}=splitState(e.text||full||'');if(body){fl.alts[fl.alt]=body;fl.worldTime=w.clock.time;memAdd(w,fl);}else{w.floors=w.floors.filter(x=>x!==fl);}if(e.code!=='cancelled')toast(errCopy(e),5000);}
+ delete fl.streaming;setBusy(false);save();renderStory();
+}
+function addFloor(w,role,text){const fl={id:uid(),no:nextNo(w),branchId:w.activeBranchId,role,alts:[text],alt:0,hidden:false,ts:now(),worldTime:w.clock.time};w.floors.push(fl);if(role==='user'&&text)memAdd(w,fl);return fl;}
+async function regenFloor(f){
+ if(gen.busy)return;const w=W();if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),5000);
+ const {msgs}=buildPrompt('',{upTo:f.no-1,lastOverride:`（请重写第 ${f.no} 楼：保持上下文一致，但给出一个明显不同的走向或写法。）`});
+ f.alts.push('');f.alt=f.alts.length-1;renderStory();const el=$(`.floor[data-id="${f.id}"]`);el.classList.add('streaming');$('.body',el).innerHTML='<span class="think"><i></i>正在重写…</span>';
+ MEM.docs.delete(w.id+'|'+f.id);await runGeneration(msgs,f,w,el);
+}
+async function inspire(){
+ if(gen.busy)return;if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),5000);
+ const {msgs}=buildPrompt($('#input').value,{inspire:true});const ta=$('#input');const old=ta.value;setBusy(true);gen.ctl=new AbortController();ta.placeholder='✦ 正在替你起草…';
+ try{const r=await AI.chat(msgs,{signal:gen.ctl.signal,onText:({text})=>{ta.value=text;}});ta.value=r.text.trim();toast('灵感已放进输入框，随意改');}catch(e){if(e.code!=='cancelled'){ta.value=old;toast(errCopy(e),5000);}}
+ ta.placeholder='写下 uu 的动作与台词……（留空发送 = 让剧情继续）';setBusy(false);renderMeter();
+}
+$('#btn-send').onclick=sendFloor;$('#btn-inspire').onclick=inspire;$('#btn-stop').onclick=()=>gen.ctl?.abort();
+$('#input').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();sendFloor();}});
+$('#input').addEventListener('input',()=>{clearTimeout(window._mt);window._mt=setTimeout(renderMeter,300);});
+$('#sel-mode').onchange=e=>{S.settings.replyMode=e.target.value;save();};$('#sel-len').onchange=e=>{S.settings.length=e.target.value;save();};
+
+/* ----- 提示词预览 ----- */
+$('#btn-preview').onclick=()=>{const r=buildPrompt($('#input').value);
+ const head=`<div class="row" style="margin-bottom:12px"><span class="pill">≈ ${r.used} / ${r.budget} tokens</span><span class="pill">${r.turns.length} 楼进入上下文</span><span class="pill ${r.dropped?'danger':''}">${r.dropped} 楼被挤出</span><span class="pill">${r.hits.length} 条记忆检索</span><span class="pill">${r.lore.length} 条世界书</span><span class="pill accent">${AI.label()}</span></div>`;
+ const pre=r.msgs.map((m,i)=>`<span class="seg">［${m.role==='user'?'用户':'助手'} · 第 ${i+1} 段］</span>\n${esc(m.content)}`).join('\n\n');
+ modal({title:'本次实际发给 AI 的内容',body:head+`<div class="prompt-pre">${pre}</div>`,foot:[{label:'复制',onClick:()=>{navigator.clipboard?.writeText(r.msgs.map(m=>`[${m.role}]\n${m.content}`).join('\n\n'));toast('已复制');}},{label:'关闭',cls:'primary',onClick:closeModal}],wide:true});};
+
+/* ----- 分支 ----- */
+$('#btn-branches').onclick=()=>{const w=W();const depth=b=>branchChain(w,b.id).length-1;
+ const body=`<p class="muted" style="margin-top:0">每条分支从某一楼分叉，之后的楼层互不影响。在楼层上点“⑂ 分支”可以从任意一楼开新线。</p>`+w.branches.map(b=>`<div class="branch-node ${b.id===w.activeBranchId?'active':''}" data-id="${b.id}" style="padding-left:${8+depth(b)*22}px"><span class="dot"></span><span class="grow">${esc(b.name)} <span class="muted num">· ${b.forkAt?'自第 '+b.forkAt+' 楼':'根'} · ${w.floors.filter(f=>f.branchId===b.id).length} 楼</span></span><button class="small ghost" data-ren="${b.id}">改名</button>${b.parentId?`<button class="small ghost danger" data-del="${b.id}">删除</button>`:''}</div>`).join('');
+ modal({title:'存档与分支',body,foot:[{label:'关闭',cls:'primary',onClick:closeModal}]});
+ $$('#m-body .branch-node').forEach(n=>n.onclick=e=>{if(e.target.closest('button'))return;w.activeBranchId=n.dataset.id;save();closeModal();renderStory();});
+ $$('#m-body [data-ren]').forEach(b=>b.onclick=()=>{const br=w.branches.find(x=>x.id===b.dataset.ren);promptBox('分支名',br.name,v=>{if(v)br.name=v;save();renderStory();});});
+ $$('#m-body [data-del]').forEach(b=>b.onclick=()=>confirmBox('删除这条分支及其所有楼层？',()=>{const id=b.dataset.del;const kids=w.branches.filter(x=>x.parentId===id);if(kids.length)return toast('先删除它的子分支');w.branches=w.branches.filter(x=>x.id!==id);w.floors=w.floors.filter(f=>f.branchId!==id);if(w.activeBranchId===id)w.activeBranchId=w.branches[0].id;memIndexAll();save();closeModal();renderStory();}));};
+
+/* ----- 世界切换 ----- */
+$('#btn-world').onclick=()=>{
+ const body=S.chars.map(c=>`<div style="margin-bottom:14px"><div class="row" style="margin-bottom:6px"><span class="avatar" style="background:${esc(c.color||'')};color:#fff">${esc(c.avatar||c.name[0])}</span><b>${esc(c.name)}</b><span class="grow"></span><button class="small" data-new="${c.id}">＋ 新世界</button></div>
+  ${S.worlds.filter(w=>w.charId===c.id).map(w=>`<div class="list-item ${w.id===S.activeWorldId?'active':''}" data-w="${w.id}"><span class="grow">${esc(w.name)} <span class="muted num">· ${w.floors.length} 楼 · ${w.branches.length} 条线 · ${esc(w.clock.time)}</span></span><button class="small ghost" data-wren="${w.id}">改名</button><button class="small ghost danger" data-wdel="${w.id}">删除</button></div>`).join('')||'<div class="muted" style="padding:6px">还没有世界</div>'}</div>`).join('');
+ modal({title:'切换世界',body:body+`<p class="muted">同一个角色可以开多个平行世界，互不干扰。角色本身在“角色”页管理。</p>`,foot:[{label:'关闭',cls:'primary',onClick:closeModal}]});
+ $$('#m-body [data-w]').forEach(n=>n.onclick=e=>{if(e.target.closest('button'))return;S.activeWorldId=n.dataset.w;save();closeModal();renderStory();});
+ $$('#m-body [data-new]').forEach(b=>b.onclick=()=>promptBox('新世界的名字','',v=>{createWorld(b.dataset.new,v||'新世界');closeModal();renderStory();}));
+ $$('#m-body [data-wren]').forEach(b=>b.onclick=()=>{const w=S.worlds.find(x=>x.id===b.dataset.wren);promptBox('世界名',w.name,v=>{if(v)w.name=v;save();renderStory();});});
+ $$('#m-body [data-wdel]').forEach(b=>b.onclick=()=>confirmBox('删除这个世界及全部剧情、手机、记忆？此操作不可恢复。',()=>{if(S.worlds.length<=1)return toast('至少保留一个世界');S.worlds=S.worlds.filter(x=>x.id!==b.dataset.wdel);S.lorebooks=S.lorebooks.filter(l=>l.worldId!==b.dataset.wdel);if(S.activeWorldId===b.dataset.wdel)S.activeWorldId=S.worlds[0].id;memIndexAll();save();closeModal();renderStory();}));};
+function createWorld(charId,name){const c=S.chars.find(x=>x.id===charId);const bid=uid();const w={id:uid(),charId,name,createdAt:now(),branches:[{id:bid,name:'主线',parentId:null,forkAt:0,createdAt:now()}],activeBranchId:bid,floors:[],
+ clock:{time:'第一天 08:00',location:'未定',weather:'晴'},status:{mood:'平静',inner:'',doing:'',npcs:(c.npcs||[]).map(n=>({name:n.name,where:'',doing:''}))},
+ relations:[{a:S.user.name,b:c.name,label:'初识',history:[{no:0,label:'初识',note:''}]},...(c.npcs||[]).map(n=>({a:S.user.name,b:n.name,label:(n.relUser||'').slice(0,6)||'认识',history:[]}))],memoryPoints:[],
+ phone:{wallet:{balance:1000,tx:[]},chats:[{id:uid(),name:c.name,type:'dm',with:c.name,messages:[]},...(c.npcs||[]).map(n=>({id:uid(),name:n.name,type:'dm',with:n.name,messages:[]}))],ig:[]},forum:{boards:[{name:'广场',threads:[]}]},diary:[],hiddenUpTo:0};
+ if(c.card.first){w.floors.push({id:uid(),no:1,branchId:bid,role:'char',alts:[fill(c.card.first,w)],alt:0,hidden:false,ts:now(),worldTime:w.clock.time});}
+ S.worlds.push(w);S.activeWorldId=w.id;memoryBook(w);memIndexAll();save();return w;}
+
+/* ----- 状态面板 ----- */
+function renderDock(){const w=W(),c=C(w);
+ $('#dock').innerHTML=`<div class="row"><h3>状态面板</h3><span class="grow"></span><button class="small ghost" id="dock-close">✕</button></div>
+ <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">世界</div><div class="kv"><span>时间</span><span class="num">${esc(w.clock.time)}</span><span>地点</span><span>${esc(w.clock.location)}</span><span>天气</span><span>${esc(w.clock.weather)}</span></div></div>
+ <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">${esc(c.name)}</div><div class="kv"><span>情绪</span><span>${esc(w.status.mood||'—')}</span><span>正在</span><span>${esc(w.status.doing||'—')}</span></div>
+  <details class="inner" style="margin-top:10px"><summary>偷看心声</summary><div class="voice">${esc(w.status.inner||'（还没有心声）')}</div></details></div>
+ <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">其他人在哪</div>${(w.status.npcs||[]).map(n=>`<div class="npc-line"><b>${esc(n.name)}</b><span class="muted">${esc(n.where||'')}</span><span>${esc(n.doing||'')}</span></div>`).join('')||'<span class="muted">暂无</span>'}</div>
+ <div class="dock-block"><div class="eyebrow" style="margin-bottom:8px">关系</div>${(w.relations||[]).map(r=>`<div class="npc-line"><b>${esc(r.a)}</b><span class="muted">↔ ${esc(r.b)}</span><span>${esc(r.label)}</span></div>`).join('')}</div>
+ <button class="small" id="dock-edit">✎ 手动修改时间/地点</button>`;
+ $('#dock-close').onclick=()=>$('#dock').classList.remove('open');
+ $('#dock-edit').onclick=()=>{modal({title:'修改世界状态',body:`<label class="field"><span>时间</span><input type="text" id="e-time" value="${esc(w.clock.time)}"></label><label class="field"><span>地点</span><input type="text" id="e-loc" value="${esc(w.clock.location)}"></label><label class="field"><span>天气</span><input type="text" id="e-wea" value="${esc(w.clock.weather)}"></label><label class="field"><span>${esc(c.name)} 的心声</span><textarea id="e-inner">${esc(w.status.inner)}</textarea></label>`,
+  foot:[{label:'取消',onClick:closeModal},{label:'保存',cls:'primary',onClick:()=>{w.clock.time=$('#e-time').value;w.clock.location=$('#e-loc').value;w.clock.weather=$('#e-wea').value;w.status.inner=$('#e-inner').value;save();closeModal();renderStory();}}]});};}
+$('#btn-dock').onclick=()=>{const d=$('#dock');if(innerWidth<=860)d.classList.toggle('open');else d.hidden=!d.hidden;};
+
+/* ----- 时间推进 ----- */
+$('#btn-timeskip').onclick=()=>{const w=W(),c=C(w);
+ modal({title:'推进世界时间',body:`<p class="muted" style="margin-top:0">系统会生成这段时间里 ${esc(c.name)} 和各位 NPC 各自发生了什么，写进他们的记忆；${esc(c.name)} 可能会给你发消息、更新动态、写日记。</p>
+  <div class="row" style="margin-bottom:12px"><button data-d="1">1 天</button><button data-d="3">3 天</button><button data-d="7">一周</button><input type="number" id="ts-n" placeholder="自定义天数" style="width:150px"></div>
+  <label class="field"><span>这段时间 ${esc(S.user.name)} 在做什么（可留空，让 AI 决定）</span><textarea id="ts-note" placeholder="例如：去外地出差了三天，没怎么看手机"></textarea></label>`,
+  foot:[{label:'取消',onClick:closeModal},{label:'推进',cls:'primary',onClick:()=>{const d=+$('#ts-n').value||1;closeModal();timeSkip(d,$('#ts-note').value.trim());}}]});
+ $$('#m-body [data-d]').forEach(b=>b.onclick=()=>{$('#ts-n').value=b.dataset.d;});};
+async function timeSkip(days,note){
+ if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),5000);const w=W(),c=C(w);setBusy(true);toast(`正在推进 ${days} 天…`,8000);
+ const base=buildPrompt('').segs.filter(([n])=>!n.startsWith('回复规则')&&!n.startsWith('预设 · 状态回传')).map(([n,t])=>`## ${n}\n${t}`).join('\n\n');
+ const recent=visibleFloors(w).filter(f=>!f.hidden&&f.role!=='system').slice(-6).map(f=>`〔第${f.no}楼〕${floorText(f).slice(0,400)}`).join('\n');
+ const chats=w.phone.chats.map(ch=>`${ch.name}（${ch.type==='group'?'群聊':'私聊'}）`).join('、');
+ const prompt=`${base}\n\n## 最近的剧情\n${recent}\n\n## 任务\n现在世界时间从「${w.clock.time}」向后推进 ${days} 天。${note?`这段时间里 ${S.user.name}：${note}`:''}\n请模拟这 ${days} 天里 ${c.name} 与每位 NPC 各自的生活（工作、社交、心情起伏、彼此之间可能的互动），要有具体事件，不要都围着 ${S.user.name} 转。然后以 JSON 输出，只输出 JSON：\n{"time":"推进后的世界时间（同格式）","location":"${c.name} 现在在哪","weather":"天气","events":["按天列出的关键事件，5-10 条，每条一句话"],"whatsapp":[{"chat":"聊天名（只能是：${chats}）","messages":[{"from":"发送者","text":"消息内容"}]}],"ig":[{"author":"发帖人","caption":"文案","scene":"配图画面描述（一句话）"}],"diary":{"date":"日期","mood":"心情","text":"${c.name} 这几天里写的一篇日记，第一人称，150-300 字"},"status":{"mood":"${c.name} 现在的情绪","inner":"此刻心声","doing":"正在做什么","npcs":[{"name":"NPC","where":"在哪","doing":"做什么"}]},"relations":[{"a":"A","b":"B","label":"新的关系","note":"变化原因"}],"memory":["值得记住的事，1-3 条"]}\n消息要符合每个人的说话习惯，${c.name} 发消息应该简短克制；NPC 的私聊里可以有 ${S.user.name} 不在场时发生的事的线索。`;
+ try{const j=await AI.chat([{role:'user',content:prompt}],{json:true});
+  const no=nextNo(w);const sys=addFloor(w,'system',`⏭ 时间推进 ${days} 天（${w.clock.time} → ${j.time||'?'}）\n`+(j.events||[]).map(e=>'· '+e).join('\n'));
+  applyState(w,{time:j.time,location:j.location,weather:j.weather,...(j.status||{}),relations:j.relations},no);
+  for(const m of j.memory||[])w.memoryPoints.push({no,text:String(m)});
+  for(const cw of j.whatsapp||[]){const ch=w.phone.chats.find(x=>x.name===cw.chat)||w.phone.chats.find(x=>cw.chat?.includes(x.name));if(!ch)continue;for(const m of cw.messages||[]){if(!m?.text)continue;ch.messages.push({from:m.from||ch.name,text:m.text,time:j.time||'',unread:m.from!==S.user.name});}}
+  for(const p of j.ig||[]){if(!p?.caption)continue;w.phone.ig.unshift({id:uid(),author:p.author||c.name,time:j.time||'',caption:p.caption,scene:p.scene||'',bg:randomBg(),likes:Math.floor(Math.random()*80)+3,unread:true});}
+  if(j.diary?.text)w.diary.push({date:j.diary.date||j.time||'',mood:j.diary.mood||'',text:j.diary.text,unread:true});
+  memoryBook(w);memIndexAll();save();renderStory();toast('世界往前走了。打开小手机看看有没有新消息。',5000);
+ }catch(e){toast(errCopy(e),6000);}
+ setBusy(false);
+}
+const BGS=['linear-gradient(135deg,#2b3a4a,#6b7c8a)','linear-gradient(135deg,#5a3b2e,#c98a5a)','linear-gradient(160deg,#4a5a6a,#9aa8b5)','linear-gradient(135deg,#3b4a3e,#8aa88f)','linear-gradient(135deg,#4a3b5a,#a08ab8)','linear-gradient(135deg,#6a4a3b,#d8b08a)'];
+const randomBg=()=>BGS[Math.floor(Math.random()*BGS.length)];
+
+/* =====================================================================
+   小手机
+   ===================================================================== */
+let phoneApp='home',phoneChat=null;
+function renderPhone(){const w=W();$('#ph-time').textContent=w.clock.time.split(' ').pop();
+ const unreadWA=w.phone.chats.reduce((a,c)=>a+c.messages.filter(m=>m.unread).length,0),unreadIG=w.phone.ig.filter(p=>p.unread).length;
+ $('#ph-apps').innerHTML=[['wa','WhatsApp','#25D366','✆',unreadWA],['ig','Instagram','linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)','◎',unreadIG],['pay','钱包','#1677FF','¥',0],['forum','论坛','#8B5CF6','☰',0]].map(([k,l,bg,ic,n])=>`<button class="app" data-app="${k}"><span class="icon" style="background:${bg}">${ic}</span>${l}${n?`<span class="badge">${n}</span>`:''}</button>`).join('');
+ $('#ph-hint').textContent=`这是 ${S.user.name} 的手机。剧情之外，可以在这里和 ${C(w).name}、NPC 聊天、转账、刷动态。`;
+ $$('#ph-apps .app').forEach(b=>b.onclick=()=>{phoneApp=b.dataset.app;phoneChat=null;renderPhone();});
+ $$('.app-screen').forEach(s=>s.classList.toggle('active',s.id==='ph-'+phoneApp));
+ if(phoneApp==='wa')renderWA();if(phoneApp==='ig')renderIG();if(phoneApp==='pay')renderPay();if(phoneApp==='forum'){$('#ph-forum').innerHTML=`<div class="app-head"><button class="small ghost" data-back>‹</button><b>论坛</b></div><div class="app-body" id="ph-forum-body"></div>`;renderForumInto($('#ph-forum-body'));}
+ $$('.app-screen [data-back]').forEach(b=>b.onclick=()=>{if(phoneChat){phoneChat=null;renderPhone();}else{phoneApp='home';renderPhone();}});
+ badges();
+}
+function renderWA(){const w=W(),c=C(w);const box=$('#ph-wa');
+ if(!phoneChat){box.innerHTML=`<div class="app-head"><button class="small ghost" data-back>‹</button><b>WhatsApp</b><button class="small ghost" id="wa-new">＋群聊</button></div><div class="app-body chatlist list">${w.phone.chats.map(ch=>{const last=ch.messages[ch.messages.length-1];const un=ch.messages.filter(m=>m.unread).length;return `<div class="list-item" data-chat="${ch.id}"><span class="avatar">${esc(ch.type==='group'?'群':ch.name[0])}</span><span class="grow" style="min-width:0"><div class="row" style="justify-content:space-between"><b>${esc(ch.name)}</b><span class="faint" style="font-size:.75em">${esc(last?.time||'')}</span></div><div class="preview">${last?esc((last.from!==S.user.name&&ch.type==='group'?last.from+'：':'')+last.text):'开始聊天'}</div></span>${un?`<span class="badge">${un}</span>`:''}</div>`;}).join('')}</div>`;
+  $$('#ph-wa [data-chat]').forEach(n=>n.onclick=()=>{phoneChat=n.dataset.chat;renderPhone();});
+  $('#wa-new').onclick=()=>{const names=[c.name,...(c.npcs||[]).map(n=>n.name)];modal({title:'新建群聊',body:`<label class="field"><span>群名</span><input type="text" id="g-name" value="新群聊"></label><div class="chips">${names.map(n=>`<label class="chip"><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join('')}</div><p class="muted">群聊里的内容所有成员都知道，这也是让 ${esc(c.name)} 得知 NPC 事情的方式之一。</p>`,foot:[{label:'取消',onClick:closeModal},{label:'创建',cls:'primary',onClick:()=>{const mem=$$('#m-body input:checked').map(i=>i.value);w.phone.chats.push({id:uid(),name:$('#g-name').value||'群聊',type:'group',members:[...mem,S.user.name],messages:[]});save();closeModal();renderPhone();}}]});};
+  return;}
+ const ch=w.phone.chats.find(x=>x.id===phoneChat);ch.messages.forEach(m=>m.unread=false);save();
+ box.innerHTML=`<div class="app-head"><button class="small ghost" data-back>‹</button><span class="avatar" style="width:34px;height:34px;font-size:.9em">${esc(ch.type==='group'?'群':ch.name[0])}</span><b>${esc(ch.name)}${ch.type==='group'?` <span class="muted" style="font-weight:400;font-size:.8em">${esc((ch.members||[]).join('、'))}</span>`:''}</b><button class="small ghost" id="wa-poke" title="让对方主动说点什么">…</button></div>
+ <div class="app-body bubbles" id="wa-bubbles">${ch.messages.map(m=>{const me=m.from===S.user.name;return `<div class="bubble ${me?'me':''} ${m.money?'money':''}">${!me&&ch.type==='group'?`<div class="from">${esc(m.from)}</div>`:''}${esc(m.text)}<div class="time">${esc(m.time||'')}</div></div>`;}).join('')||'<div class="bubble sys">还没有消息</div>'}<div id="wa-typing" hidden class="bubble sys">对方正在输入…</div></div>
+ <div class="chat-input"><button class="small" id="wa-money" title="转账">¥</button><input type="text" id="wa-in" placeholder="发消息…"><button class="primary small" id="wa-send">发送</button></div>`;
+ const bb=$('#wa-bubbles');bb.scrollTop=bb.scrollHeight;
+ const send=()=>{const t=$('#wa-in').value.trim();if(!t)return;ch.messages.push({from:S.user.name,text:t,time:w.clock.time});$('#wa-in').value='';save();renderPhone();waReply(ch);};
+ $('#wa-send').onclick=send;$('#wa-in').onkeydown=e=>{if(e.key==='Enter')send();};
+ $('#wa-poke').onclick=()=>waReply(ch,true);
+ $('#wa-money').onclick=()=>promptBox('转账金额（¥）','100',v=>{const n=+v;if(!(n>0))return;if(n>w.phone.wallet.balance)return toast('余额不够');w.phone.wallet.balance-=n;const to=ch.type==='group'?ch.name:ch.with;w.phone.wallet.tx.unshift({who:to,amt:-n,dir:'out',note:'转账',time:w.clock.time});ch.messages.push({from:S.user.name,text:`[转账 ¥${n}]`,money:n,time:w.clock.time});save();renderPhone();waReply(ch);},'钱会从你的钱包扣掉，对方会收到转账消息');
+}
+function personaOf(w,name){const c=C(w);if(name===c.name)return {name,desc:`${c.card.description}\n性格：${c.card.personality}`,isChar:true};const n=(c.npcs||[]).find(x=>x.name===name);if(n)return {name,desc:`${n.gender||''} ${n.age||''}岁，${n.look||''}。性格：${n.personality||''}。与 ${c.name}：${n.relChar||''}；与 ${S.user.name}：${n.relUser||''}`,isChar:false};return {name,desc:'（未登记的人物）',isChar:false};}
+function knowledgeFor(w,name){const c=C(w);const parts=[];
+ if(name===c.name){parts.push('最近剧情（你亲历）：\n'+visibleFloors(w).filter(f=>!f.hidden&&f.role!=='system').slice(-5).map(f=>`〔第${f.no}楼〕${floorText(f).slice(0,300)}`).join('\n'));}
+ const mem=memoryBook(w).entries.filter(e=>e.enabled).map(e=>e.content.slice(0,400));if(mem.length)parts.push('长期记忆：\n'+mem.join('\n'));
+ for(const ch of w.phone.chats){if(ch.type==='group'&&(ch.members||[]).includes(name))parts.push(`群聊「${ch.name}」：\n`+ch.messages.slice(-12).map(m=>`${m.from}：${m.text}`).join('\n'));}
+ const diary=(w.diary||[]).slice(-1)[0];if(name===c.name&&diary)parts.push('你最近的日记：'+diary.text.slice(0,300));
+ const r=(w.relations||[]).filter(x=>x.a===name||x.b===name).map(x=>`${x.a}↔${x.b}：${x.label}`).join('；');if(r)parts.push('你的人际关系：'+r);
+ return parts.join('\n\n');}
+async function waReply(ch,poke=false){
+ if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),4000);const w=W(),c=C(w);
+ const speakers=ch.type==='group'?(ch.members||[]).filter(n=>n!==S.user.name):[ch.with];
+ const personas=speakers.map(n=>{const p=personaOf(w,n);return `### ${p.name}\n${p.desc}\n他/她知道的事：\n${knowledgeFor(w,n)}`;}).join('\n\n');
+ const hist=ch.messages.slice(-20).map(m=>`${m.from}：${m.text}`).join('\n');
+ const prompt=`你在模拟一个手机聊天软件里的对话。世界时间：${w.clock.time}。${S.user.name}（用户）的人设：${S.user.description}\n\n## 可以发言的人\n${personas}\n\n## 规则\n- 每个人只知道自己知道的事：私聊内容其他人不知道；群聊内容成员都知道。\n- 消息要像真人发的手机消息：短句、口语、可以有错别字和表情，符合各自性格；${c.name} 的消息一贯简短克制。\n- 收到转账可以自然地回应。\n- ${poke?'用户没有说话，请让其中一人主动发起话题（可以和最近发生的事有关）。':'回复用户刚才的消息。'}\n\n## 聊天记录\n${hist||'（空）'}\n\n只输出 JSON 数组：[{"from":"发送者姓名","text":"消息"}]，1-3 条。`;
+ const typing=$('#wa-typing');if(typing)typing.hidden=false;
+ try{const arr=await AI.chat([{role:'user',content:prompt}],{json:true,tier:'quick'});
+  for(const m of (Array.isArray(arr)?arr:[arr])){if(!m?.text)continue;const from=speakers.includes(m.from)?m.from:speakers[0];ch.messages.push({from,text:String(m.text),time:w.clock.time,unread:false});}
+  save();if(view==='phone'&&phoneChat===ch.id)renderPhone();
+ }catch(e){toast(errCopy(e),5000);if(typing)typing.hidden=true;}
+}
+function renderIG(){const w=W();const box=$('#ph-ig');w.phone.ig.forEach(p=>p.unread=false);save();
+ box.innerHTML=`<div class="app-head"><button class="small ghost" data-back>‹</button><b>Instagram</b><button class="small ghost" id="ig-refresh">↻ 刷新</button></div><div class="app-body">${w.phone.ig.map(p=>`<div class="ig-post"><div class="head"><span class="avatar" style="width:34px;height:34px;font-size:.9em">${esc(p.author[0])}</span><b>${esc(p.author)}</b><span class="faint" style="font-size:.8em;margin-left:auto">${esc(p.time)}</span></div><div class="pic" style="background:${p.bg||randomBg()}">${esc(p.scene||'')}</div><div class="caption"><b>${esc(p.author)}</b> ${esc(p.caption)}</div><div class="stats">♡ ${p.likes||0}</div></div>`).join('')||'<div class="bubble sys" style="margin:20px auto">还没有动态，点右上角刷新</div>'}</div>`;
+ $('#ig-refresh').onclick=async()=>{if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),4000);const c=C(w);toast('正在刷新动态…');
+  const names=[c.name,...(c.npcs||[]).map(n=>n.name)];const prompt=`世界时间 ${w.clock.time}，天气 ${w.clock.weather}。人物：\n${names.map(n=>`- ${personaOf(w,n).name}：${personaOf(w,n).desc.slice(0,200)}`).join('\n')}\n最近发生的事：${(w.memoryPoints||[]).slice(-6).map(m=>m.text).join('；')}\n请为其中 2-3 个人各生成一条新的社交动态（像 Instagram），符合各自性格，${c.name} 发得少且含蓄。只输出 JSON 数组：[{"author":"姓名","caption":"文案","scene":"配图画面一句话描述"}]`;
+  try{const arr=await AI.chat([{role:'user',content:prompt}],{json:true,tier:'quick'});for(const p of arr||[]){if(!p?.caption)continue;w.phone.ig.unshift({id:uid(),author:p.author||c.name,time:w.clock.time,caption:p.caption,scene:p.scene||'',bg:randomBg(),likes:Math.floor(Math.random()*90)+2});}save();renderPhone();}catch(e){toast(errCopy(e),5000);}};
+}
+function renderPay(){const w=W();const box=$('#ph-pay');
+ box.innerHTML=`<div class="app-head"><button class="small ghost" data-back>‹</button><b>钱包</b></div><div class="app-body"><div class="wallet"><div class="eyebrow">余额</div><div class="balance num">¥ ${w.phone.wallet.balance.toLocaleString()}</div><div class="row" style="margin:12px 0 20px"><button class="small" id="pay-send">转账</button><button class="small" id="pay-edit">修改余额</button></div><div class="eyebrow" style="margin-bottom:6px">账单</div>${w.phone.wallet.tx.map(t=>`<div class="tx"><span><b>${esc(t.who)}</b><div class="muted" style="font-size:.85em">${esc(t.note||'')} · ${esc(t.time||'')}</div></span><span class="amt num ${t.dir}">${t.amt>0?'+':''}${t.amt}</span></div>`).join('')||'<div class="muted">暂无账单</div>'}</div></div>`;
+ $('#pay-send').onclick=()=>{phoneApp='wa';phoneChat=null;renderPhone();toast('进入某个聊天，点 ¥ 转账');};
+ $('#pay-edit').onclick=()=>promptBox('设置余额',String(w.phone.wallet.balance),v=>{if(!isNaN(+v)){w.phone.wallet.balance=+v;save();renderPhone();}});
+}
+
+/* =====================================================================
+   论坛 / 日记
+   ===================================================================== */
+let forumBoard=0,forumThread=null;
+function renderForum(){const el=$('#forum-page');el.innerHTML=`<div class="page-head"><div><h2>论坛</h2><p>这个世界里的人在网上说什么。板块随世界观而不同。</p></div></div><div id="forum-body"></div>`;renderForumInto($('#forum-body'));}
+function renderForumInto(box){const w=W();const boards=w.forum.boards;if(forumBoard>=boards.length)forumBoard=0;const b=boards[forumBoard];
+ if(forumThread){const t=b.threads.find(x=>x.id===forumThread);if(t){box.innerHTML=`<div style="padding:8px 14px"><button class="small ghost" id="fo-back">‹ 返回 ${esc(b.name)}</button><h3 style="margin:10px 0 2px">${esc(t.title)}</h3><div class="t-meta">${esc(t.author)} · ${esc(t.time||'')}</div>${t.posts.map(p=>`<div class="t-post"><div class="who">${esc(p.who)}</div>${esc(p.text)}</div>`).join('')}<div class="chat-input" style="padding:10px 0"><input type="text" id="fo-in" placeholder="以 ${esc(S.user.name)} 的身份回帖…"><button class="primary small" id="fo-send">回帖</button></div></div>`;
+  $('#fo-back').onclick=()=>{forumThread=null;renderForumInto(box);};$('#fo-send').onclick=async()=>{const v=$('#fo-in').value.trim();if(!v)return;t.posts.push({who:S.user.name,text:v});save();renderForumInto(box);
+   if(AI.mode==='none')return;try{const arr=await AI.chat([{role:'user',content:`论坛帖子《${t.title}》，板块「${b.name}」，世界背景：${C(w).card.scenario}。楼层：\n${t.posts.map(p=>p.who+'：'+p.text).join('\n')}\n请生成 1-2 条新的网友回帖（可以是路人，也可以是这些人物之一：${(C(w).npcs||[]).map(n=>n.name).join('、')}，但不要是 ${S.user.name}）。只输出 JSON 数组：[{"who":"网名","text":"回帖"}]`}],{json:true,tier:'quick'});for(const p of arr||[])if(p?.text)t.posts.push({who:p.who||'匿名',text:p.text});save();renderForumInto(box);}catch(e){toast(errCopy(e),4000);}};return;}}
+ box.innerHTML=`<div style="padding:8px 14px"><div class="board-tabs">${boards.map((x,i)=>`<button class="small ${i===forumBoard?'active':''}" data-b="${i}">${esc(x.name)}</button>`).join('')}<button class="small ghost" id="fo-addb">＋板块</button><span class="grow"></span><button class="small" id="fo-refresh">↻ 生成新帖</button></div>${b.threads.map(t=>`<div class="thread" data-t="${t.id}"><div class="t-title">${esc(t.title)}</div><div class="t-meta">${esc(t.author)} · ${esc(t.time||'')} · ${t.posts.length} 楼</div></div>`).join('')||'<div class="muted">这个板块还没有帖子</div>'}</div>`;
+ $$('[data-b]',box).forEach(x=>x.onclick=()=>{forumBoard=+x.dataset.b;renderForumInto(box);});$$('[data-t]',box).forEach(x=>x.onclick=()=>{forumThread=x.dataset.t;renderForumInto(box);});
+ $('#fo-addb',box).onclick=()=>promptBox('板块名','',v=>{if(v){boards.push({name:v,threads:[]});forumBoard=boards.length-1;save();renderForumInto(box);}});
+ $('#fo-refresh',box).onclick=async()=>{if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),4000);toast('正在生成新帖…');const c=C(w);
+  try{const arr=await AI.chat([{role:'user',content:`世界背景：${c.card.scenario}；${(S.lorebooks.filter(l=>l.kind!=='memory'&&(!l.worldId||l.worldId===w.id)).flatMap(l=>l.entries).filter(e=>e.constant).map(e=>e.content).join('；'))}\n世界时间：${w.clock.time}。最近发生的事：${(w.memoryPoints||[]).slice(-6).map(m=>m.text).join('；')}\n请为论坛板块「${b.name}」生成 2 个新帖子，网友视角，可以隐约提到剧情人物但不要直呼其名（除非是公众人物），每帖 2-4 楼。可以让这些人物之一用网名或本名回帖：${(c.npcs||[]).map(n=>n.name).join('、')}。只输出 JSON 数组：[{"title":"标题","author":"楼主网名","posts":[{"who":"网名","text":"内容"}]}]`}],{json:true,tier:'quick'});
+   for(const t of arr||[]){if(!t?.title)continue;b.threads.unshift({id:uid(),title:t.title,author:t.author||'匿名',time:w.clock.time,posts:(t.posts||[]).filter(p=>p?.text).map(p=>({who:p.who||'匿名',text:p.text}))});}save();renderForumInto(box);}catch(e){toast(errCopy(e),5000);}};
+}
+function renderDiary(){const w=W(),c=C(w);const el=$('#diary-page');
+ el.innerHTML=`<div class="page-head"><div><h2>${esc(c.name)} 的日记</h2><p>他/她不知道你在看。</p></div><button class="primary" id="di-write">✎ 让 ${esc(c.name)} 写今天的日记</button></div>${[...w.diary].reverse().map((d,i)=>`<div class="diary-entry"><div class="date">${esc(d.date)} <span class="lock">· ${esc(d.mood||'')}${d.unread?' · 新':''}</span></div>${paras(d.text)}</div>`).join('')||'<p class="muted">还没有日记。</p>'}`;
+ w.diary.forEach(d=>d.unread=false);save();badges();
+ $('#di-write').onclick=async()=>{if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),4000);toast('正在写日记…');
+  const p=`${buildPrompt('').segs.filter(([n])=>n.startsWith('角色卡')||n.startsWith('长期记忆')||n.startsWith('世界状态')).map(([n,t])=>`## ${n}\n${t}`).join('\n\n')}\n\n## 最近剧情\n${visibleFloors(w).filter(f=>!f.hidden&&f.role!=='system').slice(-6).map(f=>floorText(f).slice(0,400)).join('\n')}\n\n## 任务\n请以 ${c.name} 的第一人称写一篇今天（${w.clock.time}）的日记，150-350 字，只写给自己看，可以有不会对人说的话。只输出 JSON：{"date":"日期","mood":"心情（≤6字）","text":"日记正文"}`;
+  try{const j=await AI.chat([{role:'user',content:p}],{json:true});if(j?.text){w.diary.push({date:j.date||w.clock.time,mood:j.mood||'',text:j.text,unread:false});save();renderDiary();}}catch(e){toast(errCopy(e),5000);}};
+}
+
+/* =====================================================================
+   记录面板（关系图谱 + 记忆点）
+   ===================================================================== */
+let selEdge=null;
+function renderRecords(){const w=W();const el=$('#records-page');const names=[...new Set([S.user.name,C(w).name,...w.relations.flatMap(r=>[r.a,r.b])])];
+ const W0=760,H0=420,cx=W0/2,cy=H0/2,rx=300,ry=160;const pos={};names.forEach((n,i)=>{const a=-Math.PI/2+i*2*Math.PI/names.length;pos[n]=[cx+rx*Math.cos(a),cy+ry*Math.sin(a)];});
+ const edges=w.relations.map((r,i)=>{const [x1,y1]=pos[r.a],[x2,y2]=pos[r.b];return `<line class="edge ${selEdge===i?'sel':''}" data-e="${i}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line><text class="elabel" x="${(x1+x2)/2}" y="${(y1+y2)/2-6}" text-anchor="middle">${esc(r.label)}</text>`;}).join('');
+ const nodes=names.map(n=>{const [x,y]=pos[n];return `<g class="node ${n===S.user.name?'user':''}"><circle cx="${x}" cy="${y}" r="26"></circle><text x="${x}" y="${y+5}" text-anchor="middle">${esc(n)}</text></g>`;}).join('');
+ const r=selEdge!=null?w.relations[selEdge]:null;
+ el.innerHTML=`<div class="page-head"><div><h2>记录面板</h2><p>人物关系与记忆点。点一条线，看这段关系的变化史。</p></div><button class="small" id="rec-add">＋ 手动添加关系</button></div>
+ <div class="card" style="overflow-x:auto"><svg class="graph" viewBox="0 0 ${W0} ${H0}" style="min-width:560px">${edges}${nodes}</svg></div>
+ ${r?`<div class="card"><div class="row"><h3 style="margin:0">${esc(r.a)} ↔ ${esc(r.b)}</h3><span class="pill accent">${esc(r.label)}</span><span class="grow"></span><button class="small" id="rec-edit">✎ 修改</button><button class="small danger" id="rec-del">删除</button></div><div class="hist" style="margin-top:12px">${r.history.map(h=>`<div><span class="muted num">第 ${h.no} 楼</span> · <b>${esc(h.label)}</b> ${esc(h.note||'')}</div>`).join('')||'<div class="muted">还没有变化记录</div>'}</div></div>`:''}
+ <div class="card"><h3>记忆点</h3>${[...w.memoryPoints].reverse().map((m,i)=>`<div class="mp"><span class="no">第 ${m.no} 楼</span><span class="grow">${esc(m.text)}</span><button class="small ghost" data-mdel="${w.memoryPoints.length-1-i}">✕</button></div>`).join('')||'<p class="muted">还没有记忆点。剧情推进时 AI 会自动记录，你也可以手动添加。</p>'}<div class="row" style="margin-top:12px"><input type="text" id="mp-in" placeholder="手动记一条…" class="grow"><button class="small" id="mp-add">添加</button></div></div>`;
+ $$('.edge',el).forEach(e=>e.onclick=()=>{selEdge=+e.dataset.e;renderRecords();});
+ $('#mp-add').onclick=()=>{const v=$('#mp-in').value.trim();if(!v)return;w.memoryPoints.push({no:nextNo(w)-1,text:v});save();renderRecords();};
+ $$('[data-mdel]',el).forEach(b=>b.onclick=()=>{w.memoryPoints.splice(+b.dataset.mdel,1);save();renderRecords();});
+ $('#rec-add').onclick=()=>relModal(w,null);if(r){$('#rec-edit').onclick=()=>relModal(w,r);$('#rec-del').onclick=()=>confirmBox('删除这段关系？',()=>{w.relations.splice(selEdge,1);selEdge=null;save();renderRecords();});}
+}
+function relModal(w,r){modal({title:r?'修改关系':'添加关系',body:`<div class="grid2"><label class="field"><span>人物 A</span><input type="text" id="r-a" value="${esc(r?.a||S.user.name)}"></label><label class="field"><span>人物 B</span><input type="text" id="r-b" value="${esc(r?.b||'')}"></label></div><label class="field"><span>关系（≤6 字）</span><input type="text" id="r-l" value="${esc(r?.label||'')}"></label><label class="field"><span>备注 / 变化原因</span><input type="text" id="r-n"></label>`,
+ foot:[{label:'取消',onClick:closeModal},{label:'保存',cls:'primary',onClick:()=>{const a=$('#r-a').value.trim(),b=$('#r-b').value.trim(),l=$('#r-l').value.trim(),n=$('#r-n').value.trim();if(!a||!b||!l)return;if(r){r.a=a;r.b=b;r.label=l;r.history.push({no:nextNo(w)-1,label:l,note:n});}else w.relations.push({a,b,label:l,history:[{no:nextNo(w)-1,label:l,note:n}]});save();closeModal();renderRecords();}}]});}
+
+/* =====================================================================
+   记忆：总结 / 索引 / 检索
+   ===================================================================== */
+function renderMemory(){const w=W();const el=$('#memory-page');const vis=visibleFloors(w).filter(f=>f.role!=='system');const mb=memoryBook(w);
+ const lastTo=mb.entries.reduce((a,e)=>Math.max(a,e.to||0),0);const from=lastTo+1,to=Math.min(vis.length?vis[vis.length-1].no:0,lastTo+20);
+ const idxW=[...MEM.docs.values()].filter(d=>d.worldId===w.id&&d.kind==='floor').length;const hidden=vis.filter(f=>f.hidden).length;
+ el.innerHTML=`<div class="page-head"><div><h2>记忆</h2><p>总结进世界书是长期记忆；索引检索是永久记忆。隐藏的楼层不进上下文，但仍在索引里。</p></div></div>
+ <div class="stat-row" style="margin-bottom:16px"><div class="stat"><b class="num">${idxW}</b><span>本世界已索引楼数</span></div><div class="stat"><b class="num">${MEM.count}</b><span>索引总条目（含所有世界）</span></div><div class="stat"><b class="num">${hidden}</b><span>已隐藏楼层</span></div><div class="stat"><b class="num">${mb.entries.length}</b><span>总结条目</span></div></div>
+ <div class="card"><h3>总结并归档</h3><label class="field"><span>总结提示词（可改）</span><textarea id="sum-prompt" style="min-height:120px">${esc(S.settings.summaryPrompt)}</textarea></label>
+  <div class="row"><label class="field" style="margin:0"><span>从第</span><input type="number" id="sum-from" value="${from}" style="width:100px"></label><label class="field" style="margin:0"><span>到第</span><input type="number" id="sum-to" value="${to}" style="width:100px"></label><label class="switch" style="margin-top:14px"><input type="checkbox" id="sum-hide" checked> 总结后隐藏这些楼层</label><span class="grow"></span><button class="primary" id="sum-go">总结 → 存为「${from}-${to}」</button></div>
+  <p class="muted" style="margin-bottom:0">总结会写进世界书「${esc(mb.name)}」的一个新子区，名字就是楼层范围；默认常驻、随时可编辑。</p></div>
+ <div class="card"><h3>已归档的总结</h3>${mb.entries.map(e=>`<div class="sum-entry"><div class="r-meta"><span class="pill accent num">${esc(e.title)} 楼</span><label class="switch"><input type="checkbox" data-sen="${e.id}" ${e.enabled?'checked':''}> 进入上下文</label><span class="grow"></span><button class="small ghost" data-sedit="${e.id}">✎</button><button class="small ghost" data-sdel="${e.id}">✕</button></div><pre>${esc(e.content)}</pre></div>`).join('')||'<p class="muted">还没有总结。</p>'}</div>
+ <div class="card"><h3>记忆检索</h3><div class="row"><input type="text" id="mem-q" placeholder="搜一句话、一个名字、一件物品…" class="grow"><button class="primary" id="mem-go">检索</button></div><p class="muted">每次最多返回 10 楼。发送剧情时，系统也会自动用你的输入做一次检索，把命中的旧楼塞进提示词。</p><div id="mem-res"></div></div>`;
+ $('#sum-prompt').onchange=e=>{S.settings.summaryPrompt=e.target.value;save();};
+ $('#sum-go').onclick=()=>summarize(+$('#sum-from').value,+$('#sum-to').value,$('#sum-hide').checked);
+ $$('[data-sen]',el).forEach(i=>i.onchange=()=>{mb.entries.find(e=>e.id===i.dataset.sen).enabled=i.checked;save();});
+ $$('[data-sdel]',el).forEach(b=>b.onclick=()=>confirmBox('删除这条总结？',()=>{mb.entries=mb.entries.filter(e=>e.id!==b.dataset.sdel);memIndexAll();save();renderMemory();}));
+ $$('[data-sedit]',el).forEach(b=>b.onclick=()=>{const e=mb.entries.find(x=>x.id===b.dataset.sedit);modal({title:'编辑总结 '+e.title,body:`<textarea id="se-t" style="min-height:260px">${esc(e.content)}</textarea>`,foot:[{label:'取消',onClick:closeModal},{label:'保存',cls:'primary',onClick:()=>{e.content=$('#se-t').value;memIndexAll();save();closeModal();renderMemory();}}]});});
+ const go=async()=>{const q=$('#mem-q').value.trim();let res,src='本页索引';
+  if(AI.backendOk&&q.length>=3){try{const r=await fetch(S.settings.backendUrl.replace(/\/$/,'')+'/api/memory/search?world='+encodeURIComponent(w.id)+'&q='+encodeURIComponent(q)+'&limit=10');res=(await r.json()).results.map(x=>({...x,text:x.snippet.replace(/\[|\]/g,''),score:-x.score}));src='SQLite FTS5';}catch(e){}}
+  if(!res)res=memSearch(q,{worldId:w.id,limit:10});
+  $('#mem-res').innerHTML=(q?`<div class="muted" style="font-size:.85em;margin:8px 0">来源：${src}</div>`:'')+res.map(r=>`<div class="result"><div class="r-meta"><span class="num">${r.kind==='summary'?'总结':'第 '+r.no+' 楼'}</span><span>${esc(r.who)}</span><span class="faint num">相关度 ${(+r.score).toFixed(1)}</span></div>${snippet(r.text,q,160)}</div>`).join('')||(q?'<p class="muted">没有找到。</p>':'');};
+ $('#mem-go').onclick=go;$('#mem-q').onkeydown=e=>{if(e.key==='Enter')go();};
+}
+async function summarize(from,to,hide){
+ if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),5000);const w=W();const fls=visibleFloors(w).filter(f=>f.role!=='system'&&f.no>=from&&f.no<=to);if(!fls.length)return toast('这个范围里没有楼层');
+ toast(`正在总结第 ${from}-${to} 楼…`,8000);const c=C(w);
+ const p=`${S.settings.summaryPrompt}\n\n人物：${c.name}（主角），${S.user.name}（用户），NPC：${(c.npcs||[]).map(n=>n.name).join('、')}\n\n${fls.map(f=>`〔第${f.no}楼 · ${f.role==='user'?S.user.name:c.name}〕\n${floorText(f)}`).join('\n\n')}`;
+ try{const r=await AI.chat([{role:'user',content:p}],{});const mb=memoryBook(w);mb.entries.push({id:uid(),title:`${from}-${to}`,from,to,keys:'',constant:true,enabled:true,content:r.text.trim()});
+  if(hide)fls.forEach(f=>f.hidden=true);memIndexAll();save();renderMemory();toast('已归档到世界书「'+mb.name+'」');}catch(e){toast(errCopy(e),6000);}
+}
+
+/* =====================================================================
+   角色 / NPC / 用户人设
+   ===================================================================== */
+let selChar=null;
+function renderChars(){const el=$('#chars-page');const c=S.chars.find(x=>x.id===selChar)||C();selChar=c?.id;
+ el.innerHTML=`<div class="page-head"><div><h2>角色</h2><p>最多 5 个角色，每个角色可以有多个世界。</p></div><div class="row"><button class="small" id="ch-import">⇧ 导入角色卡（PNG / JSON）</button><button class="small primary" id="ch-new" ${S.chars.length>=5?'disabled':''}>＋ 新角色</button></div></div>
+ <div class="grid2" style="margin-bottom:18px">${S.chars.map(x=>`<div class="char-card ${x.id===selChar?'active':''}" data-c="${x.id}"><span class="avatar lg" style="background:${esc(x.color||'')};color:#fff">${esc(x.avatar||x.name[0])}</span><div><b style="font-size:1.1em">${esc(x.name)}</b><div class="sub">${esc((x.card.description||'').slice(0,50))}</div><div class="sub num">${S.worlds.filter(w=>w.charId===x.id).length} 个世界 · ${(x.npcs||[]).length} 个 NPC</div></div></div>`).join('')}</div>
+ ${c?`<div class="card"><div class="row" style="margin-bottom:10px"><h3 style="margin:0">角色卡 · ${esc(c.name)}</h3><span class="grow"></span><button class="small" id="ch-world">＋ 用这个角色开新世界</button><button class="small danger" id="ch-del">删除角色</button></div>
+  <div class="grid2"><label class="field"><span>名字</span><input type="text" data-cf="name" value="${esc(c.name)}"></label><div class="row"><label class="field grow"><span>头像字</span><input type="text" data-cf="avatar" value="${esc(c.avatar||'')}" maxlength="2"></label><label class="field grow"><span>头像色</span><input type="text" data-cf="color" value="${esc(c.color||'#3E5F73')}"></label></div></div>
+  <label class="field"><span>设定（外貌、身份、背景）</span><textarea data-card="description">${esc(c.card.description)}</textarea></label>
+  <label class="field"><span>性格</span><textarea data-card="personality">${esc(c.card.personality)}</textarea></label>
+  <label class="field"><span>情境（世界开局时的处境）</span><textarea data-card="scenario">${esc(c.card.scenario)}</textarea></label>
+  <label class="field"><span>开场白（新世界的第 1 楼，可用 {{user}} {{char}}）</span><textarea data-card="first">${esc(c.card.first||'')}</textarea></label>
+  <label class="field"><span>说话示例</span><textarea data-card="example">${esc(c.card.example||'')}</textarea></label></div>
+ <div class="card"><div class="row" style="margin-bottom:10px"><h3 style="margin:0">NPC</h3><span class="grow"></span><button class="small primary" id="npc-gen">✦ 生成 NPC</button><button class="small" id="npc-add">＋ 手动添加</button></div>
+  <p class="muted">输入一句“她是 ${esc(c.name)} 的妹妹，和 ${esc(S.user.name)} 是同事”，其余性格、性别、样貌随机生成。</p>
+  <div class="grid2">${(c.npcs||[]).map(n=>`<div class="npc-card"><div class="row"><b>${esc(n.name)}</b><span class="tag">${esc(n.gender||'')} · ${esc(String(n.age||'?'))}岁</span><span class="grow"></span><button class="small ghost" data-nedit="${n.id}">✎</button><button class="small ghost" data-ndel="${n.id}">✕</button></div><div class="tag">${esc(n.look||'')}</div><div>${esc(n.personality||'')}</div><div class="tag">与 ${esc(c.name)}：${esc(n.relChar||'—')}<br>与 ${esc(S.user.name)}：${esc(n.relUser||'—')}</div></div>`).join('')||'<p class="muted">还没有 NPC。</p>'}</div></div>`:''}
+ <div class="card"><h3>我的人设 · ${esc(S.user.name)}</h3><div class="grid2"><label class="field"><span>名字</span><input type="text" id="u-name" value="${esc(S.user.name)}"></label></div><label class="field"><span>人设（灵感功能会照着这个替你写）</span><textarea id="u-desc">${esc(S.user.description)}</textarea></label></div>`;
+ $$('[data-c]',el).forEach(x=>x.onclick=()=>{selChar=x.dataset.c;renderChars();});
+ $$('[data-cf]',el).forEach(i=>i.onchange=()=>{c[i.dataset.cf]=i.value;save();renderChars();});
+ $$('[data-card]',el).forEach(i=>i.onchange=()=>{c.card[i.dataset.card]=i.value;save();});
+ $('#u-name').onchange=e=>{S.user.name=e.target.value.trim()||'uu';save();renderChars();};$('#u-desc').onchange=e=>{S.user.description=e.target.value;save();};
+ $('#ch-new').onclick=()=>{if(S.chars.length>=5)return;promptBox('新角色的名字','',v=>{if(!v)return;const nc={id:uid(),name:v,avatar:v[0],color:'#'+['3E5F73','6B4E3D','4E6B3D','5A4E6B','6B3D4E'][S.chars.length%5],card:{description:'',personality:'',scenario:'',first:'',example:''},npcs:[]};S.chars.push(nc);selChar=nc.id;save();renderChars();});};
+ if(c){$('#ch-world').onclick=()=>promptBox('新世界的名字','',v=>{createWorld(c.id,v||'新世界');showView('story');});
+  $('#ch-del').onclick=()=>confirmBox(`删除 ${c.name} 及其全部世界？`,()=>{if(S.chars.length<=1)return toast('至少保留一个角色');S.chars=S.chars.filter(x=>x.id!==c.id);S.worlds=S.worlds.filter(w=>w.charId!==c.id);if(!S.worlds.length)createWorld(S.chars[0].id,'新世界');S.activeWorldId=S.worlds[0].id;selChar=null;memIndexAll();save();renderChars();});
+  $('#npc-add').onclick=()=>npcModal(c,null);$$('[data-nedit]',el).forEach(b=>b.onclick=()=>npcModal(c,c.npcs.find(n=>n.id===b.dataset.nedit)));
+  $$('[data-ndel]',el).forEach(b=>b.onclick=()=>{c.npcs=c.npcs.filter(n=>n.id!==b.dataset.ndel);save();renderChars();});
+  $('#npc-gen').onclick=()=>promptBox('描述这个 NPC 或 TA 的关系','',async v=>{if(!v)return;if(AI.mode==='none')return toast(errCopy({code:'not_connected'}),4000);toast('正在生成…');
+   try{const j=await AI.chat([{role:'user',content:`主角 ${c.name}：${c.card.description}\n用户 ${S.user.name}：${S.user.description}\n已有 NPC：${(c.npcs||[]).map(n=>n.name).join('、')||'无'}\n请根据描述创建一个新 NPC：「${v}」。未指定的性别、年龄、样貌、性格请随机而合理地生成，要有记忆点。只输出 JSON：{"name":"中文名","gender":"性别","age":数字,"look":"样貌一句话","personality":"性格两句话","relChar":"与 ${c.name} 的关系","relUser":"与 ${S.user.name} 的关系"}`}],{json:true});
+    c.npcs.push({id:uid(),name:j.name||'无名',gender:j.gender||'',age:j.age||'',look:j.look||'',personality:j.personality||'',relChar:j.relChar||'',relUser:j.relUser||''});save();renderChars();}catch(e){toast(errCopy(e),5000);}},'例如：沈聿的妹妹，大学生，和 uu 在同一家咖啡店打过工');}
+ $('#ch-import').onclick=()=>pickFile('.png,.json',importCard);
+}
+function npcModal(c,n){const v=n||{};modal({title:n?'编辑 NPC':'添加 NPC',body:`<div class="grid2"><label class="field"><span>名字</span><input type="text" id="n-name" value="${esc(v.name||'')}"></label><div class="row"><label class="field grow"><span>性别</span><input type="text" id="n-g" value="${esc(v.gender||'')}"></label><label class="field grow"><span>年龄</span><input type="text" id="n-a" value="${esc(String(v.age||''))}"></label></div></div><label class="field"><span>样貌</span><input type="text" id="n-look" value="${esc(v.look||'')}"></label><label class="field"><span>性格</span><textarea id="n-p" style="min-height:70px">${esc(v.personality||'')}</textarea></label><label class="field"><span>与 ${esc(c.name)} 的关系</span><input type="text" id="n-rc" value="${esc(v.relChar||'')}"></label><label class="field"><span>与 ${esc(S.user.name)} 的关系</span><input type="text" id="n-ru" value="${esc(v.relUser||'')}"></label>`,
+ foot:[{label:'取消',onClick:closeModal},{label:'保存',cls:'primary',onClick:()=>{const o={id:v.id||uid(),name:$('#n-name').value.trim(),gender:$('#n-g').value,age:$('#n-a').value,look:$('#n-look').value,personality:$('#n-p').value,relChar:$('#n-rc').value,relUser:$('#n-ru').value};if(!o.name)return;if(n)Object.assign(n,o);else c.npcs.push(o);save();closeModal();renderChars();}}]});}
+function pickFile(accept,cb){const f=$('#file-in');f.accept=accept;f.value='';f.onchange=()=>{if(f.files[0])cb(f.files[0]);};f.click();}
+async function importCard(file){try{let data;if(file.name.endsWith('.json'))data=JSON.parse(await file.text());else data=readPngCard(new Uint8Array(await file.arrayBuffer()));
+ const d=data.data||data;const nc={id:uid(),name:d.name||'导入角色',avatar:(d.name||'角')[0],color:'#6B4E3D',card:{description:d.description||'',personality:d.personality||'',scenario:d.scenario||'',first:d.first_mes||'',example:d.mes_example||''},npcs:[]};
+ if(S.chars.length>=5)return toast('已有 5 个角色，先删一个');S.chars.push(nc);selChar=nc.id;
+ if(d.character_book?.entries?.length){S.lorebooks.push({id:uid(),name:nc.name+' · 角色书',worldId:null,kind:'normal',entries:d.character_book.entries.map(e=>({id:uid(),title:e.comment||e.name||(e.keys||[]).join(',')||'条目',keys:(e.keys||[]).join(','),content:e.content||'',constant:!!e.constant,enabled:e.enabled!==false}))});}
+ save();renderChars();toast('已导入 '+nc.name+(d.character_book?'（含角色书）':''));}catch(e){toast('导入失败：'+e.message,5000);}}
+function readPngCard(u8){if(u8[0]!==0x89||u8[1]!==0x50)throw new Error('不是 PNG 文件');let p=8;const dv=new DataView(u8.buffer);const td=new TextDecoder();
+ while(p<u8.length){const len=dv.getUint32(p);const type=td.decode(u8.slice(p+4,p+8));if(type==='tEXt'){const body=u8.slice(p+8,p+8+len);const z=body.indexOf(0);const key=td.decode(body.slice(0,z));if(key==='chara'||key==='ccv3'){const b64=td.decode(body.slice(z+1));const bin=atob(b64);const bytes=Uint8Array.from(bin,ch=>ch.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}}p+=12+len;}
+ throw new Error('PNG 里没有角色卡数据（chara 块）');}
+
+/* =====================================================================
+   预设
+   ===================================================================== */
+function renderPresets(){const el=$('#presets-page');const p=P();
+ el.innerHTML=`<div class="page-head"><div><h2>预设</h2><p>提示词的骨架。每一块可以开关、排序、改写；用 {{char}} {{user}} 代指人物。</p></div><div class="row"><select id="pr-sel" style="width:auto">${S.presets.map(x=>`<option value="${x.id}" ${x.id===p.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button class="small" id="pr-new">＋ 新预设</button><button class="small" id="pr-dup">复制</button><button class="small danger" id="pr-del">删除</button></div></div>
+ <div id="pr-blocks">${p.blocks.map((b,i)=>`<div class="block ${b.enabled?'':'off'}" data-b="${b.id}"><div class="b-head"><label class="switch"><input type="checkbox" data-en ${b.enabled?'checked':''}></label><input type="text" data-name value="${esc(b.name)}"><button class="small ghost" data-up ${i===0?'disabled':''}>↑</button><button class="small ghost" data-down ${i===p.blocks.length-1?'disabled':''}>↓</button><button class="small ghost" data-del>✕</button></div><textarea data-content>${esc(b.content)}</textarea></div>`).join('')}</div><button id="pr-addb">＋ 添加一块</button>`;
+ $('#pr-sel').onchange=e=>{S.activePresetId=e.target.value;save();renderPresets();};
+ $('#pr-new').onclick=()=>promptBox('预设名','',v=>{if(!v)return;const np={id:uid(),name:v,blocks:[{id:uid(),name:'总纲',enabled:true,content:''}]};S.presets.push(np);S.activePresetId=np.id;save();renderPresets();});
+ $('#pr-dup').onclick=()=>{const np=JSON.parse(JSON.stringify(p));np.id=uid();np.name=p.name+' 副本';np.blocks.forEach(b=>b.id=uid());S.presets.push(np);S.activePresetId=np.id;save();renderPresets();};
+ $('#pr-del').onclick=()=>{if(S.presets.length<=1)return toast('至少保留一个预设');confirmBox('删除预设 '+p.name+'？',()=>{S.presets=S.presets.filter(x=>x.id!==p.id);S.activePresetId=S.presets[0].id;save();renderPresets();});};
+ $('#pr-addb').onclick=()=>{p.blocks.push({id:uid(),name:'新块',enabled:true,content:''});save();renderPresets();};
+ $$('#pr-blocks .block').forEach(bl=>{const b=p.blocks.find(x=>x.id===bl.dataset.b);const i=()=>p.blocks.indexOf(b);
+  $('[data-en]',bl).onchange=e=>{b.enabled=e.target.checked;save();renderPresets();};$('[data-name]',bl).onchange=e=>{b.name=e.target.value;save();};$('[data-content]',bl).onchange=e=>{b.content=e.target.value;save();};
+  $('[data-up]',bl).onclick=()=>{const k=i();if(k>0){p.blocks.splice(k,1);p.blocks.splice(k-1,0,b);save();renderPresets();}};$('[data-down]',bl).onclick=()=>{const k=i();if(k<p.blocks.length-1){p.blocks.splice(k,1);p.blocks.splice(k+1,0,b);save();renderPresets();}};
+  $('[data-del]',bl).onclick=()=>{p.blocks=p.blocks.filter(x=>x!==b);save();renderPresets();};});
+}
+
+/* =====================================================================
+   世界书
+   ===================================================================== */
+let selBook=null;
+function renderLore(){const el=$('#lore-page');const w=W();const books=S.lorebooks;let b=books.find(x=>x.id===selBook)||books.find(x=>x.worldId===w.id&&x.kind!=='memory')||books[0];selBook=b?.id;
+ el.innerHTML=`<div class="page-head"><div><h2>世界书</h2><p>常驻条目每次都送入；触发条目在最近几楼或你的输入里出现关键词时才送入。</p></div><div class="row"><select id="lb-sel" style="width:auto">${books.map(x=>`<option value="${x.id}" ${x.id===selBook?'selected':''}>${esc(x.name)}${x.kind==='memory'?'（记忆）':x.worldId?'':'（通用）'}</option>`).join('')}</select><button class="small" id="lb-new">＋ 新世界书</button><button class="small danger" id="lb-del">删除</button></div></div>
+ ${b?`<div class="row" style="margin-bottom:14px"><label class="field grow" style="margin:0"><span>名字</span><input type="text" id="lb-name" value="${esc(b.name)}"></label><label class="field" style="margin:0"><span>作用范围</span><select id="lb-scope" style="width:auto"><option value="" ${!b.worldId?'selected':''}>所有世界</option>${S.worlds.map(x=>`<option value="${x.id}" ${b.worldId===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div>
+ <div id="lb-entries">${b.entries.map(e=>`<div class="block ${e.enabled?'':'off'}" data-e="${e.id}"><div class="b-head"><label class="switch"><input type="checkbox" data-en ${e.enabled?'checked':''}></label><input type="text" data-title value="${esc(e.title)}" placeholder="标题"><label class="switch"><input type="checkbox" data-const ${e.constant?'checked':''}> 常驻</label><button class="small ghost" data-del>✕</button></div><input type="text" data-keys value="${esc(e.keys||'')}" placeholder="触发关键词，用逗号分隔（常驻条目不需要）" style="margin-bottom:8px"><textarea data-content>${esc(e.content)}</textarea></div>`).join('')||'<p class="muted">还没有条目。</p>'}</div><button id="lb-adde">＋ 添加条目</button>`:''}`;
+ $('#lb-sel').onchange=e=>{selBook=e.target.value;renderLore();};
+ $('#lb-new').onclick=()=>promptBox('世界书名','',v=>{if(!v)return;const nb={id:uid(),name:v,worldId:w.id,kind:'normal',entries:[]};books.push(nb);selBook=nb.id;save();renderLore();});
+ $('#lb-del').onclick=()=>b&&confirmBox('删除世界书 '+b.name+'？',()=>{S.lorebooks=books.filter(x=>x!==b);selBook=null;memIndexAll();save();renderLore();});
+ if(!b)return;$('#lb-name').onchange=e=>{b.name=e.target.value;save();};$('#lb-scope').onchange=e=>{b.worldId=e.target.value||null;save();};
+ $('#lb-adde').onclick=()=>{b.entries.push({id:uid(),title:'新条目',keys:'',content:'',constant:false,enabled:true});save();renderLore();};
+ $$('#lb-entries .block').forEach(bl=>{const e=b.entries.find(x=>x.id===bl.dataset.e);
+  $('[data-en]',bl).onchange=ev=>{e.enabled=ev.target.checked;save();renderLore();};$('[data-title]',bl).onchange=ev=>{e.title=ev.target.value;save();};$('[data-const]',bl).onchange=ev=>{e.constant=ev.target.checked;save();};$('[data-keys]',bl).onchange=ev=>{e.keys=ev.target.value;save();};$('[data-content]',bl).onchange=ev=>{e.content=ev.target.value;if(b.kind==='memory')memIndexAll();save();};
+  $('[data-del]',bl).onclick=()=>{b.entries=b.entries.filter(x=>x!==e);memIndexAll();save();renderLore();};});
+}
+
+/* =====================================================================
+   设置 / 备份 / 云同步
+   ===================================================================== */
+function renderSettings(){const el=$('#settings-page');if(!el)return;const st=S.settings;
+ el.innerHTML=`<div class="page-head"><div><h2>设置</h2><p>连接、外观、快捷键与备份。</p></div></div>
+ <div class="card"><h3>AI 连接</h3><div class="banner ${AI.mode==='none'?'danger':'good'}">当前：${AI.label()}${AI.mode==='sample'?' · 模型按档位选择（快 / 均衡 / 最强）':''}${AI.mode==='backend'?' · 可选具体模型':''}</div>
+  <p class="muted">两种玩法：① 在 claude.ai 里打开这个页面，直接用你的订阅额度，手机电脑都行；② 把 index.html 双击打开，并在电脑上运行本地后端（用 Claude Code 登录的订阅额度，能选具体模型，记忆检索走 SQLite FTS5）。</p>
+  <div class="row"><label class="field grow" style="margin:0"><span>本地后端地址</span><input type="text" id="s-backend" value="${esc(st.backendUrl)}"></label><button id="s-probe" style="margin-top:22px">测试连接</button></div></div>
+ <div class="card"><h3>外观</h3><div class="grid2">
+  <label class="field"><span>主题</span><select id="s-theme"><option value="auto" ${st.theme==='auto'?'selected':''}>跟随系统</option><option value="light" ${st.theme==='light'?'selected':''}>晨纸（浅色）</option><option value="dark" ${st.theme==='dark'?'selected':''}>墨夜（深色）</option></select></label>
+  <label class="field"><span>正文字体</span><select id="s-font"><option value="serif" ${st.proseFont==='serif'?'selected':''}>宋体 · 小说感</option><option value="sans" ${st.proseFont==='sans'?'selected':''}>黑体 · 清爽</option></select></label>
+  <label class="field"><span>正文字号 <b class="num" id="s-fs-v">${st.fontSize}</b> px</span><input type="range" id="s-fs" min="16" max="28" value="${st.fontSize}"></label>
+  <label class="field"><span>界面字号 <b class="num" id="s-ui-v">${st.uiSize}</b> px</span><input type="range" id="s-ui" min="14" max="22" value="${st.uiSize}"></label></div></div>
+ <div class="card"><h3>上下文</h3><label class="field"><span>上下文预算（约 tokens）· 超过 80% 时最早的楼层会被挤出，并提醒你总结/隐藏</span><input type="number" id="s-budget" value="${st.contextBudget}"></label><p class="muted" style="margin:0">claude.ai 订阅通道单次上限约 6 万字符；本地后端可以放大很多。</p></div>
+ <div class="card"><h3>快捷键（输入框上方的按钮）</h3><div class="chips" id="s-sc">${st.shortcuts.map((s,i)=>`<span class="chip">${esc(s)}<button data-scdel="${i}">✕</button></span>`).join('')}</div><div class="row" style="margin-top:10px"><input type="text" id="s-sc-in" placeholder="新增，例如：「」 或 *动作*" class="grow"><button class="small" id="s-sc-add">添加</button></div><p class="muted">成对的符号（「」（）“”）会包住你选中的文字。Ctrl/⌘ + Enter 发送。</p></div>
+ <div class="card"><h3>云同步</h3><label class="switch"><input type="checkbox" id="s-cloud" ${st.cloudSync?'checked':''}> 在 claude.ai 里打开时，把存档同步到你的账号（手机和电脑接着玩）</label><div class="muted" id="s-cloud-st" style="margin-top:6px">${cloud.status}</div></div>
+ <div class="card"><h3>备份</h3><div class="row"><button class="primary" id="s-export">⇩ 一键备份（导出全部数据）</button><button id="s-import">⇧ 从备份恢复</button><button class="danger" id="s-reset">恢复示例世界</button></div><p class="muted">备份是一个 JSON 文件，包含角色、世界、聊天、手机、世界书、总结与设置。</p></div>`;
+ $('#s-backend').onchange=e=>{st.backendUrl=e.target.value.trim();save();};$('#s-probe').onclick=async()=>{await AI.probeBackend();renderModelSelect();renderSettings();toast(AI.backendOk?'后端已连接':'连不上后端：确认它在运行，且地址正确');};
+ $('#s-theme').onchange=e=>{st.theme=e.target.value;save();applySettings();};$('#s-font').onchange=e=>{st.proseFont=e.target.value;save();applySettings();};
+ $('#s-fs').oninput=e=>{st.fontSize=+e.target.value;$('#s-fs-v').textContent=st.fontSize;applySettings();save();};$('#s-ui').oninput=e=>{st.uiSize=+e.target.value;$('#s-ui-v').textContent=st.uiSize;applySettings();save();};
+ $('#s-budget').onchange=e=>{st.contextBudget=Math.max(2000,+e.target.value||24000);save();};
+ $$('[data-scdel]',el).forEach(b=>b.onclick=()=>{st.shortcuts.splice(+b.dataset.scdel,1);save();renderSettings();});$('#s-sc-add').onclick=()=>{const v=$('#s-sc-in').value;if(v){st.shortcuts.push(v);save();renderSettings();}};
+ $('#s-cloud').onchange=e=>{st.cloudSync=e.target.checked;save();if(st.cloudSync)cloudSave();};
+ $('#s-export').onclick=exportBackup;$('#s-import').onclick=()=>pickFile('.json',async f=>{try{const j=JSON.parse(await f.text());if(!j.worlds)throw new Error('不是墨夜书房的备份');confirmBox('用备份覆盖当前所有数据？',()=>{S=j;memIndexAll();save();applySettings();showView('story');toast('已恢复');});}catch(e){toast('恢复失败：'+e.message,5000);}});
+ $('#s-reset').onclick=()=>confirmBox('这会清空当前所有数据并载入示例世界。建议先备份。',()=>{S=seedState();memIndexAll();save();applySettings();showView('story');});
+}
+async function exportBackup(){const name=`moye-backup-${new Date().toISOString().slice(0,10)}.json`;const data=JSON.stringify(S,null,1);
+ try{const dl=window.claude?.use?await window.claude.use('downloads'):null;if(dl){await dl.save({filename:name,data});toast('备份已保存');return;}}catch(e){if(e.code!=='declined')toast('保存失败：'+errCopy(e));return;}
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;a.click();toast('备份已下载');}
+const cloud={db:null,status:'未连接（只在 claude.ai 里可用）',saving:false};
+async function cloudInit(){try{if(!window.claude?.use)return;cloud.db=await window.claude.use('db');if(!cloud.db){cloud.status='此环境不支持云同步';return;}
+ const m=await cloud.db.doc('airp/manifest').get();if(m.exists){const d=m.data();if(d.savedAt&&d.savedAt>(S.savedAt||0)){const parts=[];for(let i=0;i<d.chunks;i++){const c=await cloud.db.doc('airp/chunk_'+i).get();parts.push(c.data()?.t||'');}const j=JSON.parse(parts.join(''));if(j.worlds){S=j;memIndexAll();applySettings();showView(S.settings.lastView||'story');cloud.status='已从云端载入较新的存档（'+new Date(d.savedAt).toLocaleString()+'）';toast('已同步云端存档');renderSettings();return;}}}
+ cloud.status='已连接';renderSettings();}catch(e){cloud.status='云同步出错：'+(e.message||e.code);}}
+async function cloudSave(){if(!cloud.db||!S.settings.cloudSync||cloud.saving)return;cloud.saving=true;try{S.savedAt=now();const s=JSON.stringify(S);const CH=180000;const n=Math.ceil(s.length/CH);for(let i=0;i<n;i++)await cloud.db.doc('airp/chunk_'+i).set({t:s.slice(i*CH,(i+1)*CH)});await cloud.db.doc('airp/manifest').set({savedAt:S.savedAt,chunks:n});cloud.status='已同步 · '+new Date(S.savedAt).toLocaleTimeString();const el=$('#s-cloud-st');if(el)el.textContent=cloud.status;}catch(e){cloud.status='同步失败：'+(e.message||e.code);}cloud.saving=false;}
+
+/* =====================================================================
+   启动
+   ===================================================================== */
+Object.assign(RENDER,{story:renderStory,phone:renderPhone,forum:renderForum,diary:renderDiary,records:renderRecords,memory:renderMemory,chars:renderChars,presets:renderPresets,lore:renderLore,settings:renderSettings});
+buildNav();applySettings();memIndexAll();renderModelSelect();showView(S.settings.lastView||'story');
+AI.init().then(()=>{if(view==='story')renderMeter();if(AI.mode==='none')toast('演示模式：没有 AI 连接。在 claude.ai 里打开可直接用订阅额度。',6000);});
+cloudInit();
+window.addEventListener('beforeunload',()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}});
+</script>
