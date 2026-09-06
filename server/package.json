@@ -1,0 +1,15 @@
+{
+  "name": "inkroom-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "墨间 Inkroom 本地后端：用 Claude Code 登录的订阅额度调用指定型号，并提供 SQLite FTS5 记忆检索与存档",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "better-sqlite3": "^12.0.0"
+  },
+  "engines": { "node": ">=18" }
+}
