@@ -606,11 +606,14 @@ function renderChars(b){
   if(editChar)return renderCharForm(b,editChar);
   b.innerHTML=`<p class="muted">角色卡放这里。可以手写，也可以只写一句关系描述让 AI 随机生成性格、样貌。支持导入 SillyTavern 的 PNG 角色卡。</p>
   ${S.characters.map(c=>`<div class="card" data-ec="${c.id}" style="cursor:pointer"><div class="row">${avatar(c)}<div class="grow"><b>${esc(c.name)}</b> <span class="chip ${c.role==='main'?'acc':''}">${c.role==='main'?'主角':'NPC'}</span><div class="tiny" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.personality||c.relation||'')}</div></div></div></div>`).join('')}
-  <div class="row" style="margin-top:8px"><button class="btn p" id="newChar">＋ 新角色</button><button class="btn" id="importPng">导入角色卡（PNG / JSON）</button></div>
+  <div class="row" style="margin-top:8px"><button class="btn p" id="newChar">＋ 新角色</button><button class="btn" id="importPng">导入角色卡（PNG / JSON）</button><button class="btn ghost" id="pasteCard">粘贴 JSON</button></div>
+  <div class="tiny" style="margin-top:6px">也可以把 PNG / JSON 卡直接拖进这个面板。</div>
   <p class="tiny" style="margin-top:8px">兼容 SillyTavern V2/V3 卡：描述、性格、场景、开场白与备选开场白、示例对话、系统提示、附加指令、角色世界书、正则脚本、头像都会一并导入。</p>`;
   $$('[data-ec]',b).forEach(el=>el.onclick=()=>{editChar=JSON.parse(JSON.stringify(S.characters.find(c=>c.id===el.dataset.ec)));renderPanel()});
   $('#newChar',b).onclick=()=>{editChar={id:'c_'+uid(),name:'',role:'npc',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:'',background:'',speech:'',relation:'',firstMessage:'',_new:true};renderPanel()};
-  $('#importPng',b).onclick=()=>pickFile('.png,.json',importCard);
+  $('#importPng',b).onclick=()=>pickFile('.png,.json,image/png,application/json',importCard);
+  $('#pasteCard',b).onclick=()=>modal(`<h3>粘贴角色卡 JSON</h3><p class="tiny">在 SillyTavern 角色页「导出 → JSON」，打开文件全选复制，粘贴到这里。</p><textarea id="pcTxt" style="min-height:220px;font-size:12px" placeholder='{"spec":"chara_card_v2", ...}'></textarea><div class="row" style="margin-top:12px"><button class="btn p" id="pcOk">导入</button><button class="btn ghost" id="pcNo">取消</button></div>`,m=>{$('#pcOk',m).onclick=()=>{const t=$('#pcTxt',m).value.trim();if(!t)return;closeModal();importCardText(t)};$('#pcNo',m).onclick=closeModal});
+  b.ondragover=e=>{e.preventDefault();b.style.outline='2px dashed var(--accent)'};b.ondragleave=()=>{b.style.outline=''};b.ondrop=e=>{e.preventDefault();b.style.outline='';const f=e.dataTransfer?.files?.[0];if(f)importCard(f)};
 }
 function renderCharForm(b,c){
   const F=(k,l,ta)=>`<label class="f">${l}</label>${ta?`<textarea data-cf="${k}">${esc(c[k])}</textarea>`:`<input type="text" data-cf="${k}" value="${esc(c[k])}">`}`;
@@ -675,10 +678,15 @@ ${c.name?`角色名已定为：${c.name}`:'名字要自然、有辨识度，避�
 }
 function pickFile(accept,cb){const i=$('#fileIn');i.accept=accept;i.value='';i.onchange=()=>{if(i.files[0])cb(i.files[0])};i.click()}
 async function importCard(file){
-  try{let data;
-    if(file.name.endsWith('.json'))data=JSON.parse(await file.text());
-    else{const buf=new Uint8Array(await file.arrayBuffer());data=readPngChara(buf)}
-    if(!data)throw new Error('没有在文件里找到角色卡数据');
+  try{let data;const buf=new Uint8Array(await file.arrayBuffer());
+    const isPng=buf[0]===0x89&&buf[1]===0x50&&buf[2]===0x4E&&buf[3]===0x47;
+    if(isPng){data=readPngChara(buf);if(!data)throw new Error('这张 PNG 里没有角色卡数据（tEXt chara/ccv3 块）。可能是被压缩/转存过的图片，请从 SillyTavern 重新导出，或导出 JSON 再导入')}
+    else{const txt=new TextDecoder().decode(buf).replace(/^\uFEFF/,'').trim();
+      if(txt.startsWith('{')||txt.startsWith('['))data=JSON.parse(txt);
+      else if(buf[0]===0x52&&buf[1]===0x49&&buf[2]===0x46)throw new Error('WEBP 卡暂不支持，请在 SillyTavern 里导出为 PNG 或 JSON');
+      else throw new Error('无法识别的文件（不是 PNG 也不是 JSON）')}
+    if(!data||typeof data!=='object')throw new Error('角色卡数据为空');
+    if(!(data.data||data).name)throw new Error('文件里没有 name 字段，不像是角色卡');
     const d=data.data||data; const ext=d.extensions||{};
     const c={id:'c_'+uid(),name:d.name||'未命名',role:'main',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:d.personality||'',background:d.description||'',speech:'',relation:'',firstMessage:d.first_mes||'',
       scenario:d.scenario||'',mesExample:d.mes_example||'',systemPrompt:d.system_prompt||'',postHistory:d.post_history_instructions||'',altGreetings:Array.isArray(d.alternate_greetings)?d.alternate_greetings.filter(Boolean):[],creatorNotes:d.creator_notes||'',tags:Array.isArray(d.tags)?d.tags:[],creator:d.creator||'',version:d.character_version||'',
@@ -687,8 +695,9 @@ async function importCard(file){
     const rx=Array.isArray(ext.regex_scripts)?ext.regex_scripts:[];if(rx.length){S.regex=S.regex||[];rx.forEach(sc=>S.regex.push(importStRegexScript(sc,c.id)))}
     if(!file.name.endsWith('.json')){try{const av=await shrinkImage(file,256,.8);const id='av_'+uid();c.avatarId=id;setAsset(id,av)}catch(e){}}
     S.characters.push(c);markDirty();editChar=JSON.parse(JSON.stringify(c));renderPanel();toast(`已导入 ${c.name}${book.length?'（含 '+book.length+' 条世界书）':''}${rx.length?'（'+rx.length+' 条正则）':''}${c.altGreetings.length?'（'+c.altGreetings.length+' 个备选开场白）':''}`,4500);
-  }catch(e){toast('导入失败：'+e.message,4000)}
+  }catch(e){console.error('import',e);toast('导入失败：'+(e.message||e),6000)}
 }
+function importCardText(txt){try{const data=JSON.parse(txt);importCard(new File([JSON.stringify(data)],'card.json',{type:'application/json'}))}catch(e){toast('不是合法的 JSON：'+e.message,4000)}}
 function stEntryToLore(e,group){const pos=e.position;return {id:uid(),title:e.comment||e.name||(e.keys||[])[0]||'条目',keys:(e.keys||e.key||[]).filter(Boolean),secondaryKeys:(e.secondary_keys||e.keysecondary||[]).filter(Boolean),selective:!!e.selective,caseSensitive:!!e.case_sensitive,order:e.insertion_order??e.order??100,content:e.content||'',enabled:e.enabled!==false&&!e.disable,always:!!e.constant,group}}
 function loreToStEntry(e,i){return {id:i,keys:e.keys||[],secondary_keys:e.secondaryKeys||[],comment:e.title,content:e.content,constant:!!e.always,selective:!!e.selective,insertion_order:e.order??100,enabled:e.enabled!==false,position:'before_char',case_sensitive:!!e.caseSensitive,name:e.title,priority:10,extensions:{}}}
 function toStCard(c){const w=world();const book=(c.lorebook&&c.lorebook.length?c.lorebook:w.lorebook.filter(e=>e.charId===c.id||e.group===c.name));
@@ -704,24 +713,29 @@ async function exportPngCard(c){
   if(u){await new Promise(res=>{const im=new Image();im.onload=()=>{const r=Math.max(400/im.width,600/im.height);const w=im.width*r,h=im.height*r;g.drawImage(im,(400-w)/2,(600-h)/2,w,h);res()};im.onerror=res;im.src=u})}
   else{g.fillStyle=c.color||'#8A3B64';g.fillRect(0,0,400,600);g.fillStyle='#fff';g.font='160px serif';g.textAlign='center';g.textBaseline='middle';g.fillText((c.name||'?')[0],200,300)}
   const png=Uint8Array.from(atob(cv.toDataURL('image/png').split(',')[1]),ch=>ch.charCodeAt(0));
-  const json=JSON.stringify(toStCard(c));const b64=btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+  const json=JSON.stringify(toStCard(c));const b64=b64encodeUtf8(json);
   const out=pngAddText(png,'chara',b64);saveFile(`${c.name||'card'}.png`,new Blob([out],{type:'image/png'}));
 }
 function crc32(u8){let c,crc=0xFFFFFFFF;for(let n=0;n<u8.length;n++){c=(crc^u8[n])&0xFF;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;crc=(crc>>>8)^c}return (crc^0xFFFFFFFF)>>>0}
 function pngAddText(png,key,val){
   // 去掉旧的同名 tEXt，再在 IEND 前插入新的
   const chunks=[];let p=8;const dv=new DataView(png.buffer,png.byteOffset,png.byteLength);
-  while(p<png.length){const len=dv.getUint32(p);const type=String.fromCharCode(...png.slice(p+4,p+8));const chunk=png.slice(p,p+12+len);if(!(type==='tEXt'&&String.fromCharCode(...chunk.slice(8,8+key.length))===key))chunks.push(chunk);p+=12+len}
+  while(p<png.length){const len=dv.getUint32(p);const type=latin1(png.subarray(p+4,p+8));const chunk=png.slice(p,p+12+len);if(!(type==='tEXt'&&latin1(chunk.subarray(8,8+key.length))===key))chunks.push(chunk);p+=12+len}
   const body=new Uint8Array(key.length+1+val.length);body.set(key.split('').map(ch=>ch.charCodeAt(0)));body.set(val.split('').map(ch=>ch.charCodeAt(0)),key.length+1);
   const tc=new Uint8Array(12+body.length);const d2=new DataView(tc.buffer);d2.setUint32(0,body.length);tc.set([0x74,0x45,0x58,0x74],4);tc.set(body,8);d2.setUint32(8+body.length,crc32(tc.slice(4,8+body.length)));
   const iend=chunks.pop();const total=8+chunks.reduce((a,c)=>a+c.length,0)+tc.length+iend.length;const out=new Uint8Array(total);out.set(png.slice(0,8));let q=8;for(const c of chunks){out.set(c,q);q+=c.length}out.set(tc,q);q+=tc.length;out.set(iend,q);return out;
 }
+function latin1(u8){let s='';for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return s}
+function b64decodeUtf8(b64){const bin=atob(b64.replace(/\s+/g,''));const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return new TextDecoder().decode(bytes)}
+function b64encodeUtf8(str){return btoa(latin1(new TextEncoder().encode(str)))}
 function readPngChara(u8){
-  if(u8[0]!==0x89||u8[1]!==0x50)return null;let p=8;const dv=new DataView(u8.buffer);
-  while(p<u8.length){const len=dv.getUint32(p);const type=String.fromCharCode(...u8.slice(p+4,p+8));const body=u8.slice(p+8,p+8+len);
-    if(type==='tEXt'){const z=body.indexOf(0);const key=String.fromCharCode(...body.slice(0,z));if(key==='chara'||key==='ccv3'){const b64=String.fromCharCode(...body.slice(z+1));const bin=atob(b64);const bytes=Uint8Array.from(bin,ch=>ch.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes))}}
+  if(u8[0]!==0x89||u8[1]!==0x50)return null;let p=8;const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);const found={};
+  while(p+8<=u8.length){const len=dv.getUint32(p);const type=latin1(u8.subarray(p+4,p+8));const body=u8.subarray(p+8,p+8+len);
+    if(type==='tEXt'){const z=body.indexOf(0);const key=latin1(body.subarray(0,z));if(key==='chara'||key==='ccv3')found[key]=latin1(body.subarray(z+1))}
+    else if(type==='iTXt'){const z=body.indexOf(0);const key=latin1(body.subarray(0,z));if((key==='chara'||key==='ccv3')&&body[z+1]===0){let q=z+3;q=body.indexOf(0,q)+1;q=body.indexOf(0,q)+1;found[key]=new TextDecoder().decode(body.subarray(q))}}
     p+=12+len;if(type==='IEND')break}
-  return null;
+  const raw=found.ccv3||found.chara;if(!raw)return null;
+  try{return JSON.parse(b64decodeUtf8(raw))}catch(e){try{return JSON.parse(raw)}catch(e2){throw new Error('角色卡数据解析失败：'+e.message)}}
 }
 
 /* ---- presets ---- */
