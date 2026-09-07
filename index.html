@@ -381,6 +381,39 @@
   }
   .composer textarea:focus { border-color: var(--accent); outline: none; }
   .composer .send-col { display: flex; flex-direction: column; gap: 6px; }
+  .composer-bar {
+    max-width: 860px; margin: 0 auto 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .composer-bar .spacer { flex: 1; }
+  .pill-select {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .pill-select select {
+    padding: 5px 26px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line-strong); background: var(--raised);
+    font-size: 12px; color: var(--text);
+    appearance: none; -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 55%, calc(100% - 10px) 55%;
+    background-size: 4px 4px, 4px 4px; background-repeat: no-repeat;
+  }
+  .pill-select select:focus { border-color: var(--accent); outline: none; }
+  .ideas {
+    max-width: 860px; margin: 0 auto 8px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;
+  }
+  .idea {
+    text-align: left; padding: 8px 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--raised); color: var(--text);
+    font-size: 13px; line-height: 1.5; cursor: pointer;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .idea:hover { border-color: var(--accent); }
+  .idea .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--accent); }
+  .idea .txt { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .ideas .idea.more { align-items: center; justify-content: center; color: var(--muted); border-style: dashed; }
   .composer .hint {
     max-width: 860px; margin: 6px auto 0;
     font-size: 11px; color: var(--faint); font-family: var(--font-mono);
@@ -562,6 +595,20 @@
     <div class="messages" id="messages" aria-live="polite"></div>
 
     <div class="composer">
+      <div class="composer-bar">
+        <label class="pill-select" title="角色在回复里能不能替你说话、能不能描写你的动作表情">
+          抢话
+          <select id="sVoice">
+            <option value="strict">完全不抢话 · 不写我的动作表情</option>
+            <option value="describe">不抢话 · 可以写我的表情动作</option>
+            <option value="restate">可以复述我的话</option>
+            <option value="expand">复述 + 扩展我的动作表情</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
+      </div>
+      <div class="ideas" id="ideas" hidden></div>
       <div class="composer-inner">
         <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
         <div class="send-col">
@@ -986,7 +1033,7 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
-      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40" },
+      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict" },
       regex: [],
       books: [],
       leftOpen: true,
@@ -1576,6 +1623,7 @@
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
     $("sLang").value = state.settings.lang;
     $("sMem").value = state.settings.mem;
+    $("sVoice").value = state.settings.voice || "strict";
   }
 
   function updateStats() {
@@ -1617,10 +1665,18 @@
     return { auto: "用和{{user}}最后一条消息相同的语言回复。", zh: "始终用中文回复。", en: "Always reply in English." }[state.settings.lang];
   }
 
+  function voiceRule(c, u) {
+    switch (state.settings.voice) {
+      case "describe": return `不要替 ${u} 说新的话，也不要替 ${u} 做决定；但可以从 ${c.name} 的视角观察并描写 ${u} 的表情、动作和神态。`;
+      case "restate": return `可以在回复里引用或复述 ${u} 刚才说过的话，但不要替 ${u} 说没说过的话或做决定；不要描写 ${u} 的动作和表情。`;
+      case "expand": return `可以复述 ${u} 刚才的话，并为这些话补上合理的动作、表情和语气细节（不改变原意）；不要替 ${u} 做重大决定或推进 ${u} 没提到的行动。`;
+      default: return `只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定，也不描写 ${u} 的动作、表情或内心。`;
+    }
+  }
   function defaultRules(c, u) {
     return [
       `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
-      `只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定或描写 ${u} 的内心。`,
+      voiceRule(c, u),
       "动作与神态用 *星号* 包住，对白直接写出或用「」引住。避免总结式或说教式的结尾。",
       "推进剧情：给对方留下可以接的钩子，但不要一次推进太多。",
     ].map((r) => "- " + r).join("\n");
@@ -1786,6 +1842,7 @@
     if (!sample) {
       showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能调用模型；你仍然可以编辑角色和整理聊天记录。" + libNote);
       $("send").disabled = true;
+      $("inspire").disabled = true;
       $("hintRight").textContent = "离线模式";
     } else {
       if (libNote) showNotice("<strong>提示</strong>" + libNote);
@@ -1857,12 +1914,89 @@
     }
   }
 
+  // ---------- Inspiration: draft the user's next line from their persona + the scene ----------
+  let inspiring = null;
+  function buildInspireTurns(c, hint) {
+    const u = state.persona.name || "我";
+    const mem = Math.min(parseInt(state.settings.mem, 10) || 40, 30);
+    const history = c.chat.filter((m) => !m.error).slice(-mem);
+    const lines = history.map((m) => `${m.role === "user" ? u : c.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").slice(0, 1500)}`).join("\n\n");
+    const instr = [
+      `你是 ${u} 的写手。下面是 ${u} 和 ${c.name} 之间正在进行的角色扮演；${c.name} 的设定和最近的对话都给你了。请替 ${u} 想下一条回复。`,
+      "",
+      `## ${c.name}`,
+      (c.description || "").slice(0, 1500),
+      c.scenario ? `场景：${c.scenario.slice(0, 600)}` : "",
+      "",
+      `## ${u}（你要扮演的人）`,
+      state.persona.desc ? state.persona.desc : "（没有写人设，按一个普通人来写）",
+      "",
+      "## 最近的对话",
+      lines || "（还没开始）",
+      "",
+      hint ? `## ${u} 已经打了一半的草稿\n${hint}\n请沿着这个草稿的意思往下写完，三个版本都要包含草稿的内容。` : "",
+      "",
+      "## 要求",
+      `- 用第一人称、以 ${u} 的口吻写，动作和神态用 *星号* 包住，对白直接写。`,
+      `- 给出 3 个走向不同的版本：一个顺着对方接、一个带点转折或试探、一个推动剧情走向新地方。每个 60 到 200 字。`,
+      `- 符合 ${u} 的人设和当前情绪，不要替 ${c.name} 说话。`,
+      `- ${langHint().replace("{{user}}", u)}`,
+      '- 只输出 JSON 数组，形如 [{"label":"顺着接","text":"..."},{"label":"试探","text":"..."},{"label":"推进","text":"..."}]，不要别的文字。',
+    ].join("\n");
+    return sub(instr, c);
+  }
+  async function inspire() {
+    const c = active();
+    if (!sample || !c) return;
+    if (inspiring) { inspiring.abort(); return; }
+    const btn = $("inspire");
+    const box = $("ideas");
+    const hint = $("input").value.trim();
+    inspiring = new AbortController();
+    btn.textContent = "停止";
+    box.hidden = false;
+    box.innerHTML = '<div class="idea more"><span class="dots"><span></span><span></span><span></span></span></div>';
+    try {
+      const list = await sample.json(buildInspireTurns(c, hint), { cache: false, modelTier: state.settings.tier === "complex" ? "default" : state.settings.tier, signal: inspiring.signal });
+      const ideas = (Array.isArray(list) ? list : []).map((x) => (typeof x === "string" ? { label: "", text: x } : x)).filter((x) => x && typeof x.text === "string" && x.text.trim());
+      if (!ideas.length) throw { code: "invalid_json" };
+      renderIdeas(ideas);
+    } catch (e) {
+      box.hidden = true; box.innerHTML = "";
+      if (!e || e.code !== "cancelled") toast(e && e.code === "invalid_json" ? "这次没想出来，再点一次试试。" : copyFor(e && e.code), true);
+    } finally {
+      inspiring = null;
+      btn.textContent = "✨ 灵感";
+    }
+  }
+  function renderIdeas(ideas) {
+    const box = $("ideas");
+    box.innerHTML = "";
+    for (const it of ideas) {
+      const b = el("button", "idea");
+      if (it.label) b.appendChild(el("span", "lbl", String(it.label)));
+      b.appendChild(el("span", "txt", it.text.trim()));
+      b.title = it.text.trim();
+      b.onclick = () => {
+        const ta = $("input");
+        ta.value = it.text.trim();
+        autosize(ta); ta.focus();
+        box.hidden = true; box.innerHTML = "";
+      };
+      box.appendChild(b);
+    }
+    const more = el("button", "idea more", "换一批");
+    more.onclick = () => inspire();
+    box.appendChild(more);
+  }
+
   function setBusy(on) {
     $("send").hidden = on;
     $("stop").hidden = !on;
     $("input").disabled = on;
     $("editChar").disabled = on;
     $("resetChat").disabled = on;
+    $("inspire").disabled = on;
   }
 
   async function send() {
@@ -1877,6 +2011,7 @@
     }
     c.chat.push({ id: uid(), role: "user", content: text, ts: Date.now() });
     ta.value = "";
+    $("ideas").hidden = true; $("ideas").innerHTML = "";
     autosize(ta);
     save();
     renderMessages();
@@ -2724,6 +2859,8 @@
   $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
   $("sMem").addEventListener("change", (e) => { state.settings.mem = e.target.value; save(); });
+  $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
+  $("inspire").onclick = inspire;
 
   $("openRail").onclick = () => openOverlay($("rail"));
   $("closeRail").onclick = closeOverlays;
