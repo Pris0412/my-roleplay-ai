@@ -304,6 +304,8 @@
   .status-strip .sp b { font-weight: 500; color: var(--muted); }
   .status-strip .sp .bar { width: 46px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
   .status-strip .sp .bar span { display: block; height: 100%; background: var(--accent); }
+  .status-strip .hide { margin-left: auto; border: 0; background: transparent; color: var(--faint); font-size: 12px; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+  .status-strip .hide:hover { color: var(--text); background: var(--raised); }
   .status-strip .voice { color: var(--muted); font-style: italic; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; flex: 1; min-width: 0; }
   .st-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
   .st-row input[type=range] { width: 100%; }
@@ -1473,6 +1475,7 @@
     <div class="modal-body">
       <div class="checks">
         <label><input type="checkbox" id="stEnabled"> 启用：每次回复末尾让模型更新状态（状态块不会显示，也不进上下文）</label>
+        <label><input type="checkbox" id="stShow"> 在顶栏下面显示状态栏</label>
       </div>
       <div class="section">
         <div class="section-title">当前状态 <span class="stat" id="stUpdated"></span></div>
@@ -1711,6 +1714,7 @@
     out.voice = typeof out.voice === "string" ? out.voice : "";
     out.extra = typeof out.extra === "string" ? out.extra : "";
     out.updatedFloor = Number(out.updatedFloor) || 0;
+    out.showStrip = out.showStrip !== false;
     return out;
   }
   const STATUS_RE = /<status>\s*([\s\S]*?)\s*<\/status>/gi;
@@ -3023,7 +3027,7 @@
   function renderStatusStrip() {
     const c = active();
     const strip = $("statusStrip");
-    if (!c || !c.status || !c.status.enabled) { strip.hidden = true; return; }
+    if (!c || !c.status || !c.status.enabled || c.status.showStrip === false) { strip.hidden = true; return; }
     strip.innerHTML = "";
     for (const f of c.status.fields) {
       if (f.type !== "number" && !f.value) continue;
@@ -3036,6 +3040,10 @@
       strip.appendChild(sp);
     }
     if (c.status.voice) strip.appendChild(el("span", "voice", "💭 " + c.status.voice));
+    const hide = el("button", "hide", "收起");
+    hide.title = "隐藏状态栏（状态照常更新，在「状态」面板里可以再显示）";
+    hide.onclick = (e) => { e.stopPropagation(); c.status.showStrip = false; save(); renderStatusStrip(); toast("状态栏已收起，顶栏「状态」里可以再打开"); };
+    strip.appendChild(hide);
     strip.hidden = false;
   }
   function openStatus() {
@@ -3043,6 +3051,7 @@
     if (!c) return;
     $("stTitle").textContent = `状态面板 · ${c.name}`;
     $("stEnabled").checked = !!c.status.enabled;
+    $("stShow").checked = c.status.showStrip !== false;
     $("stVoice").value = c.status.voice || "";
     $("stExtra").value = c.status.extra || "";
     renderStatusFields();
@@ -4661,6 +4670,7 @@
   $("stDone").onclick = () => { $("stBack").hidden = true; };
   $("stBack").addEventListener("click", (e) => { if (e.target === $("stBack")) $("stBack").hidden = true; });
   $("stEnabled").addEventListener("change", (e) => { const c = active(); c.status.enabled = e.target.checked; save(); renderStatusStrip(); renderStatusFields(); refreshContextMeter(); });
+  $("stShow").addEventListener("change", (e) => { const c = active(); c.status.showStrip = e.target.checked; save(); renderStatusStrip(); });
   $("stVoice").addEventListener("change", (e) => { const c = active(); c.status.voice = e.target.value.trim(); save(); renderStatusStrip(); });
   $("stExtra").addEventListener("change", (e) => { const c = active(); c.status.extra = e.target.value.trim(); save(); renderStatusFields(); });
   $("stAdd").onclick = () => {
