@@ -119,6 +119,15 @@
 - 输入框正上方一排按钮：「」“” *…* （）…… —— 等，点一下插到光标处；成对符号把光标留在中间，选中文字再点则包住
 - 可自定义（`|` 标光标位，`标签=内容` 给长句起短名），前 9 个支持 Alt+1…9；可整条隐藏
 
+## v7.6 · 酒馆助手式前端卡
+- 自动拆开 ```html 代码块；识别整份 HTML 文档（`<!DOCTYPE>` / `<html>` / `<head>` / `<body>`）
+- 内嵌模式（默认）：抽出 head 里的 `<style>` 和 body 正文，去掉 script / title / meta，渲染进消息气泡
+- iframe 模式（齿轮 › 前端卡渲染方式，实验）：整份文档在 `sandbox="allow-scripts"` 的 srcdoc iframe 里运行，
+  注入酒馆助手常用 API 替身：getChatMessages / getCurrentMessageId / getLastMessageId / getCharData / getVariables /
+  replaceVariables / insertOrAssignVariables / setChatMessages / setChatMessage / triggerSlash（空）/ eventOn（空）/ toastr / SillyTavern.getContext；
+  高度通过 postMessage 自适应；环境禁止 iframe 时自动退回内嵌
+- 页面脚本里不能出现字面的注释开头序列，否则 HTML 解析器会吞掉整段脚本（已踩坑）
+
 ## 本地使用
 1. 在 Artifact 里「数据 › 备份全部数据」
 2. 下载本仓库的 `index.html`，双击用浏览器打开（或任意静态服务器）

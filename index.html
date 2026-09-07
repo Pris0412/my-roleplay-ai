@@ -344,6 +344,7 @@
     line-height: 1.7;
   }
   .bubble .rendered { display: block; }
+  .bubble iframe.frontend { display: block; width: 100%; border: 0; background: transparent; min-height: 120px; border-radius: 8px; }
   .swipe {
     display: inline-flex; align-items: center; gap: 2px;
     margin-right: 6px;
@@ -828,6 +829,14 @@
             <label for="sLenMax">最多字数</label>
             <input id="sLenMax" type="number" min="100" step="50" class="mono">
           </div>
+        </div>
+        <div class="field">
+          <label for="sHtmlMode">前端卡渲染方式</label>
+          <select id="sHtmlMode">
+            <option value="inline">内嵌 · 安全，不运行卡里的脚本</option>
+            <option value="iframe">iframe · 运行卡里的脚本（实验）</option>
+          </select>
+          <div class="help">整份 HTML 文档或 ```html 代码块会被识别为前端界面。iframe 模式提供酒馆助手常用 API 的替身（getChatMessages 等）；若环境不允许 iframe，会自动退回内嵌。</div>
         </div>
         <div class="field">
           <label for="sMem">带入上下文的消息数</label>
@@ -1498,7 +1507,7 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
-      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10, backend: "claude" },
+      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10, backend: "claude", htmlMode: "inline" },
       api: { url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true },
       regex: [],
       books: [],
@@ -1838,7 +1847,7 @@
 
   // marked splits an HTML block at the first blank line and turns indented lines into code;
   // frontend cards are full of both. Hash balanced block-level HTML out of the way first (showdown does the same).
-  const BLOCK_TAG = /^(div|table|thead|tbody|tfoot|tr|td|th|details|summary|section|article|aside|header|footer|main|nav|style|ul|ol|li|pre|blockquote|center|figure|figcaption|dl|dt|dd|fieldset|legend|p|h[1-6]|font|svg|iframe|video|audio|object)$/i;
+  const BLOCK_TAG = /^(html|head|body|div|table|thead|tbody|tfoot|tr|td|th|details|summary|section|article|aside|header|footer|main|nav|style|ul|ol|li|pre|blockquote|center|figure|figcaption|dl|dt|dd|fieldset|legend|p|h[1-6]|font|svg|iframe|video|audio|object)$/i;
   const VOID_TAG = /^(br|hr|img|input|meta|link|source|track|wbr|col|area|base|embed|param)$/i;
   function protectHtml(text) {
     const blocks = [];
@@ -1891,6 +1900,43 @@
   function wrapQuotes(t) {
     return t.split(/(<[^>]+>|`[^`\n]*`|@@HTMLBLOCK\d+@@)/).map((seg, i) => (i % 2 ? seg : seg.replace(/(["“])([^"”\n]{1,400}?)(["”])/g, "<q>$2</q>"))).join("");
   }
+  // ---- Frontend cards: ```html fences and whole HTML documents ----
+  const FULL_DOC_RE = /<!doctype\s+html[^>]*>|<html[\s>]/i;
+  const looksLikeMarkup = (t) => /<(!doctype|html|head|body|div|style|section|table|details|span|p|ul|ol|h[1-6])[\s>]/i.test(t);
+  function unwrapHtmlFences(t) {
+    // closed fences
+    t = t.replace(/```[ \t]*(html|htm|xml)?[ \t]*\r?\n([\s\S]*?)```/gi, (m, lang, body) => (lang || looksLikeMarkup(body) ? "\n" + body + "\n" : m));
+    // an unclosed html fence (still streaming, or the model forgot to close it)
+    t = t.replace(/```[ \t]*(html|htm)[ \t]*\r?\n([\s\S]*)$/i, (m, lang, body) => "\n" + body);
+    return t;
+  }
+  function findDocument(t) {
+    const m = t.match(/<!doctype\s+html[^>]*>|<html[\s>]/i);
+    if (!m) return null;
+    const start = m.index;
+    const endIdx = t.toLowerCase().indexOf("</html>", start);
+    const end = endIdx < 0 ? t.length : endIdx + 7;
+    return { start, end, doc: t.slice(start, end) };
+  }
+  // Reduce a whole document to what can live inside a bubble: head styles + body markup, no scripts/title/meta.
+  function documentToFragment(doc) {
+    const head = (doc.match(/<head[^>]*>([\s\S]*?)<\/head>/i) || [])[1] || "";
+    const headStyles = [...head.matchAll(/<style[^>]*>[\s\S]*?<\/style>/gi)].map((x) => x[0]).join("\n");
+    let body = (doc.match(/<body[^>]*>([\s\S]*?)(?:<\/body>|$)/i) || [])[1];
+    if (body == null) body = doc.replace(/<!doctype[^>]*>/i, "").replace(/<\/?html[^>]*>/gi, "").replace(/<head[^>]*>[\s\S]*?<\/head>/i, "");
+    body = body.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "").replace(/<(meta|link|base)[^>]*>/gi, "");
+    return `<div class="lt-doc">${headStyles}\n${body}</div>`;
+  }
+  function inlineDocuments(t) {
+    let guard = 0;
+    while (guard++ < 5) {
+      const d = findDocument(t);
+      if (!d) break;
+      t = t.slice(0, d.start) + "\n\n" + documentToFragment(d.doc) + "\n\n" + t.slice(d.end);
+    }
+    return t;
+  }
+
   function messageHtml(text, ctx) {
     let t = sub(text, ctx.c);
     t = applyRegex(t, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
@@ -1898,6 +1944,7 @@
     let html;
     try {
       t = foldReasoning(t, !!ctx.streaming);
+      t = inlineDocuments(unwrapHtmlFences(t));
       const p = protectHtml(t);
       html = restoreHtml(window.marked.parse(wrapQuotes(p.text), { breaks: true, gfm: true, mangle: false, headerIds: false }), p.blocks);
     } catch (e) { return { html: renderRich(t), plain: true }; }
@@ -1909,10 +1956,109 @@
     });
     return { html, plain: false };
   }
+  // ---- iframe renderer with a small 酒馆助手-style API shim ----
+  let iframeBlocked = false;
+  document.addEventListener("securitypolicyviolation", (e) => {
+    if (/frame-src|child-src/.test(e.violatedDirective || "")) {
+      if (!iframeBlocked) { iframeBlocked = true; toast("这个环境不允许 iframe，前端卡已退回内嵌渲染。", true); renderMessages(); }
+    }
+  });
+  const frameRegistry = new Map(); // frameId -> { iframe, msgId }
+  window.addEventListener("message", (ev) => {
+    const d = ev.data;
+    if (!d || typeof d !== "object" || !d.lt) return;
+    const reg = frameRegistry.get(d.frame);
+    if (!reg || ev.source !== reg.iframe.contentWindow) return;
+    const c = active();
+    if (d.lt === "h") { reg.iframe.style.height = Math.min(4000, Math.max(80, Number(d.h) || 0) + 4) + "px"; return; }
+    if (d.lt === "setChatMessages" && c && Array.isArray(d.items)) {
+      let changed = false;
+      for (const it of d.items) {
+        const m = c.chat[Number(it.message_id)];
+        if (!m || typeof it.message !== "string") continue;
+        m.content = it.message; m.swipes[m.si] = it.message; changed = true;
+      }
+      if (changed) { save(); renderMessages(); }
+      return;
+    }
+    if (d.lt === "setVariables" && c && d.vars && typeof d.vars === "object") {
+      const store = d.scope === "global" ? (state.vars = state.vars || {}) : (c.vars = c.vars || {});
+      Object.assign(store, d.vars); save(); return;
+    }
+    if (d.lt === "toast") { toast(String(d.text || ""), d.kind === "error"); return; }
+  });
+  function frameShim(frameId, c, msgIndex) {
+    const u = state.persona.name || "你";
+    const msgs = c.chat.map((m, i) => ({ message_id: i, name: m.role === "user" ? u : c.name, role: m.role, is_hidden: !!m.hidden, is_user: m.role === "user", message: m.content, data: {}, swipe_id: m.si || 0, swipes: m.swipes || [m.content] }));
+    const charData = { name: c.name, description: c.description || "", personality: c.personality || "", scenario: c.scenario || "", first_mes: c.firstMessage || "", mes_example: c.examples || "", avatar: "", tags: c.tags || [], system_prompt: c.systemPrompt || "", post_history_instructions: c.postHistory || "", alternate_greetings: c.altGreetings || [] };
+    // the JSON rides inside a <script>: a literal closing script tag or comment opener in any message would end the tag early
+    const payload = JSON.stringify({ frameId, msgs, charData, msgIndex, vars: c.vars || {}, gvars: state.vars || {}, user: u })
+      .replace(/<\//g, "<\\/").replace(/<!-{2}/g, "<\\!--").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+    return `<script>(function(){
+      var D=${payload};
+      var post=function(m){m.lt=m.lt;m.frame=D.frameId;parent.postMessage(m,'*');};
+      function range(r){ if(r==null)return [D.msgIndex,D.msgIndex]; if(typeof r==='number')return [r,r]; var s=String(r).trim(); var m=s.match(/^(-?\\d+)\\s*-\\s*(-?\\d+)$/); var last=D.msgs.length-1; var norm=function(n){n=Number(n); return n<0?last+1+n:n;}; if(m)return [norm(m[1]),norm(m[2])]; if(/^-?\\d+$/.test(s)){var n=norm(s);return [n,n];} return [0,last]; }
+      window.getChatMessages=function(r,o){var ab=range(r);var out=D.msgs.filter(function(m){return m.message_id>=ab[0]&&m.message_id<=ab[1];}); if(o&&o.role&&o.role!=='all')out=out.filter(function(m){return o.role==='user'?m.is_user:!m.is_user;}); if(o&&o.hide_state==='unhidden')out=out.filter(function(m){return !m.is_hidden;}); return out.map(function(m){return JSON.parse(JSON.stringify(m));});};
+      window.getCurrentMessageId=function(){return D.msgIndex;};
+      window.getLastMessageId=function(){return D.msgs.length-1;};
+      window.getCharData=function(){return JSON.parse(JSON.stringify(D.charData));};
+      window.getCharAvatarPath=function(){return '';};
+      window.getVariables=function(o){return JSON.parse(JSON.stringify(o&&o.type==='global'?D.gvars:D.vars));};
+      window.replaceVariables=function(v,o){var s=o&&o.type==='global'?'global':'chat'; if(s==='global')D.gvars=v;else D.vars=v; post({lt:'setVariables',scope:s,vars:v});};
+      window.insertOrAssignVariables=function(v,o){var s=o&&o.type==='global'?'global':'chat'; var t=s==='global'?D.gvars:D.vars; for(var k in v)t[k]=v[k]; post({lt:'setVariables',scope:s,vars:v});};
+      window.setChatMessages=function(items,o){ (items||[]).forEach(function(it){var m=D.msgs[it.message_id]; if(m&&typeof it.message==='string')m.message=it.message;}); post({lt:'setChatMessages',items:items||[]}); return Promise.resolve(); };
+      window.setChatMessage=function(field,id,o){ if(typeof field==='string')return window.setChatMessages([{message_id:id,message:field}],o); return window.setChatMessages([Object.assign({message_id:id},field)],o); };
+      window.triggerSlash=function(){return Promise.resolve('');};
+      window.triggerSlashWithResult=window.triggerSlash;
+      window.eventOn=window.eventOnce=window.eventMakeFirst=window.eventMakeLast=function(){}; window.eventEmit=function(){return Promise.resolve();}; window.eventRemoveListener=function(){};
+      window.tavern_events={MESSAGE_RECEIVED:'message_received',MESSAGE_SENT:'message_sent',GENERATION_ENDED:'generation_ended',CHAT_CHANGED:'chat_id_changed'};
+      window.substitudeMacros=window.substituteMacros=function(t){return String(t).replace(/\\{\\{user\\}\\}/gi,D.user).replace(/\\{\\{char\\}\\}/gi,D.charData.name);};
+      window.formatAsTavernRegexedString=function(t){return t;};
+      window.toastr={success:function(t){post({lt:'toast',text:t});},info:function(t){post({lt:'toast',text:t});},warning:function(t){post({lt:'toast',text:t,kind:'error'});},error:function(t){post({lt:'toast',text:t,kind:'error'});}};
+      window.SillyTavern={getContext:function(){return {chat:D.msgs.map(function(m){return {name:m.name,is_user:m.is_user,mes:m.message};}),characterId:0,characters:[D.charData],name1:D.user,name2:D.charData.name};}};
+      var h=function(){ post({lt:'h',h:Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0)}); };
+      window.addEventListener('load',h); document.addEventListener('DOMContentLoaded',h); setTimeout(h,50); setTimeout(h,500); setInterval(h,1500);
+      if(window.ResizeObserver){ document.addEventListener('DOMContentLoaded',function(){ new ResizeObserver(h).observe(document.documentElement); if(document.body)new ResizeObserver(h).observe(document.body); }); }
+      document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]'); if(a&&/^https?:/.test(a.getAttribute('href')))a.setAttribute('target','_blank');});
+    })();<\/script>`;
+  }
+  function paintFrame(bubble, doc, ctx) {
+    const c = ctx.c;
+    const frameId = uid();
+    const shim = frameShim(frameId, c, ctx.msgIndex ?? c.chat.length - 1);
+    let src = /<head[^>]*>/i.test(doc) ? doc.replace(/<head[^>]*>/i, (m) => m + shim) : (/<html[^>]*>/i.test(doc) ? doc.replace(/<html[^>]*>/i, (m) => m + "<head>" + shim + "</head>") : shim + doc);
+    src = src.replace(/<head>/i, '<head><meta charset="utf-8">');
+    const f = document.createElement("iframe");
+    f.className = "frontend";
+    f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms");
+    f.setAttribute("referrerpolicy", "no-referrer");
+    f.srcdoc = src;
+    frameRegistry.set(frameId, { iframe: f, msgId: ctx.msgId });
+    for (const [k, v] of frameRegistry) if (!v.iframe.isConnected && v.iframe !== f) frameRegistry.delete(k);
+    return f;
+  }
+
   function paintBubble(bubble, text, ctx) {
     let host = bubble.querySelector(".rendered");
     if (!host) { host = el("div", "rendered"); bubble.appendChild(host); }
     const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+    // iframe mode: a whole HTML document (possibly inside a ```html fence) gets its own frame with scripts
+    let frameDoc = null;
+    if (state.settings.htmlMode === "iframe" && !iframeBlocked && !ctx.streaming && canHtml()) {
+      let raw = sub(text, ctx.c);
+      raw = applyRegex(raw, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
+      raw = unwrapHtmlFences(stripReasoning(raw));
+      const d = findDocument(raw);
+      if (d) frameDoc = d;
+    }
+    for (const old of bubble.querySelectorAll("iframe.frontend")) old.remove();
+    if (frameDoc) {
+      root.innerHTML = `<style>${BUBBLE_CSS}</style>` + (frameDoc.start > 0 || frameDoc.end < frameDoc.doc.length + frameDoc.start ? "" : "");
+      host.hidden = true;
+      bubble.appendChild(paintFrame(bubble, frameDoc.doc, ctx));
+      return;
+    }
+    host.hidden = false;
     const { html, plain } = messageHtml(text, ctx);
     const name = esc(ctx.role === "user" ? (state.persona.name || "你") : (ctx.c ? ctx.c.name : ""));
     // the same wrapper classes SillyTavern uses, so card CSS like ".mes_text .panel" matches
@@ -2014,7 +2160,7 @@
     if (m.stopped) meta.appendChild(el("span", "tag", "已停止"));
     if (m.hidden) meta.appendChild(el("span", "tag", "已隐藏 · 不进上下文"));
     const bubble = el("div", "bubble");
-    paintBubble(bubble, m.content, { c, role: m.role, depth });
+    paintBubble(bubble, m.content, { c, role: m.role, depth, msgId: m.id, msgIndex: index });
     const actions = el("div", "actions");
 
     const last = c.chat[c.chat.length - 1];
@@ -2112,6 +2258,7 @@
     $("sMemCustom").hidden = memPresets.includes(memVal);
     $("sMemCustom").value = memVal;
     $("sVoice").value = state.settings.voice || "strict";
+    $("sHtmlMode").value = state.settings.htmlMode === "iframe" ? "iframe" : "inline";
     $("sMemTrim").checked = !!state.settings.memTrim;
   }
 
@@ -4264,6 +4411,7 @@
     $("sMemCustom").hidden = true; state.settings.mem = e.target.value; save(); refreshContextMeter();
   });
   $("sMemCustom").addEventListener("change", (e) => { const v = Math.max(1, Math.min(1000, parseInt(e.target.value, 10) || 40)); e.target.value = v; state.settings.mem = String(v); save(); refreshContextMeter(); });
+  $("sHtmlMode").addEventListener("change", (e) => { state.settings.htmlMode = e.target.value; save(); renderMessages(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
   $("sMemTrim").addEventListener("change", (e) => { state.settings.memTrim = e.target.checked; save(); refreshContextMeter(); });
