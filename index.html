@@ -1,6 +1,7 @@
 <title>Lantern Tavern</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<!-- confirm dialog: the sandbox blocks window.confirm(), so the page brings its own -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.7/purify.min.js"></script>
 <style>
   :root {
@@ -794,6 +795,18 @@
       <div class="right">
         <button class="btn" id="rxCancel">取消</button>
         <button class="btn primary" id="rxSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="confirmBack" hidden style="z-index:70">
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
+    <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right">
+        <button class="btn" id="confirmNo">取消</button>
+        <button class="btn primary" id="confirmYes">确定</button>
       </div>
     </div>
   </div>
@@ -1993,7 +2006,7 @@
       const bEd = el("button", "btn ghost", "编辑");
       bEd.onclick = () => openRxEditor(sc, (updated) => { list[i] = updated; rxCache.clear(); onChange(); });
       const bDel = el("button", "btn ghost danger", "删除");
-      bDel.onclick = () => { if (!confirm(`删除脚本「${sc.scriptName}」？`)) return; list.splice(i, 1); rxCache.clear(); onChange(); };
+      bDel.onclick = async () => { if (!(await askConfirm(`删除脚本「${sc.scriptName}」？`, "删除", true))) return; list.splice(i, 1); rxCache.clear(); onChange(); };
       row.append(cb, nm, bEd, bDel);
       container.appendChild(row);
     });
@@ -2060,6 +2073,26 @@
     }
     rxCache.clear(); onChange();
     toast(n ? `导入了 ${n} 个脚本${bad.length ? "，跳过 " + bad.join("、") : ""}` : `没有可用的脚本：${bad.join("、")}`, !n);
+  }
+
+  // window.confirm() is silently blocked inside the artifact sandbox (always false) — use our own
+  let confirmResolve = null;
+  function askConfirm(text, okLabel, danger) {
+    return new Promise((resolve) => {
+      if (confirmResolve) confirmResolve(false);
+      confirmResolve = resolve;
+      $("confirmText").textContent = text;
+      const yes = $("confirmYes");
+      yes.textContent = okLabel || "确定";
+      yes.className = "btn " + (danger ? "danger" : "primary");
+      $("confirmBack").hidden = false;
+      yes.focus();
+    });
+  }
+  function settleConfirm(v) {
+    $("confirmBack").hidden = true;
+    const r = confirmResolve; confirmResolve = null;
+    if (r) r(v);
   }
 
   let toastTimer = null;
@@ -2132,6 +2165,10 @@
     try { await downloads.save({ filename: "regex-scripts.json", data: JSON.stringify(state.regex, null, 2) }); toast("已导出"); }
     catch (e) { if (e && e.code !== "cancelled") toast("导出失败：" + (e.message || e.code), true); }
   };
+  $("confirmYes").onclick = () => settleConfirm(true);
+  $("confirmNo").onclick = () => settleConfirm(false);
+  $("confirmBack").addEventListener("click", (e) => { if (e.target === $("confirmBack")) settleConfirm(false); });
+  document.addEventListener("keydown", (e) => { if (confirmResolve && e.key === "Escape") { e.stopPropagation(); settleConfirm(false); } }, true);
   $("rxClose").onclick = closeRxEditor;
   $("rxCancel").onclick = closeRxEditor;
   $("rxBack").addEventListener("click", (e) => { if (e.target === $("rxBack")) closeRxEditor(); });
@@ -2148,16 +2185,18 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && rxEditing) closeRxEditor(); });
   $("exportPng").onclick = () => exportCard("png");
   $("editChar").onclick = () => openEditor(active());
-  $("resetChat").onclick = () => {
+  $("resetChat").onclick = async () => {
     const c = active();
     if (!c || busy) return;
-    if (c.chat.length > 1 && !confirm(`清空和 ${c.name} 的对话，回到开场白？`)) return;
+    if (c.chat.length > 1 && !(await askConfirm(`清空和 ${c.name} 的对话，回到开场白？`, "重开"))) return;
+    if (busy) return;
     c.chat = [greeting(c)];
     save(); renderMessages(); renderCharList();
   };
-  function deleteCharacter(c) {
+  async function deleteCharacter(c) {
     if (!c || busy) return;
-    if (!confirm(`删除角色「${c.name}」和全部聊天记录？此操作不可恢复。`)) return;
+    if (!(await askConfirm(`删除角色「${c.name}」和全部聊天记录？此操作不可恢复。`, "删除", true))) return;
+    if (busy || !state.characters.some((x) => x.id === c.id)) return;
     state.characters = state.characters.filter((x) => x.id !== c.id);
     if (!state.characters.length) state.characters = exampleCharacters().map(normalizeChar).map((x) => (x.chat = [greeting(x)], x));
     if (!state.characters.some((x) => x.id === state.activeId)) state.activeId = state.characters[0].id;
@@ -2180,7 +2219,7 @@
   $("edImage").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f || !editing) return;
-    try { editing.draft.image = await readImage(f); renderEditorAvatar(); } catch (err) { alert("这张图片读不出来，换一张试试。"); }
+    try { editing.draft.image = await readImage(f); renderEditorAvatar(); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
     e.target.value = "";
   });
   $("edClearImage").onclick = () => { if (editing) { editing.draft.image = ""; renderEditorAvatar(); } };
