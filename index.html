@@ -1066,10 +1066,18 @@
     const turns = [{ role: "user", content: buildInstruction(c, kept) }];
     for (const m of kept) turns.push({ role: m.role, content: sub(m.content, c) });
     if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
-    // keep total well under the 64 KiB input cap
-    let total = turns.reduce((n, t) => n + t.content.length, 0);
-    while (total > 45000 && turns.length > 2) {
-      total -= turns[1].content.length;
+    // keep total under the 64 KiB input cap (measured in UTF-8 bytes: CJK is 3 bytes a character)
+    const bytes = (t) => utf8.enc.encode(t).length;
+    const CAP = 58000;
+    if (bytes(turns[0].content) > CAP - 4000) {
+      // the card alone is too big: cut its tail so at least a few turns fit
+      let txt = turns[0].content;
+      while (bytes(txt) > CAP - 4000) txt = txt.slice(0, Math.floor(txt.length * 0.9));
+      turns[0].content = txt + "\n\n（角色设定过长，已截断。）";
+    }
+    let total = turns.reduce((n, t) => n + bytes(t.content), 0);
+    while (total > CAP && turns.length > 2) {
+      total -= bytes(turns[1].content);
       turns.splice(1, 1);
     }
     // must end on a user turn: if the last is assistant (e.g. "continue"), append a nudge
@@ -1340,19 +1348,47 @@
     }
     return out;
   }
-  function readCardFromPng(bytes) {
+  // bytes -> string, one byte per char (chunked: a big apply() overflows the stack)
+  function latin1(bytes) {
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return out;
+  }
+  async function inflate(bytes) {
+    if (typeof DecompressionStream !== "function") throw new Error("浏览器不支持解压 zTXt 块");
+    const ds = new DecompressionStream("deflate");
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  async function readCardFromPng(bytes) {
     const texts = {};
     for (const ch of pngChunks(bytes)) {
-      if (ch.type !== "tEXt") continue;
+      if (ch.type !== "tEXt" && ch.type !== "zTXt" && ch.type !== "iTXt") continue;
       const nul = ch.data.indexOf(0);
       if (nul < 0) continue;
-      const key = String.fromCharCode.apply(null, ch.data.subarray(0, nul));
-      const val = String.fromCharCode.apply(null, ch.data.subarray(nul + 1));
+      const key = latin1(ch.data.subarray(0, nul));
+      if (key !== "chara" && key !== "ccv3") continue;
+      let val;
+      if (ch.type === "tEXt") {
+        val = latin1(ch.data.subarray(nul + 1));
+      } else if (ch.type === "zTXt") {
+        val = latin1(await inflate(ch.data.subarray(nul + 2)));
+      } else {
+        // iTXt: compression flag, method, language\0, translated keyword\0, text (UTF-8)
+        const flag = ch.data[nul + 1];
+        let pos = nul + 3;
+        pos = ch.data.indexOf(0, pos) + 1;
+        pos = ch.data.indexOf(0, pos) + 1;
+        const body = ch.data.subarray(pos);
+        val = utf8.dec.decode(flag ? await inflate(body) : body);
+      }
       texts[key] = val;
     }
     const raw = texts.ccv3 || texts.chara;
     if (!raw) return null;
-    return JSON.parse(b64decode(raw));
+    let json;
+    try { json = b64decode(raw); } catch (e) { throw new Error("角色数据不是合法的 base64"); }
+    try { return JSON.parse(json); } catch (e) { throw new Error("角色数据不是合法的 JSON"); }
   }
   function makeTextChunk(key, value) {
     const kb = utf8.enc.encode(key), vb = utf8.enc.encode(value);
@@ -1371,9 +1407,9 @@
   function writeCardToPng(bytes, cardV2, cardV3) {
     // drop existing chara/ccv3 tEXt chunks, then insert ours right after IHDR
     const chunks = pngChunks(bytes).filter((ch) => {
-      if (ch.type !== "tEXt") return true;
+      if (ch.type !== "tEXt" && ch.type !== "zTXt" && ch.type !== "iTXt") return true;
       const nul = ch.data.indexOf(0);
-      const key = nul >= 0 ? String.fromCharCode.apply(null, ch.data.subarray(0, nul)) : "";
+      const key = nul >= 0 ? latin1(ch.data.subarray(0, nul)) : "";
       return key !== "chara" && key !== "ccv3";
     });
     const parts = [new Uint8Array(PNG_SIG)];
@@ -1394,7 +1430,8 @@
   // --- ST card <-> our character ---
   function fromStCard(card) {
     const d = card && card.data && typeof card.data === "object" ? card.data : card;
-    if (!d || typeof d !== "object" || !d.name) throw new Error("不是角色卡：缺少 name");
+    if (!d || typeof d !== "object") throw new Error("不是角色卡：内容不是对象");
+    if (!d.name) throw new Error("不是角色卡：缺少 name 字段（看到的字段：" + Object.keys(d).slice(0, 6).join(", ") + "）");
     const str = (x) => (typeof x === "string" ? x : "");
     const tags = Array.isArray(d.tags) ? d.tags.map(String) : [];
     const c = normalizeChar({
@@ -1461,11 +1498,13 @@
         const bytes = await fileToBytes(f);
         let card = null, image = "";
         if (isPng(bytes)) {
-          card = readCardFromPng(bytes);
+          card = await readCardFromPng(bytes);
           if (!card) throw new Error("这张 PNG 里没有角色数据（缺少 chara / ccv3 块）");
           image = await readImage(f).catch(() => "");
         } else {
-          card = JSON.parse(utf8.dec.decode(bytes));
+          let text = utf8.dec.decode(bytes);
+          if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+          try { card = JSON.parse(text); } catch (e) { throw new Error("不是合法的 JSON 文件"); }
         }
         const c = fromStCard(card);
         if (image) c.image = image;
@@ -1473,6 +1512,7 @@
         state.activeId = c.id;
         ok++;
       } catch (e) {
+        console.error("import failed", f.name, e);
         fail.push(`${f.name}：${e && e.message ? e.message : "读取失败"}`);
       }
     }
