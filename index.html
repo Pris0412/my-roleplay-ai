@@ -730,7 +730,12 @@
           <button class="btn" id="wiCharImport">导入到角色</button>
           <button class="btn ghost danger" id="wiCharRemove">移除</button>
         </div>
-        <div class="help">随角色卡一起导入导出。关键词出现在最近几条消息里时自动带给模型。</div>
+        <div class="help">嵌在卡里的世界书，随角色卡一起导入导出。</div>
+      </div>
+      <div class="field">
+        <label for="edWorld">按名字绑定的世界书（extensions.world）</label>
+        <select id="edWorld"></select>
+        <div class="help" id="edWorldHelp"></div>
       </div>
       <details class="adv">
         <summary>高级 · SillyTavern 兼容字段</summary>
@@ -1094,6 +1099,7 @@
     c.systemPrompt = c.systemPrompt || "";
     c.postHistory = c.postHistory || "";
     c.book = normalizeBook(c.book);
+    c.worldName = typeof c.worldName === "string" ? c.worldName : (c.extensions && typeof c.extensions.world === "string" ? c.extensions.world : "");
     c.extensions = c.extensions || {};
     c.chat = Array.isArray(c.chat) ? c.chat : [];
     c.chat.forEach(normalizeMsg);
@@ -1621,7 +1627,9 @@
     }
   }
   function activeLore(c, history) {
-    const books = [c && c.book, ...(state.books || []).filter((b) => b && b.enabled !== false)].filter((b) => b && b.entries && b.entries.length);
+    const bound = c && c.worldName ? (state.books || []).filter((b) => b && b.name === c.worldName) : [];
+    const globals = (state.books || []).filter((b) => b && b.enabled !== false && !bound.includes(b));
+    const books = [c && c.book, ...bound, ...globals].filter((b) => b && b.entries && b.entries.length);
     const empty = { before: [], after: [] };
     if (!books.length) return empty;
     const msgs = history.map((m) => sub(m.content, c));
@@ -1924,6 +1932,7 @@
     d.creatorNotes = $("edNotes").value.trim();
     d.systemPrompt = $("edSys").value.trim();
     d.postHistory = $("edPost").value.trim();
+    d.worldName = $("edWorld").value;
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
       const prev = state.characters[idx];
@@ -2115,7 +2124,8 @@
       tags,
       systemPrompt: str(d.system_prompt),
       postHistory: str(d.post_history_instructions),
-      book: normalizeBook(d.character_book),
+      book: normalizeBook(d.character_book || card.character_book || (d.extensions && d.extensions.character_book)),
+      worldName: d.extensions && typeof d.extensions.world === "string" ? d.extensions.world : "",
       extensions: d.extensions && typeof d.extensions === "object" ? d.extensions : {},
       regex: d.extensions && Array.isArray(d.extensions.regex_scripts) ? d.extensions.regex_scripts.map(normalizeScript).filter(Boolean) : [],
       chat: [],
@@ -2143,6 +2153,7 @@
       extensions: { ...(c.extensions || {}) },
     };
     if (c.regex && c.regex.length) data.extensions.regex_scripts = c.regex; else delete data.extensions.regex_scripts;
+    if (c.worldName) data.extensions.world = c.worldName; else delete data.extensions.world;
     if (!data.character_book) delete data.character_book;
     const v2 = { spec: "chara_card_v2", spec_version: "2.0", data };
     const v3 = {
@@ -2156,7 +2167,7 @@
   async function fileToBytes(file) { return new Uint8Array(await file.arrayBuffer()); }
 
   async function importFiles(files) {
-    let ok = 0, fail = [];
+    let ok = 0, fail = [], details = [];
     for (const f of files) {
       try {
         const bytes = await fileToBytes(f);
@@ -2175,14 +2186,17 @@
         state.characters.unshift(c);
         state.activeId = c.id;
         ok++;
+        const bookN = c.book ? c.book.entries.length : 0;
+        const bound = c.worldName && state.books.find((b) => b.name === c.worldName);
+        details.push(`${c.name}：正则 ${c.regex.length} 条，世界书 ${bookN ? bookN + " 条" : "未嵌入"}${c.worldName ? `，绑定「${c.worldName}」${bound ? "（已关联全局）" : "（需另外导入）"}` : ""}`);
       } catch (e) {
         console.error("import failed", f.name, e);
         fail.push(`${f.name}：${e && e.message ? e.message : "读取失败"}`);
       }
     }
     save(); renderAll(); closeOverlays();
-    if (ok && !fail.length) toast(`导入了 ${ok} 个角色`);
-    else if (ok) toast(`导入了 ${ok} 个，失败 ${fail.length} 个：${fail.join("；")}`, true);
+    if (ok && !fail.length) toast(`导入了 ${ok} 个角色 · ${details.join("；")}`, false, 7000);
+    else if (ok) toast(`导入了 ${ok} 个（${details.join("；")}），失败 ${fail.length} 个：${fail.join("；")}`, true);
     else toast(`导入失败：${fail.join("；")}`, true);
   }
 
@@ -2242,9 +2256,22 @@
   }
   function renderEdBook() {
     if (!editing) return;
-    const b = editing.draft.book;
+    const d = editing.draft;
+    const b = d.book;
     $("edBook").textContent = bookSummary(b);
     $("wiCharRemove").hidden = !(b && b.entries.length);
+    // binding by name, the way SillyTavern's "character lore" works
+    const sel = $("edWorld");
+    sel.innerHTML = "";
+    const none = document.createElement("option"); none.value = ""; none.textContent = "（不绑定）"; sel.appendChild(none);
+    const names = new Set(state.books.map((x) => x.name));
+    if (d.worldName && !names.has(d.worldName)) { const o = document.createElement("option"); o.value = d.worldName; o.textContent = `${d.worldName}（未导入）`; sel.appendChild(o); }
+    for (const bk of state.books) { const o = document.createElement("option"); o.value = bk.name; o.textContent = `${bk.name} · ${bk.entries.length} 条`; sel.appendChild(o); }
+    sel.value = d.worldName || "";
+    const help = $("edWorldHelp");
+    if (!d.worldName) help.textContent = "SillyTavern 的「角色世界书」通常只在卡里记一个名字。先在右侧「世界书 · 全局」导入那本书，再在这里选中它。";
+    else if (names.has(d.worldName)) help.textContent = `已关联到全局世界书「${d.worldName}」，对这个角色始终生效（不管全局勾没勾选）。`;
+    else help.textContent = `这张卡绑定了名为「${d.worldName}」的世界书，但卡里没有嵌入条目。去右侧「世界书 · 全局」导入作者提供的 JSON（文件名或书名要是「${d.worldName}」），或用上面的「导入到角色」直接塞进卡里。`;
   }
   function renderGlobalBooks() {
     const box = $("wiGlobalList");
@@ -2498,13 +2525,13 @@
   }
 
   let toastTimer = null;
-  function toast(text, bad) {
+  function toast(text, bad, ms) {
     let t = document.querySelector(".toast");
     if (!t) { t = el("div", "toast"); document.body.appendChild(t); }
     t.className = "toast" + (bad ? " bad" : "");
     t.textContent = text;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.remove(), bad ? 7000 : 2500);
+    toastTimer = setTimeout(() => t.remove(), ms || (bad ? 7000 : 2500));
   }
 
   // ============================================================
@@ -2581,7 +2608,7 @@
     const { books, bad } = await importBookFiles(files);
     if (wiImportTarget === "global") {
       for (const b of books) { b.enabled = true; state.books.push(b); }
-      save(); renderGlobalBooks();
+      save(); renderGlobalBooks(); renderEdBook();
     } else if (editing) {
       const d = editing.draft;
       for (const b of books) {
@@ -2594,6 +2621,7 @@
   });
   $("wiGlobalNew").onclick = () => openBookEditor(newBook(), (b) => { b.enabled = true; state.books.push(b); save(); renderGlobalBooks(); });
   $("wiCharEdit").onclick = () => { if (!editing) return; openBookEditor(editing.draft.book || newBook(editing.draft.name + " 的世界书"), (b) => { editing.draft.book = b; renderEdBook(); }); };
+  $("edWorld").addEventListener("change", (e) => { if (editing) { editing.draft.worldName = e.target.value; renderEdBook(); } });
   $("wiCharRemove").onclick = async () => { if (!editing) return; if (!(await askConfirm("移除这个角色的世界书？", "移除", true))) return; editing.draft.book = null; renderEdBook(); };
   $("wiClose").onclick = closeBookEditor;
   $("wiCancel").onclick = closeBookEditor;
