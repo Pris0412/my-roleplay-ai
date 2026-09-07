@@ -83,5 +83,16 @@
 - 手动搜索：面板里输入关键词，命中高亮，点结果跳到对应楼层
 - 说明：Artifact 的 CSP 拦掉了 SQLite 的 WASM 下载，所以用同等原理的 JS 实现代替 FTS5
 
+## v6 · SillyTavern 聊天补全预设
+- 导入 ST「聊天补全」预设 JSON（含 `prompts` / `prompt_order`），多选；设置栏选择当前预设或「内置默认」
+- 按 prompt_order（优先 character_id 100001）拼装：文本提示词做宏替换；标记替换为实际内容
+  （worldInfoBefore / charDescription / charPersonality / scenario / personaDescription / worldInfoAfter / dialogueExamples / chatHistory）
+- `wi_format`、`scenario_format`、`personality_format`、`names_behavior` 生效；角色卡的 system_prompt / post_history_instructions 覆盖 main / jailbreak，支持 `{{original}}`
+- `injection_position = 1` 的提示词按 `injection_depth` 插进历史；assistant 角色保留为 assistant 轮；system 作为 user 发送
+- 本页自己的规则（长度 / 语言 / 抢话）作为一条可移动、可禁用的「提灯酒馆 · 回复规则」列在顺序里；检索到的记忆挂在 worldInfoAfter 之后
+- 提示词管理器：启停、上下移动、编辑（名称 / 角色 / 内容 / 位置 / 深度）、新建、移除、加回未列出的
+- 导出为 ST 可读的 JSON（保留采样参数等原字段）；采样参数在页面里标为不生效
+- 超出输入上限时优先丢最早的历史，不丢预设提示词
+
 ## 后续计划
 见对话记录，一步一步加。

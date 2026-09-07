@@ -511,6 +511,16 @@
   .wi-entry .form .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .wi-entry .form .checks { padding-top: 2px; }
   .wi-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ps-row {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto auto; gap: 6px; align-items: center;
+    padding: 6px 8px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); font-size: 13px;
+  }
+  .ps-row.off .nm { color: var(--faint); text-decoration: line-through; }
+  .ps-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ps-row .nm small { color: var(--faint); font-family: var(--font-mono); font-size: 10px; margin-left: 6px; }
+  .ps-row .nm .mk { font-family: var(--font-mono); font-size: 10px; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
+  .ps-row .btn { padding: 3px 7px; font-size: 12px; }
+  .ps-row.marker { background: transparent; border-style: dashed; }
   .msg .meta .floor { font-family: var(--font-mono); font-size: 10px; color: var(--faint); }
   .msg.hidden-floor { opacity: 0.55; }
   .msg.hidden-floor .bubble { border-style: dashed; }
@@ -714,6 +724,25 @@
           </select>
           <div class="help">角色卡和你的人设永远会带上；超出的旧消息会被截掉。</div>
         </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">提示词预设 · SillyTavern</div>
+        <div class="field">
+          <label for="psActive">当前预设</label>
+          <select id="psActive"></select>
+          <div class="help" id="psHelp"></div>
+        </div>
+        <div class="row">
+          <button class="btn" id="psImport">导入预设</button>
+          <button class="btn" id="psEdit">管理提示词</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="psExport">导出预设</button>
+          <button class="btn danger" id="psDelete">删除预设</button>
+        </div>
+        <input type="file" id="psFile" accept=".json,application/json" multiple hidden>
+        <div class="help">兼容 ST「聊天补全」预设（含 prompts / prompt_order 的 JSON）。温度、top_p 等采样参数在这里不可用，其余按提示词管理器的顺序拼装。</div>
       </div>
 
       <div class="section">
@@ -1096,6 +1125,95 @@
   </div>
 </div>
 
+<div class="modal-back" id="psBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="psTitle" style="width:min(820px,100%)">
+    <div class="modal-head">
+      <span id="psTitle">提示词管理器</span>
+      <button class="btn ghost icon" id="psClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <div class="field">
+          <label for="psName">预设名称</label>
+          <input id="psName">
+        </div>
+        <div class="field">
+          <label for="psNames">历史消息前加名字</label>
+          <select id="psNames">
+            <option value="0">不加</option>
+            <option value="1">加（「名字：内容」）</option>
+          </select>
+        </div>
+      </div>
+      <div class="wi-toolbar">
+        <span class="stat" id="psStat"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="psAddExisting">添加未列出的提示词</button>
+        <button class="btn" id="psNew">＋ 新建提示词</button>
+      </div>
+      <div class="rx-list" id="psList"></div>
+      <div class="help">从上到下就是发送顺序；「聊天记录」标记之后的会放在对话末尾。系统角色在这里会作为用户消息发送（模型接口没有 system 角色）。「插入到对话内」的提示词按深度插进历史里。</div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" id="psSampler"></span>
+      <div class="right">
+        <button class="btn" id="psCancel">取消</button>
+        <button class="btn primary" id="psSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="ppBack" hidden style="z-index:65">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ppTitle" style="width:min(680px,100%)">
+    <div class="modal-head">
+      <span id="ppTitle">提示词</span>
+      <button class="btn ghost icon" id="ppClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <div class="field">
+          <label for="ppName">名称</label>
+          <input id="ppName">
+        </div>
+        <div class="field">
+          <label for="ppRole">角色</label>
+          <select id="ppRole">
+            <option value="system">system（发送时作为 user）</option>
+            <option value="user">user</option>
+            <option value="assistant">assistant</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="ppPos">位置</label>
+          <select id="ppPos">
+            <option value="0">按顺序（相对位置）</option>
+            <option value="1">插入到对话内（按深度）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ppDepth">深度（0 = 最后一条之后）</label>
+          <input id="ppDepth" type="number" min="0" value="4" class="mono">
+        </div>
+      </div>
+      <div class="field">
+        <label for="ppContent">内容</label>
+        <textarea id="ppContent" style="min-height:220px"></textarea>
+        <div class="help">支持 {{char}} {{user}} {{persona}} {{description}} {{scenario}} 等宏；主提示词里可用 {{original}}。</div>
+      </div>
+      <div class="stat" id="ppId"></div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right">
+        <button class="btn" id="ppCancel">取消</button>
+        <button class="btn primary" id="ppSave">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -1165,6 +1283,8 @@
       settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10 },
       regex: [],
       books: [],
+      presets: [],
+      activePreset: "",
       leftOpen: true,
     };
   }
@@ -1305,7 +1425,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; return s; }
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -1934,6 +2054,119 @@
     return sub(parts.join("\n"), c);
   }
 
+  // ---------- SillyTavern chat-completion presets (prompt manager) ----------
+  const MARKERS = {
+    main: "主提示词", nsfw: "辅助提示词", jailbreak: "越狱 / 对话后指令", enhanceDefinitions: "强化设定",
+    worldInfoBefore: "世界书（前）", worldInfoAfter: "世界书（后）", charDescription: "角色描述", charPersonality: "角色性格",
+    scenario: "场景", personaDescription: "用户人设", dialogueExamples: "对话示例", chatHistory: "聊天记录", lanternRules: "提灯酒馆 · 回复规则",
+  };
+  const MARKER_IDS = new Set(["worldInfoBefore", "worldInfoAfter", "charDescription", "charPersonality", "scenario", "personaDescription", "dialogueExamples", "chatHistory", "lanternRules"]);
+  function normalizePreset(p) {
+    if (!p || typeof p !== "object") return null;
+    const raw = p.raw && typeof p.raw === "object" ? p.raw : p;
+    if (!Array.isArray(raw.prompts)) return null;
+    const prompts = raw.prompts.filter((x) => x && typeof x === "object" && x.identifier).map((x) => ({
+      identifier: String(x.identifier), name: String(x.name || x.identifier), role: x.role || "system",
+      content: typeof x.content === "string" ? x.content : "", system_prompt: !!x.system_prompt,
+      marker: !!x.marker || MARKER_IDS.has(String(x.identifier)),
+      injection_position: Number(x.injection_position) || 0, injection_depth: typeof x.injection_depth === "number" ? x.injection_depth : 4,
+      forbid_overrides: !!x.forbid_overrides,
+    }));
+    // order: prefer the default-character entry (100001), else 100000, else first
+    let orderEntry = null;
+    if (Array.isArray(raw.prompt_order)) orderEntry = raw.prompt_order.find((o) => o && o.character_id === 100001) || raw.prompt_order.find((o) => o && o.character_id === 100000) || raw.prompt_order[0];
+    let order = orderEntry && Array.isArray(orderEntry.order) ? orderEntry.order.map((o) => ({ identifier: String(o.identifier), enabled: o.enabled !== false })) : prompts.map((x) => ({ identifier: x.identifier, enabled: true }));
+    const have = new Set(prompts.map((x) => x.identifier));
+    for (const id of MARKER_IDS) if (!have.has(id)) { prompts.push({ identifier: id, name: MARKERS[id], role: "system", content: "", system_prompt: true, marker: true, injection_position: 0, injection_depth: 4 }); have.add(id); }
+    if (!order.some((o) => o.identifier === "lanternRules")) {
+      const hi = order.findIndex((o) => o.identifier === "chatHistory");
+      order.splice(hi < 0 ? order.length : hi, 0, { identifier: "lanternRules", enabled: true });
+    }
+    return {
+      id: p.id || uid(),
+      name: String(p.name || raw.name || "未命名预设"),
+      prompts, order,
+      namesInContent: typeof p.namesInContent === "boolean" ? p.namesInContent : raw.names_behavior === 1 || raw.names_in_completion === true,
+      raw: { ...raw },
+    };
+  }
+  function presetToSt(ps) {
+    const raw = { ...ps.raw };
+    raw.prompts = ps.prompts.filter((x) => x.identifier !== "lanternRules").map((x) => ({ identifier: x.identifier, name: x.name, role: x.role, content: x.content, system_prompt: x.system_prompt, marker: x.marker && MARKER_IDS.has(x.identifier) ? true : undefined, injection_position: x.injection_position, injection_depth: x.injection_depth, forbid_overrides: x.forbid_overrides }));
+    const order = ps.order.filter((o) => o.identifier !== "lanternRules").map((o) => ({ identifier: o.identifier, enabled: o.enabled }));
+    raw.prompt_order = [{ character_id: 100000, order }, { character_id: 100001, order }];
+    raw.names_behavior = ps.namesInContent ? 1 : 0;
+    return raw;
+  }
+  const activePreset = () => state.presets.find((p) => p.id === state.activePreset) || null;
+  function samplerSummary(raw) {
+    const keys = ["temperature", "top_p", "top_k", "frequency_penalty", "presence_penalty", "openai_max_tokens", "openai_max_context"];
+    const parts = keys.filter((k) => raw[k] != null).map((k) => `${k}=${raw[k]}`);
+    return parts.length ? "采样参数（此处不生效）：" + parts.join(" · ") : "";
+  }
+  function fmtTemplate(fmt, key, value) {
+    if (!value) return "";
+    if (!fmt || !fmt.includes("{{" + key + "}}")) return value;
+    return fmt.replace(new RegExp("\\{\\{" + key + "\\}\\}", "g"), () => value);
+  }
+  // Build the turn list from an active preset. Returns { turns, retrieved }.
+  function buildTurnsPreset(ps, c, kept, retrieved, upto) {
+    const raw = ps.raw || {};
+    const u = state.persona.name || "用户";
+    const lore = activeLore(c, kept);
+    const wi = (arr) => arr.length ? (raw.wi_format && raw.wi_format.includes("{0}") ? raw.wi_format.replace("{0}", arr.join("\n\n")) : arr.join("\n\n")) : "";
+    const memLines = retrieved && retrieved.length ? `【相关记忆（从更早的楼层里检索到的片段，按需参考，不要复述）】\n${retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : c.name}：${h.text}`).join("\n")}` : "";
+    const byId = Object.fromEntries(ps.prompts.map((x) => [x.identifier, x]));
+    const mainPrompt = byId.main ? sub(byId.main.content, c) : "";
+    const markerContent = (id) => {
+      switch (id) {
+        case "worldInfoBefore": return wi(lore.before);
+        case "worldInfoAfter": return [wi(lore.after), memLines].filter(Boolean).join("\n\n");
+        case "charDescription": return sub(c.description || "", c);
+        case "charPersonality": return sub(fmtTemplate(raw.personality_format, "personality", c.personality || ""), c);
+        case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
+        case "personaDescription": return sub(state.persona.desc || "", c);
+        case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
+        case "lanternRules": return [`- ${lengthHint()}`, `- ${langHint()}`, `- ${voiceRule(c, u)}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].map((x) => sub(x, c)).join("\n");
+        default: return "";
+      }
+    };
+    const pre = [], post = [], inChat = [];
+    let afterHistory = false;
+    for (const o of ps.order) {
+      if (!o.enabled) continue;
+      const pr = byId[o.identifier];
+      if (!pr) continue;
+      if (o.identifier === "chatHistory") { afterHistory = true; continue; }
+      let content;
+      if (pr.marker) content = markerContent(o.identifier);
+      else if (o.identifier === "main" && c.systemPrompt && c.systemPrompt.trim()) content = sub(c.systemPrompt.replace(/\{\{original\}\}/gi, () => mainPrompt), c);
+      else if (o.identifier === "jailbreak" && c.postHistory && c.postHistory.trim()) content = sub(c.postHistory.replace(/\{\{original\}\}/gi, () => sub(pr.content, c)), c);
+      else content = sub(pr.content, c);
+      content = (content || "").trim();
+      if (!content) continue;
+      const role = pr.role === "assistant" ? "assistant" : "user";
+      if (pr.injection_position === 1) { inChat.push({ depth: pr.injection_depth, role, content }); continue; }
+      (afterHistory ? post : pre).push({ role, content });
+    }
+    const history = kept.map((m, i) => {
+      const depth = kept.length - 1 - i;
+      let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
+      if (m.role === "assistant") txt = stripReasoning(txt);
+      if (ps.namesInContent) txt = `${m.role === "user" ? u : c.name}: ${txt}`;
+      return { role: m.role, content: txt, hist: true };
+    }).filter((t) => t.content.trim());
+    // in-chat injections: depth d = before the last d history messages
+    for (const inj of inChat.sort((a, b) => b.depth - a.depth)) {
+      const at = Math.max(0, history.length - inj.depth);
+      history.splice(at, 0, { role: inj.role, content: inj.content });
+    }
+    const turns = [...pre, ...history, ...post];
+    if (!turns.length || turns[0].role !== "user") turns.unshift({ role: "user", content: `（以下是 ${c.name} 与 ${u} 的角色扮演设定。）` });
+    if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: "（继续，接着刚才的情节写下去。）" });
+    return turns;
+  }
+
   function buildTurns(c, upto) {
     const mem = parseInt(state.settings.mem, 10) || 40;
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto);
@@ -1950,14 +2183,20 @@
       const q = lastUser ? sub(lastUser.content, c) : "";
       if (q.trim()) retrieved = ragSearch(c, q, parseInt(state.settings.ragK, 10) || 10, (m) => !keptIds.has(m.id) && (upto == null || c.chat.indexOf(m) < upto));
     }
-    const turns = [{ role: "user", content: buildInstruction(c, kept, retrieved) }];
-    kept.forEach((m, i) => {
-      const depth = kept.length - 1 - i;
-      let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
-      if (m.role === "assistant") txt = stripReasoning(txt);
-      if (txt.trim()) turns.push({ role: m.role, content: txt });
-    });
-    if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
+    const ps = activePreset();
+    let turns;
+    if (ps) {
+      turns = buildTurnsPreset(ps, c, kept, retrieved, upto);
+    } else {
+      turns = [{ role: "user", content: buildInstruction(c, kept, retrieved) }];
+      kept.forEach((m, i) => {
+        const depth = kept.length - 1 - i;
+        let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
+        if (m.role === "assistant") txt = stripReasoning(txt);
+        if (txt.trim()) turns.push({ role: m.role, content: txt, hist: true });
+      });
+      if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
+    }
     // keep total under the 64 KiB input cap (measured in UTF-8 bytes: CJK is 3 bytes a character)
     const bytes = (t) => utf8.enc.encode(t).length;
     const CAP = 58000;
@@ -1970,11 +2209,14 @@
     let total = turns.reduce((n, t) => n + bytes(t.content), 0);
     let dropped = 0;
     while (total > CAP && turns.length > 2) {
-      total -= bytes(turns[1].content);
-      turns.splice(1, 1);
+      let i = turns.findIndex((t) => t.hist);
+      if (i < 0) i = 1;
+      total -= bytes(turns[i].content);
+      turns.splice(i, 1);
       dropped++;
     }
     const inContext = kept.slice(dropped);
+    for (let i = 0; i < turns.length; i++) turns[i] = { role: turns[i].role, content: turns[i].content };
     lastReport = {
       cap: CAP, total, instruction: bytes(turns[0].content), history: total - bytes(turns[0].content),
       floors: inContext.length, firstFloor: inContext.length ? c.chat.indexOf(inContext[0]) + 1 : 0, lastFloor: inContext.length ? c.chat.indexOf(inContext[inContext.length - 1]) + 1 : 0,
@@ -3011,6 +3253,84 @@
     return { books, bad };
   }
 
+  // ---------- Preset UI ----------
+  function renderPresetSelect() {
+    const sel = $("psActive");
+    sel.innerHTML = "";
+    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "内置默认（本页自己的提示词）"; sel.appendChild(o0);
+    for (const p of state.presets) { const o = document.createElement("option"); o.value = p.id; o.textContent = `${p.name} · ${p.order.filter((x) => x.enabled).length}/${p.prompts.length} 条`; sel.appendChild(o); }
+    sel.value = state.activePreset && state.presets.some((p) => p.id === state.activePreset) ? state.activePreset : "";
+    const ps = activePreset();
+    $("psEdit").disabled = $("psExport").disabled = $("psDelete").disabled = !ps;
+    $("psHelp").textContent = ps ? (samplerSummary(ps.raw) || "已按预设的提示词顺序拼装。") : "不用预设时，用本页内置的扮演规则。";
+  }
+  let psEditing = null; // { ps (deep copy), done }
+  function openPresetEditor(ps) {
+    psEditing = { ps: JSON.parse(JSON.stringify(ps)) };
+    $("psTitle").textContent = `提示词管理器 · ${ps.name}`;
+    $("psName").value = ps.name;
+    $("psNames").value = ps.namesInContent ? "1" : "0";
+    $("psSampler").textContent = samplerSummary(ps.raw);
+    renderPsList();
+    $("psBack").hidden = false;
+  }
+  function closePresetEditor() { $("psBack").hidden = true; psEditing = null; }
+  function renderPsList() {
+    const ps = psEditing.ps;
+    const box = $("psList");
+    box.innerHTML = "";
+    const byId = Object.fromEntries(ps.prompts.map((x) => [x.identifier, x]));
+    const chars = ps.order.reduce((n, o) => n + (o.enabled && byId[o.identifier] && !byId[o.identifier].marker ? byId[o.identifier].content.length : 0), 0);
+    $("psStat").textContent = `${ps.order.length} 项 · 启用 ${ps.order.filter((o) => o.enabled).length} · 固定文本约 ${chars} 字`;
+    ps.order.forEach((o, i) => {
+      const pr = byId[o.identifier];
+      if (!pr) return;
+      const row = el("div", "ps-row" + (o.enabled ? "" : " off") + (pr.marker ? " marker" : ""));
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = o.enabled; cb.onchange = () => { o.enabled = cb.checked; renderPsList(); };
+      const nm = el("div", "nm");
+      if (pr.marker) { const mk = el("span", "mk", "标记"); nm.appendChild(mk); }
+      nm.appendChild(document.createTextNode(pr.name));
+      const small = document.createElement("small");
+      small.textContent = pr.marker ? (MARKERS[o.identifier] || o.identifier) : `${pr.role}${pr.injection_position === 1 ? ` · 深度 ${pr.injection_depth}` : ""} · ${pr.content.length} 字`;
+      nm.appendChild(small);
+      const up = el("button", "btn ghost", "↑"); up.disabled = i === 0; up.onclick = () => { [ps.order[i - 1], ps.order[i]] = [ps.order[i], ps.order[i - 1]]; renderPsList(); };
+      const dn = el("button", "btn ghost", "↓"); dn.disabled = i === ps.order.length - 1; dn.onclick = () => { [ps.order[i + 1], ps.order[i]] = [ps.order[i], ps.order[i + 1]]; renderPsList(); };
+      const ed = el("button", "btn ghost", pr.marker ? "说明" : "编辑");
+      ed.onclick = () => pr.marker ? toast(`「${pr.name}」是标记：发送时会替换成 ${MARKERS[o.identifier] || o.identifier} 的实际内容，位置可以拖动。`) : openPromptEditor(pr, (np) => { Object.assign(pr, np); renderPsList(); });
+      const rm = el("button", "btn ghost danger", "移除");
+      rm.title = "从顺序里移除（提示词本身保留，可用「添加未列出的提示词」加回）";
+      rm.onclick = () => { ps.order.splice(i, 1); renderPsList(); };
+      row.append(cb, nm, up, dn, ed, rm);
+      box.appendChild(row);
+    });
+  }
+  let ppEditing = null;
+  function openPromptEditor(pr, done) {
+    ppEditing = { pr, done };
+    $("ppTitle").textContent = pr.name ? `提示词 · ${pr.name}` : "新建提示词";
+    $("ppName").value = pr.name || ""; $("ppRole").value = pr.role || "system"; $("ppContent").value = pr.content || "";
+    $("ppPos").value = String(pr.injection_position || 0); $("ppDepth").value = pr.injection_depth ?? 4;
+    $("ppId").textContent = `identifier: ${pr.identifier}`;
+    $("ppBack").hidden = false;
+    $("ppName").focus();
+  }
+  function closePromptEditor() { $("ppBack").hidden = true; ppEditing = null; }
+  async function importPresetFiles(files) {
+    let n = 0, bad = [];
+    for (const f of files) {
+      try {
+        const data = JSON.parse(await f.text());
+        const ps = normalizePreset({ ...data, name: data.name || f.name.replace(/\.json$/i, "") });
+        if (!ps) { bad.push(`${f.name}（不是聊天补全预设，缺少 prompts）`); continue; }
+        ps.name = ps.name === "未命名预设" ? f.name.replace(/\.json$/i, "") : ps.name;
+        state.presets.push(ps); n++;
+        state.activePreset = ps.id;
+      } catch (e) { bad.push(f.name); }
+    }
+    save(); renderPresetSelect(); refreshContextMeter();
+    toast(n ? `导入了 ${n} 个预设，已启用最后一个${bad.length ? "；跳过：" + bad.join("、") : ""}` : `没有可用的预设：${bad.join("、")}`, !n, 6000);
+  }
+
   // ---------- Regex scripts UI ----------
   function normalizeScript(s) {
     if (!s || typeof s !== "object" || typeof s.findRegex !== "string") return null;
@@ -3208,6 +3528,62 @@
   $("confirmNo").onclick = () => settleConfirm(false);
   $("confirmBack").addEventListener("click", (e) => { if (e.target === $("confirmBack")) settleConfirm(false); });
   document.addEventListener("keydown", (e) => { if (confirmResolve && e.key === "Escape") { e.stopPropagation(); settleConfirm(false); } }, true);
+  // presets
+  $("psActive").addEventListener("change", (e) => { state.activePreset = e.target.value; save(); renderPresetSelect(); refreshContextMeter(); toast(e.target.value ? "已启用预设" : "已切回内置默认"); });
+  $("psImport").onclick = () => $("psFile").click();
+  $("psFile").addEventListener("change", async (e) => { const files = Array.from(e.target.files || []); e.target.value = ""; if (files.length) await importPresetFiles(files); });
+  $("psEdit").onclick = () => { const ps = activePreset(); if (ps) openPresetEditor(ps); };
+  $("psExport").onclick = async () => {
+    const ps = activePreset();
+    if (!ps) return;
+    if (!downloads) return toast("只有在 Claude 里打开时才能保存文件", true);
+    try { await downloads.save({ filename: safeName(ps.name) + ".json", data: JSON.stringify(presetToSt(ps), null, 2) }); toast("已导出"); }
+    catch (e) { if (e && e.code !== "cancelled") toast("导出失败：" + (e.message || e.code), true); }
+  };
+  $("psDelete").onclick = async () => {
+    const ps = activePreset();
+    if (!ps) return;
+    if (!(await askConfirm(`删除预设「${ps.name}」？`, "删除", true))) return;
+    state.presets = state.presets.filter((p) => p.id !== ps.id); state.activePreset = "";
+    save(); renderPresetSelect(); refreshContextMeter();
+  };
+  $("psClose").onclick = closePresetEditor;
+  $("psCancel").onclick = closePresetEditor;
+  $("psBack").addEventListener("click", (e) => { if (e.target === $("psBack")) closePresetEditor(); });
+  $("psSave").onclick = () => {
+    if (!psEditing) return;
+    const ps = psEditing.ps;
+    ps.name = $("psName").value.trim() || ps.name;
+    ps.namesInContent = $("psNames").value === "1";
+    const i = state.presets.findIndex((p) => p.id === ps.id);
+    if (i >= 0) state.presets[i] = ps; else state.presets.push(ps);
+    save(); closePresetEditor(); renderPresetSelect(); refreshContextMeter(); toast("预设已保存");
+  };
+  $("psNew").onclick = () => {
+    if (!psEditing) return;
+    const pr = { identifier: "custom-" + uid(), name: "", role: "system", content: "", system_prompt: false, marker: false, injection_position: 0, injection_depth: 4, forbid_overrides: false };
+    openPromptEditor(pr, (np) => { Object.assign(pr, np); psEditing.ps.prompts.push(pr); const hi = psEditing.ps.order.findIndex((o) => o.identifier === "chatHistory"); psEditing.ps.order.splice(hi < 0 ? psEditing.ps.order.length : hi, 0, { identifier: pr.identifier, enabled: true }); renderPsList(); });
+  };
+  $("psAddExisting").onclick = () => {
+    if (!psEditing) return;
+    const ps = psEditing.ps;
+    const listed = new Set(ps.order.map((o) => o.identifier));
+    const missing = ps.prompts.filter((p) => !listed.has(p.identifier));
+    if (!missing.length) return toast("所有提示词都已在顺序里");
+    for (const p of missing) ps.order.push({ identifier: p.identifier, enabled: false });
+    renderPsList();
+    toast(`加回了 ${missing.length} 条（默认未启用）`);
+  };
+  $("ppClose").onclick = closePromptEditor;
+  $("ppCancel").onclick = closePromptEditor;
+  $("ppBack").addEventListener("click", (e) => { if (e.target === $("ppBack")) closePromptEditor(); });
+  $("ppSave").onclick = () => {
+    if (!ppEditing) return;
+    const np = { name: $("ppName").value.trim() || "未命名", role: $("ppRole").value, content: $("ppContent").value, injection_position: Number($("ppPos").value) || 0, injection_depth: Math.max(0, parseInt($("ppDepth").value, 10) || 0) };
+    const done = ppEditing.done; closePromptEditor(); done(np);
+  };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !confirmResolve) { if (ppEditing) { e.stopPropagation(); closePromptEditor(); } else if (psEditing) { e.stopPropagation(); closePresetEditor(); } } }, true);
+
   // lorebooks
   let wiImportTarget = null; // "global" | "char"
   $("wiGlobalImport").onclick = () => { wiImportTarget = "global"; $("wiFile").click(); };
@@ -3349,6 +3725,7 @@
   renderAll();
   refreshGlobalRx();
   renderGlobalBooks();
+  renderPresetSelect();
   initSample().then(() => renderMessages());
 })();
 </script>
