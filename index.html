@@ -407,6 +407,21 @@
   .avatar-row .controls .line { display: flex; gap: 6px; align-items: center; }
   .avatar-row input[type="text"] { width: 80px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--raised); text-align: center; }
   .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  details.adv { border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+  details.adv summary { cursor: pointer; padding: 10px 0; font-size: 13px; color: var(--muted); font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+  details.adv summary::after { content: "＋"; }
+  details.adv[open] summary::after { content: "－"; }
+  details.adv .inner { display: flex; flex-direction: column; gap: 12px; padding-bottom: 12px; }
+  .book-note { font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 8px; background: var(--raised); }
+  .rail.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; }
+  .rail-foot .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--raised); color: var(--text); border: 1px solid var(--line-strong);
+    padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); font-size: 13px; z-index: 60;
+    max-width: min(520px, 90vw);
+  }
+  .toast.bad { border-color: var(--danger); }
   .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
   .swatch.on { border-color: var(--text); }
 
@@ -447,7 +462,11 @@
     </div>
     <div class="char-list" id="charList" role="listbox" aria-label="角色列表"></div>
     <div class="rail-foot">
-      <button class="btn primary block" id="newChar">＋ 新建角色</button>
+      <div class="pair">
+        <button class="btn primary" id="newChar">＋ 新建</button>
+        <button class="btn" id="importChar" title="导入 SillyTavern 角色卡（.png / .json）">导入角色卡</button>
+        <input type="file" id="importFile" accept=".png,.json,image/png,application/json" multiple hidden>
+      </div>
       <div class="stat" id="storeStat">本地保存 · 仅此浏览器</div>
     </div>
   </aside>
@@ -481,7 +500,7 @@
         </div>
       </div>
       <div class="hint">
-        <span id="hintLeft">*动作* 用星号包住 · {{user}} / {{char}} 会自动替换</span>
+        <span id="hintLeft">*动作* 用星号包住 · {{user}} / {{char}} 会自动替换 · 支持拖入 SillyTavern 角色卡</span>
         <span id="hintRight"></span>
       </div>
     </div>
@@ -604,11 +623,47 @@
       <div class="field">
         <label for="edExamples">对话示例（可选）</label>
         <textarea id="edExamples" placeholder="{{user}}: 你这儿有没有不卖的书？&#10;{{char}}: *合上账本* 有，但你得先告诉我为什么想要。"></textarea>
-        <div class="help">用 {{user}}: 和 {{char}}: 开头，一行一句。示例能很好地固定语气。</div>
+        <div class="help">用 {{user}}: 和 {{char}}: 开头，一行一句。SillyTavern 卡里的 &lt;START&gt; 分隔符也认。</div>
       </div>
+      <div class="field">
+        <label for="edAlt">备用开场白（可选）</label>
+        <textarea id="edAlt" placeholder="多个开场白之间用单独一行 --- 隔开。聊天开头可以切换。"></textarea>
+      </div>
+      <details class="adv">
+        <summary>高级 · SillyTavern 兼容字段</summary>
+        <div class="inner">
+          <div class="row">
+            <div class="field">
+              <label for="edTags">标签（逗号分隔）</label>
+              <input id="edTags" placeholder="fantasy, slow burn">
+            </div>
+            <div class="field">
+              <label for="edCreator">作者</label>
+              <input id="edCreator" placeholder="creator">
+            </div>
+          </div>
+          <div class="field">
+            <label for="edNotes">作者备注（creator_notes，不会发给模型）</label>
+            <textarea id="edNotes"></textarea>
+          </div>
+          <div class="field">
+            <label for="edSys">系统提示词（system_prompt）</label>
+            <textarea id="edSys" placeholder="留空则用本页默认的扮演规则。写了就会替换默认规则；可以用 {{original}} 把默认规则插回来。"></textarea>
+          </div>
+          <div class="field">
+            <label for="edPost">对话后指令（post_history_instructions）</label>
+            <textarea id="edPost" placeholder="放在整段对话之后的提醒，例如格式或长度要求。"></textarea>
+          </div>
+          <div class="book-note" id="edBook"></div>
+        </div>
+      </details>
     </div>
     <div class="modal-foot">
-      <span class="stat" id="edStat"></span>
+      <div class="right">
+        <button class="btn" id="exportJson" title="导出为 SillyTavern V2 JSON">导出 JSON</button>
+        <button class="btn" id="exportPng" title="导出为带角色数据的 PNG">导出 PNG</button>
+        <span class="stat" id="edStat"></span>
+      </div>
       <div class="right">
         <button class="btn" id="editorCancel">取消</button>
         <button class="btn primary" id="editorSave">保存</button>
@@ -665,7 +720,7 @@
   }
 
   function defaultState() {
-    const characters = exampleCharacters();
+    const characters = exampleCharacters().map(normalizeChar);
     for (const c of characters) c.chat = [greeting(c)];
     return {
       characters,
@@ -676,8 +731,26 @@
     };
   }
 
-  function greeting(c) {
-    return { id: uid(), role: "assistant", content: c.firstMessage || "……", ts: Date.now(), greeting: true };
+  function greetings(c) {
+    return [c.firstMessage || "……", ...((c.altGreetings || []).filter((g) => g && g.trim()))];
+  }
+  function greeting(c, index) {
+    const list = greetings(c);
+    const i = ((index || 0) % list.length + list.length) % list.length;
+    return { id: uid(), role: "assistant", content: list[i], ts: Date.now(), greeting: true, gi: i };
+  }
+  function normalizeChar(c) {
+    c.tags = Array.isArray(c.tags) ? c.tags : [];
+    c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
+    c.creatorNotes = c.creatorNotes || "";
+    c.creator = c.creator || "";
+    c.version = c.version || "";
+    c.systemPrompt = c.systemPrompt || "";
+    c.postHistory = c.postHistory || "";
+    c.book = c.book || null;
+    c.extensions = c.extensions || {};
+    c.chat = Array.isArray(c.chat) ? c.chat : [];
+    return c;
   }
 
   function load() {
@@ -685,7 +758,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) return s;
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -697,6 +770,7 @@
 
   let state = load();
   let sample = null;          // claude.use("sample") namespace, or null
+  let downloads = null;       // claude.use("downloads") namespace, or null
   let sampleReady = false;    // resolved once (either way)
   let busy = null;            // { ctl, msgId } while a reply is streaming
 
@@ -831,8 +905,16 @@
       bRegen.onclick = () => regenerate();
       actions.appendChild(bRegen);
     }
-    if (!isUser && isLast && m.greeting && c.chat.length === 1) {
-      // nothing more to do on a lone greeting
+    if (!isUser && m.greeting && greetings(c).length > 1) {
+      const n = greetings(c).length;
+      const bAlt = el("button", "btn ghost", `换个开场白 ${((m.gi || 0) + 1)}/${n}`);
+      bAlt.onclick = () => {
+        if (busy) return;
+        const next = greeting(c, (m.gi || 0) + 1);
+        m.content = next.content; m.gi = next.gi; m.ts = Date.now();
+        save(); renderMessages(); renderCharList();
+      };
+      actions.appendChild(bAlt);
     }
     const bCopy = el("button", "btn ghost", "复制");
     bCopy.onclick = async () => {
@@ -908,22 +990,69 @@
     return { auto: "用和{{user}}最后一条消息相同的语言回复。", zh: "始终用中文回复。", en: "Always reply in English." }[state.settings.lang];
   }
 
-  function buildInstruction(c) {
+  function defaultRules(c, u) {
+    return [
+      `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
+      `只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定或描写 ${u} 的内心。`,
+      "动作与神态用 *星号* 包住，对白直接写出或用「」引住。避免总结式或说教式的结尾。",
+      "推进剧情：给对方留下可以接的钩子，但不要一次推进太多。",
+    ].map((r) => "- " + r).join("\n");
+  }
+
+  // Lorebook: constant entries always; keyed entries when a key appears in recent messages
+  function activeLore(c, history) {
+    const book = c.book;
+    if (!book || !Array.isArray(book.entries) || !book.entries.length) return [];
+    const depthDefault = book.scan_depth || 4;
+    const out = [];
+    let budget = 6000;
+    for (const e of book.entries) {
+      if (!e || e.enabled === false || !e.content) continue;
+      let hit = !!e.constant;
+      if (!hit) {
+        const depth = e.scan_depth || depthDefault;
+        const hay = history.slice(-depth).map((m) => sub(m.content, c)).join("\n");
+        const hayL = e.case_sensitive ? hay : hay.toLowerCase();
+        const keys = (e.keys || []).map((k) => sub(String(k), c)).filter(Boolean);
+        hit = keys.some((k) => hayL.includes(e.case_sensitive ? k : k.toLowerCase()));
+        if (hit && Array.isArray(e.secondary_keys) && e.secondary_keys.length) {
+          const sec = e.secondary_keys.map((k) => sub(String(k), c));
+          const anySec = sec.some((k) => hayL.includes(e.case_sensitive ? k : k.toLowerCase()));
+          if (e.selective !== false && !anySec) hit = false;
+        }
+      }
+      if (!hit) continue;
+      const text = sub(e.content, c).trim();
+      if (text.length > budget) break;
+      budget -= text.length;
+      out.push({ order: e.insertion_order || 0, text });
+    }
+    return out.sort((a, b) => a.order - b.order).map((x) => x.text);
+  }
+
+  function buildInstruction(c, history) {
     const u = state.persona.name || "用户";
     const parts = [];
-    parts.push(`这是一个沉浸式角色扮演。你从现在起完全扮演「${c.name}」，用户扮演「${u}」。`);
+    const rules = defaultRules(c, u);
+    if (c.systemPrompt && c.systemPrompt.trim()) {
+      parts.push(c.systemPrompt.includes("{{original}}") ? c.systemPrompt.replace(/\{\{original\}\}/gi, rules) : c.systemPrompt);
+    } else {
+      parts.push(`这是一个沉浸式角色扮演。你从现在起完全扮演「${c.name}」，用户扮演「${u}」。`);
+    }
     parts.push("");
     parts.push(`## ${c.name} 的设定`);
     if (c.description) parts.push(c.description);
     if (c.personality) parts.push(`性格：${c.personality}`);
     if (c.scenario) parts.push(`\n## 场景\n${c.scenario}`);
+    const lore = activeLore(c, history || c.chat);
+    if (lore.length) parts.push(`\n## 世界设定\n${lore.join("\n\n")}`);
     if (state.persona.desc) parts.push(`\n## 关于 ${u}\n${state.persona.desc}`);
-    if (c.examples && c.examples.trim()) parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${c.examples.trim()}`);
+    if (c.examples && c.examples.trim()) {
+      const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
+      parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`);
+    }
     parts.push("\n## 规则");
-    parts.push(`- 始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`);
-    parts.push(`- 只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定或描写 ${u} 的内心。`);
-    parts.push("- 动作与神态用 *星号* 包住，对白直接写出或用「」引住。避免总结式或说教式的结尾。");
-    parts.push("- 推进剧情：给对方留下可以接的钩子，但不要一次推进太多。");
+    if (!(c.systemPrompt && c.systemPrompt.trim())) parts.push(rules);
     parts.push(`- ${lengthHint()}`);
     parts.push(`- ${langHint()}`);
     parts.push("- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
@@ -934,8 +1063,9 @@
     const mem = parseInt(state.settings.mem, 10) || 40;
     const history = c.chat.slice(0, upto == null ? c.chat.length : upto);
     const kept = history.filter((m) => !m.error).slice(-mem);
-    const turns = [{ role: "user", content: buildInstruction(c) }];
+    const turns = [{ role: "user", content: buildInstruction(c, kept) }];
     for (const m of kept) turns.push({ role: m.role, content: sub(m.content, c) });
+    if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
     // keep total well under the 64 KiB input cap
     let total = turns.reduce((n, t) => n + t.content.length, 0);
     while (total > 45000 && turns.length > 2) {
@@ -963,9 +1093,11 @@
   const copyFor = (code) => ERROR_COPY[code] || `出错了（${code || "未知"}）。`;
 
   async function initSample() {
+    const use = window.claude && typeof window.claude.use === "function" ? (n) => window.claude.use(n) : () => Promise.resolve(null);
     try {
-      sample = window.claude && typeof window.claude.use === "function" ? await window.claude.use("sample") : null;
-    } catch (e) { sample = null; }
+      [sample, downloads] = await Promise.all([use("sample").catch(() => null), use("downloads").catch(() => null)]);
+    } catch (e) { sample = null; downloads = null; }
+    if (editing) { $("exportJson").disabled = $("exportPng").disabled = !downloads; }
     sampleReady = true;
     if (!sample) {
       showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能调用模型；你仍然可以编辑角色和整理聊天记录。");
@@ -1073,11 +1205,19 @@
         description: "", personality: "", scenario: "", firstMessage: "", examples: "", chat: [], createdAt: Date.now(),
       },
     };
+    normalizeChar(editing.draft);
     const d = editing.draft;
     $("editorTitle").textContent = c ? `编辑 · ${c.name}` : "新建角色";
     $("edName").value = d.name; $("edTag").value = d.tag || ""; $("edEmoji").value = d.emoji || "";
     $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || "";
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
+    $("edAlt").value = (d.altGreetings || []).join("\n---\n");
+    $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || "";
+    const bookN = d.book && Array.isArray(d.book.entries) ? d.book.entries.length : 0;
+    $("edBook").textContent = bookN ? `世界书：${d.book.name || "未命名"} · ${bookN} 条。关键词出现在最近几条消息里时会自动带入，${d.book.entries.filter((e) => e && e.constant).length} 条为常驻。（编辑功能之后再加）` : "没有世界书。导入带 character_book 的卡会自动带上。";
+    $("exportJson").disabled = $("exportPng").disabled = !downloads;
+    $("exportJson").title = $("exportPng").title = downloads ? "" : "只有在 Claude 里打开时才能保存文件";
     renderEditorAvatar();
     $("editorBack").hidden = false;
     $("edName").focus();
@@ -1111,6 +1251,12 @@
     d.scenario = $("edScenario").value.trim();
     d.firstMessage = $("edFirst").value.trim();
     d.examples = $("edExamples").value.trim();
+    d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
+    d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
+    d.creator = $("edCreator").value.trim();
+    d.creatorNotes = $("edNotes").value.trim();
+    d.systemPrompt = $("edSys").value.trim();
+    d.postHistory = $("edPost").value.trim();
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
       const prev = state.characters[idx];
@@ -1148,6 +1294,253 @@
   }
 
   // ============================================================
+  // SillyTavern card import / export
+  // ============================================================
+  const utf8 = { enc: new TextEncoder(), dec: new TextDecoder() };
+  function b64encode(str) {
+    const bytes = utf8.enc.encode(str);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  function b64decode(b64) {
+    const bin = atob(b64.replace(/\s+/g, ""));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return utf8.dec.decode(bytes);
+  }
+
+  // --- PNG chunk reading / writing ---
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  const PNG_SIG = [137, 80, 78, 71, 13, 10, 26, 10];
+  function isPng(bytes) { return bytes.length > 8 && PNG_SIG.every((b, i) => bytes[i] === b); }
+  function pngChunks(bytes) {
+    const out = [];
+    let pos = 8;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    while (pos + 8 <= bytes.length) {
+      const len = dv.getUint32(pos);
+      const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+      out.push({ type, data: bytes.subarray(pos + 8, pos + 8 + len), start: pos, end: pos + 12 + len });
+      pos += 12 + len;
+      if (type === "IEND") break;
+    }
+    return out;
+  }
+  function readCardFromPng(bytes) {
+    const texts = {};
+    for (const ch of pngChunks(bytes)) {
+      if (ch.type !== "tEXt") continue;
+      const nul = ch.data.indexOf(0);
+      if (nul < 0) continue;
+      const key = String.fromCharCode.apply(null, ch.data.subarray(0, nul));
+      const val = String.fromCharCode.apply(null, ch.data.subarray(nul + 1));
+      texts[key] = val;
+    }
+    const raw = texts.ccv3 || texts.chara;
+    if (!raw) return null;
+    return JSON.parse(b64decode(raw));
+  }
+  function makeTextChunk(key, value) {
+    const kb = utf8.enc.encode(key), vb = utf8.enc.encode(value);
+    const data = new Uint8Array(kb.length + 1 + vb.length);
+    data.set(kb, 0); data[kb.length] = 0; data.set(vb, kb.length + 1);
+    const typeAndData = new Uint8Array(4 + data.length);
+    typeAndData.set([116, 69, 88, 116], 0); // tEXt
+    typeAndData.set(data, 4);
+    const chunk = new Uint8Array(12 + data.length);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, data.length);
+    chunk.set(typeAndData, 4);
+    dv.setUint32(8 + data.length, crc32(typeAndData));
+    return chunk;
+  }
+  function writeCardToPng(bytes, cardV2, cardV3) {
+    // drop existing chara/ccv3 tEXt chunks, then insert ours right after IHDR
+    const chunks = pngChunks(bytes).filter((ch) => {
+      if (ch.type !== "tEXt") return true;
+      const nul = ch.data.indexOf(0);
+      const key = nul >= 0 ? String.fromCharCode.apply(null, ch.data.subarray(0, nul)) : "";
+      return key !== "chara" && key !== "ccv3";
+    });
+    const parts = [new Uint8Array(PNG_SIG)];
+    for (const ch of chunks) {
+      parts.push(bytes.subarray(ch.start, ch.end));
+      if (ch.type === "IHDR") {
+        parts.push(makeTextChunk("chara", b64encode(JSON.stringify(cardV2))));
+        parts.push(makeTextChunk("ccv3", b64encode(JSON.stringify(cardV3))));
+      }
+    }
+    const total = parts.reduce((n, p) => n + p.length, 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const p of parts) { out.set(p, off); off += p.length; }
+    return out;
+  }
+
+  // --- ST card <-> our character ---
+  function fromStCard(card) {
+    const d = card && card.data && typeof card.data === "object" ? card.data : card;
+    if (!d || typeof d !== "object" || !d.name) throw new Error("不是角色卡：缺少 name");
+    const str = (x) => (typeof x === "string" ? x : "");
+    const tags = Array.isArray(d.tags) ? d.tags.map(String) : [];
+    const c = normalizeChar({
+      id: uid(),
+      name: String(d.name),
+      tag: tags.length ? tags.slice(0, 4).join(" · ") : str(d.creator_notes).split("\n")[0].slice(0, 40),
+      emoji: String(d.name).slice(0, 1),
+      color: SWATCHES[Math.floor(Math.random() * SWATCHES.length)],
+      image: "",
+      description: str(d.description),
+      personality: str(d.personality),
+      scenario: str(d.scenario),
+      firstMessage: str(d.first_mes),
+      examples: str(d.mes_example),
+      altGreetings: Array.isArray(d.alternate_greetings) ? d.alternate_greetings.map(String) : [],
+      creatorNotes: str(d.creator_notes),
+      creator: str(d.creator),
+      version: str(d.character_version),
+      tags,
+      systemPrompt: str(d.system_prompt),
+      postHistory: str(d.post_history_instructions),
+      book: d.character_book && typeof d.character_book === "object" ? d.character_book : null,
+      extensions: d.extensions && typeof d.extensions === "object" ? d.extensions : {},
+      chat: [],
+      createdAt: Date.now(),
+    });
+    c.chat = [greeting(c)];
+    return c;
+  }
+  function toStCard(c) {
+    const data = {
+      name: c.name,
+      description: c.description || "",
+      personality: c.personality || "",
+      scenario: c.scenario || "",
+      first_mes: c.firstMessage || "",
+      mes_example: c.examples || "",
+      creator_notes: c.creatorNotes || "",
+      system_prompt: c.systemPrompt || "",
+      post_history_instructions: c.postHistory || "",
+      alternate_greetings: c.altGreetings || [],
+      character_book: c.book || undefined,
+      tags: c.tags || [],
+      creator: c.creator || "",
+      character_version: c.version || "",
+      extensions: c.extensions || {},
+    };
+    if (!data.character_book) delete data.character_book;
+    const v2 = { spec: "chara_card_v2", spec_version: "2.0", data };
+    const v3 = {
+      spec: "chara_card_v3", spec_version: "3.0",
+      data: { ...data, group_only_greetings: [], creation_date: Math.floor((c.createdAt || Date.now()) / 1000), modification_date: Math.floor(Date.now() / 1000) },
+    };
+    return { v2, v3 };
+  }
+  function safeName(name) { return (name || "character").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60); }
+
+  async function fileToBytes(file) { return new Uint8Array(await file.arrayBuffer()); }
+
+  async function importFiles(files) {
+    let ok = 0, fail = [];
+    for (const f of files) {
+      try {
+        const bytes = await fileToBytes(f);
+        let card = null, image = "";
+        if (isPng(bytes)) {
+          card = readCardFromPng(bytes);
+          if (!card) throw new Error("这张 PNG 里没有角色数据（缺少 chara / ccv3 块）");
+          image = await readImage(f).catch(() => "");
+        } else {
+          card = JSON.parse(utf8.dec.decode(bytes));
+        }
+        const c = fromStCard(card);
+        if (image) c.image = image;
+        state.characters.unshift(c);
+        state.activeId = c.id;
+        ok++;
+      } catch (e) {
+        fail.push(`${f.name}：${e && e.message ? e.message : "读取失败"}`);
+      }
+    }
+    save(); renderAll(); closeOverlays();
+    if (ok && !fail.length) toast(`导入了 ${ok} 个角色`);
+    else if (ok) toast(`导入了 ${ok} 个，失败 ${fail.length} 个：${fail.join("；")}`, true);
+    else toast(`导入失败：${fail.join("；")}`, true);
+  }
+
+  // Build a PNG for export: the uploaded avatar if any, else a generated portrait card
+  async function portraitPng(c) {
+    const W = 400, H = 600;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    if (c.image) {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = c.image; });
+      const s = Math.max(W / img.width, H / img.height);
+      ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
+    } else {
+      ctx.fillStyle = "#16151b"; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = c.color || "#d9a066";
+      ctx.beginPath(); ctx.arc(W / 2, H / 2 - 40, 110, 0, Math.PI * 2); ctx.fill();
+      ctx.font = "120px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ffffff"; ctx.fillText(c.emoji || c.name.slice(0, 1), W / 2, H / 2 - 34);
+      ctx.font = "bold 34px serif"; ctx.fillStyle = "#ece9f1"; ctx.fillText(c.name, W / 2, H / 2 + 130);
+    }
+    const blob = await new Promise((res) => cv.toBlob(res, "image/png"));
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  async function exportCard(kind) {
+    if (!editing || !downloads) return;
+    // read the form first so the export matches what is on screen
+    const d = editing.draft;
+    d.name = $("edName").value.trim() || d.name || "character";
+    d.description = $("edDesc").value.trim(); d.personality = $("edPersonality").value.trim();
+    d.scenario = $("edScenario").value.trim(); d.firstMessage = $("edFirst").value.trim(); d.examples = $("edExamples").value.trim();
+    d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
+    d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
+    d.creator = $("edCreator").value.trim(); d.creatorNotes = $("edNotes").value.trim();
+    d.systemPrompt = $("edSys").value.trim(); d.postHistory = $("edPost").value.trim();
+    const { v2, v3 } = toStCard(d);
+    try {
+      if (kind === "json") {
+        await downloads.save({ filename: safeName(d.name) + ".json", data: JSON.stringify(v2, null, 2) });
+      } else {
+        const png = writeCardToPng(await portraitPng(d), v2, v3);
+        await downloads.save({ filename: safeName(d.name) + ".png", data: png });
+      }
+      toast("已导出");
+    } catch (e) {
+      if (e && e.code === "cancelled") return;
+      toast("导出失败：" + (e && (e.message || e.code) || "未知错误"), true);
+    }
+  }
+
+  let toastTimer = null;
+  function toast(text, bad) {
+    let t = document.querySelector(".toast");
+    if (!t) { t = el("div", "toast"); document.body.appendChild(t); }
+    t.className = "toast" + (bad ? " bad" : "");
+    t.textContent = text;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.remove(), bad ? 7000 : 2500);
+  }
+
+  // ============================================================
   // Layout helpers
   // ============================================================
   function autosize(ta) {
@@ -1176,6 +1569,22 @@
   $("input").addEventListener("input", (e) => autosize(e.target));
 
   $("newChar").onclick = () => openEditor(null);
+  $("importChar").onclick = () => $("importFile").click();
+  $("importFile").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length) await importFiles(files);
+  });
+  const rail = $("rail");
+  rail.addEventListener("dragover", (e) => { e.preventDefault(); rail.classList.add("dragover"); });
+  rail.addEventListener("dragleave", () => rail.classList.remove("dragover"));
+  rail.addEventListener("drop", async (e) => {
+    e.preventDefault(); rail.classList.remove("dragover");
+    const files = Array.from(e.dataTransfer.files || []).filter((f) => /\.(png|json)$/i.test(f.name));
+    if (files.length) await importFiles(files);
+  });
+  $("exportJson").onclick = () => exportCard("json");
+  $("exportPng").onclick = () => exportCard("png");
   $("editChar").onclick = () => openEditor(active());
   $("resetChat").onclick = () => {
     const c = active();
