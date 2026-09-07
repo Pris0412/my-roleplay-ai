@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>雅思词汇乐园 · IELTS Vocab Fun</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">🎯 雅思<span>词汇乐园</span></div>
+      <div class="stats">
+        <div class="stat">🔥 连续 <b id="streak">0</b> 天</div>
+        <div class="stat">⭐ Lv.<b id="level">1</b></div>
+        <div class="stat">✨ <b id="xp">0</b> XP</div>
+      </div>
+    </header>
+    <div class="xpbar"><div id="xpbar"></div></div>
+
+    <div class="topics" id="topics"></div>
+
+    <div class="voicebar">
+      <span>🔊 口音</span>
+      <div class="seg" id="accentSeg">
+        <button data-accent="en-GB" class="active">🇬🇧 英式</button>
+        <button data-accent="en-US">🇺🇸 美式</button>
+      </div>
+      <span>🐢 语速</span>
+      <div class="seg" id="rateSeg">
+        <button data-rate="1" class="active">正常</button>
+        <button data-rate="0.6">慢速</button>
+      </div>
+      <span id="voiceWarn" class="warn" hidden>⚠️ 当前浏览器不支持语音，建议用 Chrome / Edge / Safari</span>
+    </div>
+
+    <!-- 学习：翻转卡片 -->
+    <section class="panel active" id="panel-learn">
+      <div class="scene">
+        <div class="card" id="card">
+          <div class="face front" id="cardFront"></div>
+          <div class="face back" id="cardBack"></div>
+        </div>
+      </div>
+      <div class="rate-row">
+        <button class="rate hard" data-grade="0">😵 还不熟</button>
+        <button class="rate ok" data-grade="1">🤔 有点熟</button>
+        <button class="rate easy" data-grade="2">😎 记住了</button>
+      </div>
+      <div class="nav-row">
+        <button class="ghost" id="prevBtn">← 上一个</button>
+        <button class="ghost" id="shuffleBtn">🔀 打乱</button>
+        <button class="ghost" id="nextBtn">下一个 →</button>
+      </div>
+    </section>
+
+    <!-- 测验：选择题 -->
+    <section class="panel" id="panel-quiz">
+      <div class="mode-row">
+        <div class="seg" id="quizModeSeg">
+          <button data-mode="meaning" class="active">📖 看词选义</button>
+          <button data-mode="listen">🎧 听音选词</button>
+          <button data-mode="reverse">🇨🇳 看义选词</button>
+        </div>
+      </div>
+      <div class="qbox" id="quizBox"></div>
+    </section>
+
+    <!-- 拼写 -->
+    <section class="panel" id="panel-spell">
+      <div class="qbox" id="spellBox"></div>
+    </section>
+
+    <!-- 填空 -->
+    <section class="panel" id="panel-cloze">
+      <div class="qbox" id="clozeBox"></div>
+    </section>
+
+    <!-- 我的进度 -->
+    <section class="panel" id="panel-progress">
+      <div class="summary" id="summary"></div>
+      <div class="wlist" id="wlist"></div>
+      <div style="margin-top:16px;text-align:center">
+        <button class="ghost danger" id="resetBtn">🗑️ 清空学习记录</button>
+      </div>
+    </section>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-panel="learn"><span class="ico">🃏</span>学习</button>
+    <button class="tab" data-panel="quiz"><span class="ico">🎯</span>测验</button>
+    <button class="tab" data-panel="spell"><span class="ico">⌨️</span>拼写</button>
+    <button class="tab" data-panel="cloze"><span class="ico">✍️</span>填空</button>
+    <button class="tab" data-panel="progress"><span class="ico">📈</span>进度</button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+  <div class="confetti" id="confetti"></div>
+
+  <script src="js/words.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
