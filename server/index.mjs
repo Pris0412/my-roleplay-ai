@@ -127,7 +127,8 @@ http.createServer(async (req, res) => {
     if (url.pathname === '/api/fts/search') { const b = await readBody(req); return json(res, 200, { hits: search(String(b.worldId), String(b.q || ''), Number(b.k) || 15, b.exclude || []) }); }
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       const b = await readBody(req);
-      const model = MODELS.includes(b.model) ? b.model : 'claude-opus-5';
+      // 允许任何 claude-* 型号 ID（新型号出了也能直接填），不合法的才回退
+      const model = /^claude-[a-z0-9.-]+$/i.test(String(b.model || '')) ? b.model : 'claude-opus-5';
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', 'access-control-allow-origin': '*', connection: 'keep-alive' });
       const ac = new AbortController(); req.on('close', () => ac.abort());
       return streamChat({ model, messages: b.messages || [] }, res, ac);

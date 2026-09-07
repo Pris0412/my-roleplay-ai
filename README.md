@@ -10,9 +10,9 @@
 
 | | claude.ai Artifact | 本地后端 |
 |---|---|---|
-| 安装 | 零安装，打开链接即用，手机可玩 | `cd server && npm install && npm start` |
+| 安装 | 零安装，打开链接即用，手机可玩 | 双击 `server/start.command`（Mac）或 `server/start.bat`（Windows） |
 | 额度 | claude.ai 订阅 | Claude Code 登录的订阅 |
-| 模型 | 快速 / 标准 / 深思三档（具体型号由平台分配） | 精确选型号，楼层上会标注是哪一个 |
+| 模型 | 快速 / 标准 / 深思三档（平台不开放型号名） | **按型号选**：Opus 5 / Sonnet 5 / Haiku 4.5 / Opus 4.8 / 4.7 / 4.6 / Sonnet 4.6，或填任意 claude-* ID；楼层上标注实际型号 |
 | 记忆检索 | 浏览器内全文索引（二元切分 + BM25） | SQLite FTS5 |
 | 存档 | 云端同步 + 浏览器 | `server/data/state.json` |
 

@@ -1,26 +1,24 @@
-# 墨间 · 本地后端
+# 墨间 · 本地后端（指定型号 + SQLite FTS5）
 
-用 Claude Code 登录的订阅额度调用**指定型号**（Opus 5 / Sonnet 5 / Haiku 4.5 / Opus 4.8 / 4.7 / 4.6 / Sonnet 4.6），并提供 SQLite FTS5 记忆检索与存档。
+在 claude.ai 里打开的页面只能选「快速 / 标准 / 深思」三档，平台不开放型号名。
+**要按型号选（Opus 5 / Sonnet 5 / Haiku 4.5 / Opus 4.8 / 4.7 / 4.6 / Sonnet 4.6，或任何新的 claude-* ID），就用这个本地后端。**
+它通过 Claude Code 的登录走你的订阅额度，不需要 API key。
 
-## 启动
+## 三步启动
 
-```bash
-# 1. 先确认电脑上已登录 Claude Code（终端里运行一次 `claude` 并登录即可）
-# 2. 安装并启动
-cd server
-npm install
-npm start
-```
+1. 装好 Node.js（https://nodejs.org ，LTS 即可）和 Claude Code，并在终端里运行一次 `claude` 完成登录。
+2. 双击 `server/start.command`（macOS）或 `server/start.bat`（Windows）；Linux 用 `./start.sh`。首次会自动安装依赖。
+3. 浏览器会自动打开 http://localhost:8787 。输入框旁的下拉框此时就是型号列表；每一楼的署名旁会写实际用的型号 ID。
 
-然后在浏览器打开 http://localhost:8787 ，页面会自动连上后端；手机连同一个 Wi-Fi，访问 `http://<电脑的局域网 IP>:8787` 即可。
+手机：连同一个 Wi-Fi，访问 `http://<电脑的局域网 IP>:8787`。
 
-也可以直接双击 `inkroom.html`，它会自动尝试连接 `http://localhost:8787`；或在「设置 → AI 来源」里填地址后点「连接」。
+也可以直接双击仓库根目录的 `inkroom.html`，它会自动连接 `http://localhost:8787`。
 
 ## 接口
 
 | 路径 | 说明 |
 |---|---|
-| `POST /api/chat` | `{model, messages:[{role, content}]}` → SSE 流式文本；第一条 user 消息作为 system prompt |
+| `POST /api/chat` | `{model, messages:[{role, content}]}` → SSE 流式文本；第一条 user 消息作为 system prompt；`model` 接受任何 `claude-*` ID |
 | `POST /api/fts/index` | `{worldId, floors:[{id, n, role, text}]}` 重建该世界的 FTS5 索引（含隐藏楼层） |
 | `POST /api/fts/search` | `{worldId, q, k, exclude:[id]}` → `{hits:[{id, score}]}`，bm25 排序 |
 | `GET/POST /api/state` | 读写存档 `server/data/state.json` |

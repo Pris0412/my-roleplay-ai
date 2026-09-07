@@ -269,6 +269,7 @@ pre.pv{white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-s
         <button class="btn p" id="send">发送</button>
       </div>
       <div id="status"></div>
+      <div id="modelHint" class="tiny hidden" style="margin-top:2px">当前在 claude.ai 里，只能选档位，平台不开放型号名。想按型号选（Opus 5 / Sonnet 5 / Haiku 4.5…）→ <button class="btn sm ghost" id="hintBackend">看「本地后端」三步启动</button></div>
     </div></footer>
     <aside id="drawer">
       <div class="ph"><h2 id="drawerTitle">面板</h2><button class="btn sm ghost" id="drawerClose">关闭</button></div>
@@ -883,6 +884,7 @@ function renderSettings(b){
   <div class="card"><div class="row between"><b>当前</b><span class="chip ${BACKEND?'gold':'acc'}">${BACKEND?'本地后端 · '+esc(BACKEND.url):(SAMPLE?'claude.ai 订阅（页面内置）':'未连接')}</span></div>
   <p class="tiny" style="margin-top:6px">在 claude.ai 里打开：直接用你的订阅额度。平台只开放三档，文档原话是：<b>快速</b> = 最快、不先思考；<b>标准</b> = 日常均衡；<b>深思</b> = 最强、思考最久。平台不告诉页面具体型号，你的套餐没有某一档时会自动降到相邻档（每楼署名旁会标出实际档位）。<br>本地后端：在电脑上运行仓库里的 <code>server/</code>（走 Claude Code 登录的订阅额度），就能指定 Opus 5 / Sonnet 5 / Haiku 4.5 等具体型号，并使用 SQLite FTS5 做记忆检索，手机连同一 Wi-Fi 也能玩。</p>
   ${SAMPLE&&!BACKEND?`<div class="card" style="margin-top:10px"><div class="row between"><b>模型探测</b><button class="btn sm g" id="probeModels">三档各问一次「你是谁」</button></div><p class="tiny">让每一档的模型自报名称与版本。模型的自我认知不一定准确（尤其是版本号），只能作参考；每次探测会用掉一点点额度。</p><div id="probeOut" style="margin-top:6px">${(st.probe||[]).length?probeTable(st.probe):'<span class="tiny">还没探测过。</span>'}</div></div>`:''}
+  <div class="card" style="margin-top:8px"><b>按型号选模型：本地后端三步启动</b><ol class="tiny" style="margin:6px 0 0;padding-left:18px;line-height:1.8"><li>电脑上装好 Node.js 和 Claude Code，终端里运行一次 <code>claude</code> 登录（走的就是你的订阅）。</li><li>从仓库下载 <code>server</code> 文件夹，双击 <code>start.command</code>（Mac）或 <code>start.bat</code>（Windows）。</li><li>浏览器会打开 http://localhost:8787 ，下拉框里就是 Opus 5 / Sonnet 5 / Haiku 4.5 / Opus 4.8 / 4.7 / 4.6 / Sonnet 4.6，还能填任意 claude-* 型号 ID；手机连同一 Wi-Fi 也能用。</li></ol><label class="row" style="margin-top:8px;cursor:pointer"><input type="checkbox" id="hideHint" ${st.hideModelHint?'checked':''}> 不再在输入框下方显示这条提示</label></div>
   <label class="f">本地后端地址（留空 = 不用）</label><div class="row"><input type="text" id="beUrl" class="grow" placeholder="http://localhost:8787" value="${esc(st.backendUrl||'')}"><button class="btn sm" id="beTest">连接</button></div>
   ${BACKEND?`<label class="f">模型（本地后端）</label><select id="beModel">${MODELS.map(([id,l])=>`<option value="${id}" ${st.model===id?'selected':''}>${l} · ${id}</option>`).join('')}</select>`:''}</div>
   <p class="muted">第二期计划：uu 的小手机（WhatsApp / 转账 / Instagram）、论坛、char 日记、时间推进、char 主动联系、关系图谱历史动画、SQLite 后端。</p>`;
@@ -897,6 +899,7 @@ function renderSettings(b){
   const pb=$('#probeModels',b);if(pb)pb.onclick=async()=>{pb.disabled=true;$('#probeOut',b).innerHTML='<span class="tiny">探测中……（深思档可能要等十几秒）</span>';const res=[];
     for(const t of ['quick','default','complex']){try{const r=await SAMPLE('请只回答一行：你是哪个公司的哪个模型，名称与版本号是什么？如果不确定版本，写出你最可能的名字并注明「不确定」。不要其他内容。'+'\n（探测时间 '+new Date().toISOString()+'）',{modelTier:t,cache:false});res.push({tier:t,applied:r.modelTierApplied,name:r.text.trim().slice(0,80)})}catch(e){res.push({tier:t,applied:'-',name:'失败：'+(e.message||e.code)})}$('#probeOut',b).innerHTML=probeTable(res)}
     st.probe=res;st.probeAt=now();markDirty();pb.disabled=false};
+  const hh=$('#hideHint',b);if(hh)hh.onchange=e=>{st.hideModelHint=e.target.checked;markDirty();renderModelSelect()};
   $('#beTest',b).onclick=async()=>{st.backendUrl=$('#beUrl',b).value.trim();markDirty();setStatus('正在连接后端……');await connectBackend(true);renderPanel();renderModelSelect()};
   const bm=$('#beModel',b);if(bm)bm.onchange=()=>{st.model=bm.value;markDirty();renderModelSelect()};
   $('#resetAll',b).onclick=()=>{if(!confirm('清空全部角色、世界、聊天与设置？建议先备份。此操作不可撤销。'))return;const old=S.worlds.map(w=>w.id);S=seedState();old.forEach(id=>dirty.add(id));saveAll();renderAll();renderPanel()};
@@ -1014,7 +1017,11 @@ async function connectBackend(verbose){
   try{const be=makeBackend(url);const h=await be.health();if(!h.ok)throw new Error('health 不 ok');BACKEND=be;if(!MODELS.some(m=>m[0]===st.model))st.model='claude-opus-5';setStatus(`已连接本地后端 ${url} · 模型 ${st.model}${h.fts5?' · FTS5 就绪':''}`,true);return true}
   catch(e){BACKEND=null;if(verbose)toast('连不上后端：'+e.message,4500);return false}
 }
-function renderModelSelect(){const ts=$('#tierSel');if(BACKEND){ts.innerHTML=MODELS.map(([id,l])=>`<option value="${id}">${l}</option>`).join('');ts.value=S.settings.model;ts.onchange=()=>{S.settings.model=ts.value;markDirty()}}else{ts.innerHTML=TIERS.map(t=>`<option value="${t.id}">${t.label}</option>`).join('');ts.value=S.settings.tier;ts.onchange=()=>{S.settings.tier=ts.value;markDirty()}}}
+function renderModelSelect(){const ts=$('#tierSel');
+  if(BACKEND){const list=MODELS.slice();if(S.settings.model&&!list.some(m=>m[0]===S.settings.model))list.push([S.settings.model,S.settings.model]);ts.innerHTML=list.map(([id,l])=>`<option value="${id}">${l}</option>`).join('')+'<option value="__custom">自定义型号 ID…</option>';ts.value=S.settings.model;ts.title='型号（本地后端 · 精确指定）';
+    ts.onchange=()=>{if(ts.value==='__custom'){const v=prompt('输入 claude-* 型号 ID，例如 claude-opus-5','claude-opus-5');if(v&&/^claude-[a-z0-9.-]+$/i.test(v.trim()))S.settings.model=v.trim();renderModelSelect();markDirty();return}S.settings.model=ts.value;markDirty()}}
+  else{ts.innerHTML=TIERS.map(t=>`<option value="${t.id}">${t.label}</option>`).join('');ts.value=S.settings.tier;ts.title='claude.ai 只开放档位；要指定型号请用本地后端';ts.onchange=()=>{S.settings.tier=ts.value;markDirty()}}
+  const h=$('#modelHint');if(h)h.classList.toggle('hidden',!(SAMPLE&&!BACKEND&&!S.settings.hideModelHint));}
 
 /* ---------------- generation ---------------- */
 async function generate({mode,continueText}){
@@ -1166,6 +1173,7 @@ function bindUI(){
   $('#contBtn').onclick=()=>generate({mode:'continue'});
   $('#inspireBtn').onclick=inspire;
   $('#stop').onclick=()=>ctl?.abort();
+  $('#hintBackend').onclick=()=>{openPanel('settings');setTimeout(()=>{const el=$('#beUrl');if(el){el.scrollIntoView({block:'center'});el.focus()}},100)};
   $('#msg').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();generate({mode:'send'})}});
   let ct;$('#msg').addEventListener('input',()=>{clearTimeout(ct);ct=setTimeout(renderCtx,400)});
   const rm=$('#replyMode');rm.innerHTML=REPLY_MODES.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');rm.value=S.settings.replyMode;rm.onchange=()=>{S.settings.replyMode=rm.value;markDirty();renderCtx()};
