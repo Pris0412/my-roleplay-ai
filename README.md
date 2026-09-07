@@ -94,5 +94,21 @@
 - 导出为 ST 可读的 JSON（保留采样参数等原字段）；采样参数在页面里标为不生效
 - 超出输入上限时优先丢最早的历史，不丢预设提示词
 
+## v7 · 自定义 OpenAI 兼容 API、数据备份
+- 设置栏「模型接口」：Claude（页内，无需密钥）或自定义 OpenAI 兼容 API（Base URL + Key）
+- 「测试并读取模型列表」调 `GET /models`，下拉选模型，也可手填模型 ID
+- `POST /chat/completions` SSE 流式（也接受非流式 / JSON 响应），`reasoning_content` 折叠为思考过程，停止 = AbortController
+- 采样参数：temperature / top_p / max_tokens / 流式；可勾选「跟随当前预设」（含 frequency / presence penalty）
+- 自定义接口下 system 角色原样发送；Claude 页内接口则映射为 user 并补首尾 user 轮
+- 灵感 / 记忆总结 / 滑动生成都走同一入口 `complete()` / `completeJson()`
+- 「数据」区：备份全部数据（JSON，不含 API Key）/ 恢复备份（覆盖前确认）
+- 限制：在 Claude 的 Artifact 里打开时，浏览器 CSP 不允许页面访问任何外部地址（含 localhost），
+  自定义接口需把 `index.html` 下载到本地用浏览器打开；页面会明确提示，并给出对应错误文案
+
+## 本地使用
+1. 在 Artifact 里「数据 › 备份全部数据」
+2. 下载本仓库的 `index.html`，双击用浏览器打开（或任意静态服务器）
+3. 「数据 › 恢复备份」，然后在「模型接口」切到自定义 API，填地址、读取模型、选模型
+
 ## 后续计划
 见对话记录，一步一步加。

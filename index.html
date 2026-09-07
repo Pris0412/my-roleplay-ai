@@ -663,6 +663,72 @@
     </div>
     <div class="drawer-body">
       <div class="section">
+        <div class="section-title">模型接口</div>
+        <div class="field">
+          <label for="sBackend">用哪个接口</label>
+          <select id="sBackend">
+            <option value="claude">Claude · 通过本页面（无需密钥）</option>
+            <option value="custom">自定义 · OpenAI 兼容 API</option>
+          </select>
+        </div>
+        <div id="apiBox" hidden>
+          <div class="book-note" id="apiNote"></div>
+          <div class="field">
+            <label for="apiUrl">API 地址（Base URL）</label>
+            <input id="apiUrl" placeholder="http://localhost:3456/v1" class="mono">
+            <div class="help">填到 /v1 为止。本地代理、DeepSeek、Moonshot、OpenRouter、各类中转站、Ollama / LM Studio 都是这个格式。</div>
+          </div>
+          <div class="field">
+            <label for="apiKey">API Key</label>
+            <input id="apiKey" type="password" placeholder="sk-…（本地代理可留空）" class="mono" autocomplete="off">
+            <div class="help">只存在这个浏览器的本地存储里，不会发给除该地址以外的任何地方。</div>
+          </div>
+          <div class="row">
+            <button class="btn" id="apiTest">测试并读取模型列表</button>
+            <span class="stat" id="apiStat" style="align-self:center"></span>
+          </div>
+          <div class="field">
+            <label for="apiModelSel">模型</label>
+            <select id="apiModelSel"><option value="">（先读取模型列表，或在下面手填）</option></select>
+            <input id="apiModel" placeholder="也可以直接填模型 ID，例如 claude-sonnet-5 / gpt-4o" class="mono" style="margin-top:6px">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="apiTemp">temperature</label>
+              <input id="apiTemp" type="number" step="0.05" min="0" max="2" class="mono">
+            </div>
+            <div class="field">
+              <label for="apiTopP">top_p</label>
+              <input id="apiTopP" type="number" step="0.05" min="0" max="1" class="mono">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="apiMaxTokens">max_tokens</label>
+              <input id="apiMaxTokens" type="number" step="1" min="1" class="mono">
+            </div>
+            <div class="field">
+              <label for="apiStream">流式输出</label>
+              <select id="apiStream"><option value="1">开</option><option value="0">关</option></select>
+            </div>
+          </div>
+          <div class="checks">
+            <label><input type="checkbox" id="apiFollowPreset"> 采样参数跟随当前预设（temperature / top_p / 惩罚 / max_tokens）</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">数据</div>
+        <div class="row">
+          <button class="btn" id="dataExport">备份全部数据</button>
+          <button class="btn" id="dataImport">恢复备份</button>
+        </div>
+        <input type="file" id="dataFile" accept=".json,application/json" hidden>
+        <div class="help">角色、聊天记录、世界书、正则、预设、设置全部打包成一个 JSON。换浏览器或把页面下载到本地打开时用它搬家。API Key 不会包含在备份里。</div>
+      </div>
+
+      <div class="section">
         <div class="section-title">你的人设</div>
         <div class="field">
           <label for="pName">你的名字（{{user}}）</label>
@@ -676,7 +742,7 @@
 
       <div class="section">
         <div class="section-title">生成</div>
-        <div class="field">
+        <div class="field" id="tierField">
           <label for="sTier">模型档位</label>
           <select id="sTier">
             <option value="quick">快速 · 回复立刻开始，适合闲聊</option>
@@ -1280,7 +1346,8 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
-      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10 },
+      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10, backend: "claude" },
+      api: { url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, stream: true, followPreset: true },
       regex: [],
       books: [],
       presets: [],
@@ -1425,7 +1492,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; return s; }
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, stream: true, followPreset: true }, s.api || {}); s.settings.backend = s.settings.backend || "claude"; return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -1798,7 +1865,7 @@
     const isLast = last && last.id === m.id;
 
     // swipes: ‹ n/N › on assistant messages; › on the last reply generates a new version
-    const canSwipeNew = !isUser && isLast && !m.greeting && !!sample;
+    const canSwipeNew = !isUser && isLast && !m.greeting && chatReady();
     if (!isUser && (m.swipes.length > 1 || canSwipeNew)) {
       const sw = el("div", "swipe");
       const left = el("button", "btn ghost", "‹");
@@ -2145,7 +2212,7 @@
       else content = sub(pr.content, c);
       content = (content || "").trim();
       if (!content) continue;
-      const role = pr.role === "assistant" ? "assistant" : "user";
+      const role = pr.role === "assistant" ? "assistant" : pr.role === "user" ? "user" : "system";
       if (pr.injection_position === 1) { inChat.push({ depth: pr.injection_depth, role, content }); continue; }
       (afterHistory ? post : pre).push({ role, content });
     }
@@ -2161,10 +2228,7 @@
       const at = Math.max(0, history.length - inj.depth);
       history.splice(at, 0, { role: inj.role, content: inj.content });
     }
-    const turns = [...pre, ...history, ...post];
-    if (!turns.length || turns[0].role !== "user") turns.unshift({ role: "user", content: `（以下是 ${c.name} 与 ${u} 的角色扮演设定。）` });
-    if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: "（继续，接着刚才的情节写下去。）" });
-    return turns;
+    return [...pre, ...history, ...post];
   }
 
   function buildTurns(c, upto) {
@@ -2188,14 +2252,14 @@
     if (ps) {
       turns = buildTurnsPreset(ps, c, kept, retrieved, upto);
     } else {
-      turns = [{ role: "user", content: buildInstruction(c, kept, retrieved) }];
+      turns = [{ role: "system", content: buildInstruction(c, kept, retrieved) }];
       kept.forEach((m, i) => {
         const depth = kept.length - 1 - i;
         let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
         if (m.role === "assistant") txt = stripReasoning(txt);
         if (txt.trim()) turns.push({ role: m.role, content: txt, hist: true });
       });
-      if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
+      if (c.postHistory && c.postHistory.trim()) turns.push({ role: "system", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
     }
     // keep total under the 64 KiB input cap (measured in UTF-8 bytes: CJK is 3 bytes a character)
     const bytes = (t) => utf8.enc.encode(t).length;
@@ -2222,9 +2286,16 @@
       floors: inContext.length, firstFloor: inContext.length ? c.chat.indexOf(inContext[0]) + 1 : 0, lastFloor: inContext.length ? c.chat.indexOf(inContext[inContext.length - 1]) + 1 : 0,
       hidden: c.chat.filter((m) => m.hidden).length, retrieved: retrieved.length, dropped, trimmedByMem: Math.max(0, history.filter((m) => !m.error && !m.hidden).length - mem),
     };
-    // must end on a user turn: if the last is assistant (e.g. "continue"), append a nudge
     if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: "（继续，接着刚才的情节写下去。）" });
     return turns;
+  }
+  // The Claude path has no system role and must start/end on user turns; a custom API takes turns as they are.
+  function forBackend(turns) {
+    if (isCustom()) return turns;
+    const out = turns.map((t) => ({ role: t.role === "assistant" ? "assistant" : "user", content: t.content }));
+    if (!out.length || out[0].role !== "user") out.unshift({ role: "user", content: "（以下是角色扮演的设定。）" });
+    if (out[out.length - 1].role !== "user") out.push({ role: "user", content: "（继续，接着刚才的情节写下去。）" });
+    return out;
   }
 
   // ============================================================
@@ -2249,20 +2320,123 @@
     } catch (e) { sample = null; downloads = null; }
     if (editing) { $("exportJson").disabled = $("exportPng").disabled = !downloads; }
     sampleReady = true;
-    const libNote = canHtml() ? "" : `<br>渲染库没有加载出来（marked ${window.marked ? "✓" : "✗"}，DOMPurify ${window.DOMPurify ? "✓" : "✗"}），角色卡的 HTML 前端会显示为纯文本，刷新页面试试。`;
-    if (!sample) {
-      showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能调用模型；你仍然可以编辑角色和整理聊天记录。" + libNote);
-      $("send").disabled = true;
-      $("inspire").disabled = true;
-      $("hintRight").textContent = "离线模式";
-    } else {
-      if (libNote) showNotice("<strong>提示</strong>" + libNote);
-      $("hintRight").textContent = "第一次发送时会请求你的允许";
+    refreshBackendUi();
+  }
+
+  // ---------- Backends: Claude via the page, or an OpenAI-compatible API ----------
+  const isCustom = () => state.settings.backend === "custom";
+  const chatReady = () => (isCustom() ? !!(state.api.url && state.api.model) : !!sample);
+  function apiBase() { return (state.api.url || "").trim().replace(/\/+$/, ""); }
+  function apiHeaders() {
+    const h = { "Content-Type": "application/json" };
+    if (state.api.key) h.Authorization = "Bearer " + state.api.key;
+    return h;
+  }
+  function samplerParams() {
+    const ps = activePreset();
+    const raw = ps && state.api.followPreset ? ps.raw : null;
+    const num = (a, b) => (typeof a === "number" ? a : typeof b === "number" ? b : undefined);
+    const out = {
+      temperature: num(raw && raw.temperature, state.api.temperature),
+      top_p: num(raw && raw.top_p, state.api.topP),
+      max_tokens: num(raw && raw.openai_max_tokens, state.api.maxTokens),
+      frequency_penalty: raw ? num(raw.frequency_penalty) : undefined,
+      presence_penalty: raw ? num(raw.presence_penalty) : undefined,
+    };
+    for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+    return out;
+  }
+  function netErrorCopy(e) {
+    if (e && e.name === "AbortError") return null;
+    if (e && e.code) return copyFor(e.code);
+    const inArtifact = !!(window.claude && typeof window.claude.use === "function");
+    if (e instanceof TypeError || /fetch/i.test(String(e && e.message))) {
+      return inArtifact
+        ? "请求被浏览器拦截：在 Claude 的 Artifact 里，页面不允许访问任何外部地址（包括 localhost）。把本页下载到本地用浏览器打开就能用自定义接口（设置 › 数据 里可以先备份数据）。"
+        : "连不上这个地址：检查 API 地址是否以 /v1 结尾、服务是否在运行并允许浏览器跨域（CORS）。";
     }
+    return "接口出错：" + (e && e.message ? e.message : String(e));
+  }
+  async function apiListModels() {
+    const res = await fetch(apiBase() + "/models", { headers: apiHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text().catch(() => "")}`.slice(0, 200));
+    const data = await res.json();
+    const arr = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : Array.isArray(data) ? data : [];
+    return arr.map((m) => (typeof m === "string" ? m : m.id || m.name || m.model)).filter(Boolean).sort();
+  }
+  // OpenAI-compatible chat completion with SSE streaming. Resolves { text, truncated }.
+  async function apiChat(messages, { onText, signal } = {}) {
+    const body = { model: state.api.model, messages, stream: !!state.api.stream, ...samplerParams() };
+    const res = await fetch(apiBase() + "/chat/completions", { method: "POST", headers: apiHeaders(), body: JSON.stringify(body), signal });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      let msg = `HTTP ${res.status}`;
+      try { const j = JSON.parse(t); msg += " · " + (j.error && (j.error.message || j.error) || t); } catch (e) { msg += " · " + t; }
+      throw new Error(msg.slice(0, 300));
+    }
+    let text = "", reasoning = "", finish = null;
+    const emit = () => { if (onText) onText({ text: (reasoning ? `<think>${reasoning}</think>\n` : "") + text }); };
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (!body.stream || !res.body || ctype.includes("application/json")) {
+      const j = await res.json();
+      const ch = j.choices && j.choices[0];
+      text = (ch && ch.message && ch.message.content) || "";
+      reasoning = (ch && ch.message && (ch.message.reasoning_content || ch.message.reasoning)) || "";
+      finish = ch && ch.finish_reason;
+      emit();
+    } else {
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split(/\r?\n/);
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          let j; try { j = JSON.parse(payload); } catch (e) { continue; }
+          const ch = j.choices && j.choices[0];
+          if (!ch) continue;
+          const d = ch.delta || {};
+          if (typeof d.reasoning_content === "string") reasoning += d.reasoning_content;
+          else if (typeof d.reasoning === "string") reasoning += d.reasoning;
+          if (typeof d.content === "string") text += d.content;
+          if (ch.finish_reason) finish = ch.finish_reason;
+          emit();
+        }
+      }
+    }
+    if (!text.trim() && !reasoning.trim()) throw Object.assign(new Error("empty"), { code: "empty_completion" });
+    return { text: (reasoning ? `<think>${reasoning}</think>\n` : "") + text, truncated: finish === "length" };
+  }
+  // One entry point for every place that needs a completion. `input` is a turn list or a plain prompt string.
+  async function complete(input, { onText, signal, tier } = {}) {
+    if (isCustom()) {
+      const messages = typeof input === "string" ? [{ role: "user", content: input }] : input;
+      return apiChat(messages, { onText, signal });
+    }
+    const res = await sample(typeof input === "string" ? input : forBackend(input), { cache: false, modelTier: tier || state.settings.tier, signal, onText });
+    return { text: res.text, truncated: !!res.truncated, modelTierApplied: res.modelTierApplied };
+  }
+  async function completeJson(prompt, { signal, tier } = {}) {
+    if (!isCustom()) return sample.json(prompt, { cache: false, modelTier: tier || state.settings.tier, signal });
+    const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字。" }], { signal });
+    const body = stripReasoning(text);
+    const tryParse = (t) => { try { return JSON.parse(t); } catch (e) { return undefined; } };
+    let v = tryParse(body);
+    if (v === undefined) { const m = body.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) v = tryParse(m[1]); }
+    if (v === undefined) { const a = body.indexOf("["), b = body.lastIndexOf("]"); if (a >= 0 && b > a) v = tryParse(body.slice(a, b + 1)); }
+    if (v === undefined) { const a = body.indexOf("{"), b = body.lastIndexOf("}"); if (a >= 0 && b > a) v = tryParse(body.slice(a, b + 1)); }
+    if (v === undefined) throw Object.assign(new Error("invalid_json"), { code: "invalid_json", text });
+    return v;
   }
 
   async function generate(c, target) {
-    if (!sample || busy) return;
+    if (!chatReady() || busy) return;
     let msg = target;
     if (msg) {
       // a new swipe on an existing reply
@@ -2285,9 +2459,7 @@
     busy = { ctl, msgId: msg.id };
     setBusy(true);
     try {
-      const res = await sample(turns, {
-        cache: false,
-        modelTier: state.settings.tier,
+      const res = await complete(turns, {
         signal: ctl.signal,
         onText: ({ text }) => {
           setText(text);
@@ -2298,19 +2470,22 @@
         },
       });
       setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
-      $("hintRight").textContent = `档位：${res.modelTierApplied}`;
+      $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
     } catch (e) {
       const dropSwipe = () => {
         if (target) { msg.swipes.pop(); msg.si = msg.swipes.length - 1; msg.content = msg.swipes[msg.si]; }
         else c.chat = c.chat.filter((m) => m.id !== msg.id);
       };
-      if (e && e.code === "cancelled") {
-        if (e.text && e.text.trim()) { setText(e.text); msg.stopped = true; }
+      const cancelled = e && (e.code === "cancelled" || e.name === "AbortError");
+      if (cancelled) {
+        const partial = (e && e.text) || msg.content;
+        if (partial && partial.trim()) { setText(partial); msg.stopped = true; }
         else dropSwipe();
       } else {
-        if (target) { dropSwipe(); toast(copyFor(e && e.code), true); }
+        const copy = isCustom() ? netErrorCopy(e) : copyFor(e && e.code);
+        if (target) { dropSwipe(); toast(copy, true); }
         else {
-          setText((e && e.text ? e.text + "\n\n" : "") + copyFor(e && e.code));
+          setText((e && e.text ? e.text + "\n\n" : "") + copy);
           msg.error = true;
         }
         if (e && e.code === "not_granted") { $("send").disabled = true; }
@@ -2358,7 +2533,7 @@
   }
   async function inspire() {
     const c = active();
-    if (!sample || !c) return;
+    if (!chatReady() || !c) return;
     if (inspiring) { inspiring.abort(); return; }
     const btn = $("inspire");
     const box = $("ideas");
@@ -2368,13 +2543,13 @@
     box.hidden = false;
     box.innerHTML = '<div class="idea more"><span class="dots"><span></span><span></span><span></span></span></div>';
     try {
-      const list = await sample.json(buildInspireTurns(c, hint), { cache: false, modelTier: state.settings.tier === "complex" ? "default" : state.settings.tier, signal: inspiring.signal });
+      const list = await completeJson(buildInspireTurns(c, hint), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, signal: inspiring.signal });
       const ideas = (Array.isArray(list) ? list : []).map((x) => (typeof x === "string" ? { label: "", text: x } : x)).filter((x) => x && typeof x.text === "string" && x.text.trim());
       if (!ideas.length) throw { code: "invalid_json" };
       renderIdeas(ideas);
     } catch (e) {
       box.hidden = true; box.innerHTML = "";
-      if (!e || e.code !== "cancelled") toast(e && e.code === "invalid_json" ? "这次没想出来，再点一次试试。" : copyFor(e && e.code), true);
+      if (!e || (e.code !== "cancelled" && e.name !== "AbortError")) toast(e && e.code === "invalid_json" ? "这次没想出来，再点一次试试。" : (isCustom() ? netErrorCopy(e) : copyFor(e && e.code)), true);
     } finally {
       inspiring = null;
       btn.textContent = "✨ 灵感";
@@ -2610,8 +2785,8 @@
     $("memTo").value = c.chat.length;
     $("memPrompt").value = memPromptTemplate();
     $("memResult").value = "";
-    $("memGen").disabled = !sample;
-    if (!sample) $("memHint").textContent = "离线模式：只能手写总结";
+    $("memGen").disabled = !chatReady();
+    if (!chatReady()) $("memHint").textContent = "接口未就绪：只能手写总结";
     memUpdateHint();
     $("memBack").hidden = false;
   }
@@ -2634,21 +2809,21 @@
   }
   async function memGenerate() {
     const c = active();
-    if (!c || !sample) return;
+    if (!c || !chatReady()) return;
     if (memCtl) return;
     memCtl = new AbortController();
     const out = $("memResult");
     $("memGen").hidden = true; $("memStop").hidden = false;
     out.value = ""; out.placeholder = "思考中…";
     try {
-      const res = await sample(buildMemPrompt(c), {
-        cache: false, modelTier: state.settings.tier, signal: memCtl.signal,
-        onText: ({ text }) => { out.value = text; },
+      const res = await complete(buildMemPrompt(c), {
+        signal: memCtl.signal,
+        onText: ({ text }) => { out.value = stripReasoning(text); },
       });
-      out.value = res.text.trim();
+      out.value = stripReasoning(res.text).trim();
     } catch (e) {
       if (e && e.text) out.value = e.text;
-      if (!e || e.code !== "cancelled") toast(copyFor(e && e.code), true);
+      if (!e || (e.code !== "cancelled" && e.name !== "AbortError")) toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true);
     } finally {
       memCtl = null;
       $("memGen").hidden = false; $("memStop").hidden = true;
@@ -3253,6 +3428,85 @@
     return { books, bad };
   }
 
+  // ---------- Backend UI ----------
+  function refreshBackendUi() {
+    const custom = isCustom();
+    const libNote = canHtml() ? "" : `<br>渲染库没有加载出来（marked ${window.marked ? "✓" : "✗"}，DOMPurify ${window.DOMPurify ? "✓" : "✗"}），角色卡的 HTML 前端会显示为纯文本，刷新页面试试。`;
+    $("sBackend").value = custom ? "custom" : "claude";
+    $("apiBox").hidden = !custom;
+    $("tierField").hidden = custom;
+    const a = state.api;
+    $("apiUrl").value = a.url || ""; $("apiKey").value = a.key || ""; $("apiModel").value = a.model || "";
+    $("apiTemp").value = a.temperature; $("apiTopP").value = a.topP; $("apiMaxTokens").value = a.maxTokens;
+    $("apiStream").value = a.stream === false ? "0" : "1"; $("apiFollowPreset").checked = a.followPreset !== false;
+    renderModelSelect();
+    const inArtifact = !!(window.claude && typeof window.claude.use === "function");
+    $("apiNote").textContent = inArtifact
+      ? "注意：在 Claude 的 Artifact 里打开时，浏览器安全策略不允许页面访问任何外部地址，本机的 localhost 也算。这里的设置会保存，但请求会被拦截。把本页下载到本地用浏览器打开即可使用；先用「数据 › 备份全部数据」把角色和记录带走。"
+      : "本页以本地文件 / 自建站点方式打开，可以直接访问你填的接口（前提是该服务允许浏览器跨域）。";
+    const ready = chatReady();
+    if (sampleReady || custom) {
+      $("send").disabled = !ready;
+      $("inspire").disabled = !ready;
+      if (custom) {
+        showNotice(ready ? "" : "<strong>自定义接口未配置完。</strong> 在右侧「模型接口」里填 API 地址和模型。" + libNote);
+        $("hintRight").textContent = ready ? `模型：${a.model}` : "接口未就绪";
+      } else if (!sample) {
+        showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能用页内的 Claude；或者在右侧「模型接口」切到自定义 API。你仍然可以编辑角色和整理聊天记录。" + libNote);
+        $("hintRight").textContent = "离线模式";
+      } else {
+        showNotice(libNote ? "<strong>提示</strong>" + libNote : "");
+        $("hintRight").textContent = "第一次发送时会请求你的允许";
+      }
+    }
+    renderMessages();
+  }
+  function renderModelSelect() {
+    const sel = $("apiModelSel");
+    sel.innerHTML = "";
+    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = state.api.models.length ? `（${state.api.models.length} 个模型，选一个）` : "（先读取模型列表，或在下面手填）"; sel.appendChild(o0);
+    for (const m of state.api.models) { const o = document.createElement("option"); o.value = m; o.textContent = m; sel.appendChild(o); }
+    sel.value = state.api.models.includes(state.api.model) ? state.api.model : "";
+  }
+  async function apiTest() {
+    const btn = $("apiTest"), st = $("apiStat");
+    if (!apiBase()) { st.textContent = "先填 API 地址"; return; }
+    btn.disabled = true; st.textContent = "连接中…";
+    try {
+      const models = await apiListModels();
+      state.api.models = models;
+      if (!state.api.model && models.length) state.api.model = models[0];
+      save(); renderModelSelect(); $("apiModel").value = state.api.model;
+      st.textContent = models.length ? `已读取 ${models.length} 个模型` : "连接成功，但没有返回模型列表；请手填模型 ID";
+      refreshBackendUi();
+    } catch (e) {
+      st.textContent = "失败";
+      toast(netErrorCopy(e) || "连接失败", true);
+    } finally { btn.disabled = false; }
+  }
+
+  // ---------- Data backup / restore ----------
+  function exportAllData() {
+    const copy = JSON.parse(JSON.stringify(state));
+    if (copy.api) copy.api.key = "";
+    return { app: "lantern-tavern", version: 1, exportedAt: new Date().toISOString(), state: copy };
+  }
+  async function importAllData(file) {
+    let data;
+    try { data = JSON.parse(await file.text()); } catch (e) { return toast("不是合法的 JSON", true); }
+    const st = data && data.app === "lantern-tavern" && data.state ? data.state : (data && Array.isArray(data.characters) ? data : null);
+    if (!st) return toast("这不是本页的备份文件", true);
+    const n = (st.characters || []).length;
+    if (!(await askConfirm(`用备份覆盖当前全部数据？备份里有 ${n} 个角色。当前的角色、记录和设置会被替换（API Key 保留）。`, "覆盖", true))) return;
+    const key = state.api.key;
+    try { localStorage.setItem(LS_KEY, JSON.stringify(st)); } catch (e) { return toast("写入本地存储失败（空间不足？）", true); }
+    state = load();
+    state.api.key = key;
+    save();
+    renderAll(); refreshGlobalRx(); renderGlobalBooks(); renderPresetSelect(); refreshBackendUi();
+    toast(`已恢复：${n} 个角色`);
+  }
+
   // ---------- Preset UI ----------
   function renderPresetSelect() {
     const sel = $("psActive");
@@ -3528,6 +3782,28 @@
   $("confirmNo").onclick = () => settleConfirm(false);
   $("confirmBack").addEventListener("click", (e) => { if (e.target === $("confirmBack")) settleConfirm(false); });
   document.addEventListener("keydown", (e) => { if (confirmResolve && e.key === "Escape") { e.stopPropagation(); settleConfirm(false); } }, true);
+ // backend
+  $("sBackend").addEventListener("change", (e) => { state.settings.backend = e.target.value; save(); refreshBackendUi(); });
+  $("apiUrl").addEventListener("change", (e) => { state.api.url = e.target.value.trim(); save(); refreshBackendUi(); });
+  $("apiKey").addEventListener("change", (e) => { state.api.key = e.target.value.trim(); save(); });
+  $("apiModel").addEventListener("change", (e) => { state.api.model = e.target.value.trim(); save(); refreshBackendUi(); });
+  $("apiModelSel").addEventListener("change", (e) => { if (e.target.value) { state.api.model = e.target.value; $("apiModel").value = e.target.value; save(); refreshBackendUi(); } });
+  $("apiTemp").addEventListener("change", (e) => { state.api.temperature = Math.max(0, Math.min(2, parseFloat(e.target.value) || 0)); save(); });
+  $("apiTopP").addEventListener("change", (e) => { state.api.topP = Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)); save(); });
+  $("apiMaxTokens").addEventListener("change", (e) => { state.api.maxTokens = Math.max(1, parseInt(e.target.value, 10) || 2048); save(); });
+  $("apiStream").addEventListener("change", (e) => { state.api.stream = e.target.value === "1"; save(); });
+  $("apiFollowPreset").addEventListener("change", (e) => { state.api.followPreset = e.target.checked; save(); });
+  $("apiTest").onclick = apiTest;
+  $("dataExport").onclick = async () => {
+    const json = JSON.stringify(exportAllData(), null, 2);
+    const name = "lantern-tavern-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    if (downloads) { try { await downloads.save({ filename: name, data: json }); toast("已备份"); } catch (e) { if (e && e.code !== "cancelled") toast("备份失败：" + (e.message || e.code), true); } return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    toast("已备份");
+  };
+  $("dataImport").onclick = () => $("dataFile").click();
+  $("dataFile").addEventListener("change", async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) await importAllData(f); });
+
   // presets
   $("psActive").addEventListener("change", (e) => { state.activePreset = e.target.value; save(); renderPresetSelect(); refreshContextMeter(); toast(e.target.value ? "已启用预设" : "已切回内置默认"); });
   $("psImport").onclick = () => $("psFile").click();
