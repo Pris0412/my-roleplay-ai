@@ -181,7 +181,13 @@
     const re = new RegExp("(" + stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[a-z]*)", "i");
     return esc(sentence).replace(re, "<mark>$1</mark>");
   }
-  $("#card").addEventListener("click", () => $("#card").classList.toggle("flipped"));
+  // 点按钮（发音等）或选中文字时不要翻面
+  $("#card").addEventListener("click", (e) => {
+    if (e.target.closest("button")) return;
+    const sel = window.getSelection && window.getSelection();
+    if (sel && String(sel).length) return;
+    $("#card").classList.toggle("flipped");
+  });
   $("#nextBtn").addEventListener("click", () => { idx = (idx + 1) % deck.length; renderCard(true); });
   $("#prevBtn").addEventListener("click", () => { idx = (idx - 1 + deck.length) % deck.length; renderCard(true); });
   $("#shuffleBtn").addEventListener("click", () => { deck = shuffle(deck); idx = 0; renderCard(true); toast("🔀 已打乱"); });

@@ -26,14 +26,18 @@ const TOPICS = [
   { id: "nature", name: "动物与自然", emoji: "🐘", color: "#34d399" },
   { id: "acad_v", name: "学术动词", emoji: "📝", color: "#14b8a6" },
   { id: "acad_adj", name: "学术形容词副词", emoji: "✨", color: "#fbbf24" },
-  { id: "acad_n", name: "学术名词短语", emoji: "📚", color: "#60a5fa" }
+  { id: "acad_n", name: "学术名词短语", emoji: "📚", color: "#60a5fa" },
+  { id: "reading", name: "阅读高频词", emoji: "📖", color: "#f472b6", files: ["read1", "read2"] },
+  { id: "listening", name: "听力场景词", emoji: "🎧", color: "#fb923c" },
+  { id: "speaking", name: "口语描述词", emoji: "🗨️", color: "#a3e635" },
+  { id: "chart", name: "小作文图表词", emoji: "📊", color: "#22d3ee" },
+  { id: "phrasal", name: "短语动词搭配", emoji: "🔗", color: "#e879f9" }
 ];
 const NEED = ["w", "ipa", "pos", "cn", "pun", "story", "ex", "exCn", "col"];
 const seen = new Map(); const words = []; let id = 0; const dupes = [];
 for (const t of TOPICS) {
-  const f = path.join(ROOT, "data", t.id + ".jsonl");
-  if (!fs.existsSync(f)) { console.warn("missing", f); continue; }
-  const lines = fs.readFileSync(f, "utf8").split("\n").filter((l) => l.trim());
+  const files = (t.files || [t.id]).map((n) => path.join(ROOT, "data", n + ".jsonl"));
+  const lines = files.flatMap((f) => { if (!fs.existsSync(f)) { console.warn("missing", f); return []; } return fs.readFileSync(f, "utf8").split("\n").filter((l) => l.trim()); });
   let n = 0;
   for (const l of lines) {
     let o; try { o = JSON.parse(l); } catch (e) { console.warn(t.id, "bad json:", l.slice(0, 50)); continue; }
@@ -48,7 +52,7 @@ for (const t of TOPICS) {
   console.log(t.id.padEnd(9), n);
 }
 const out = `// 由 scripts/build-words.js 从 data/*.jsonl 自动生成，请勿手改；要加词请改 data/ 下的 jsonl 再重新生成。
-window.TOPICS = ${JSON.stringify(TOPICS)};
+window.TOPICS = ${JSON.stringify(TOPICS.map(({ files, ...t }) => t))};
 window.WORDS = ${JSON.stringify(words)};
 `;
 fs.writeFileSync(path.join(ROOT, "js", "words.js"), out);
