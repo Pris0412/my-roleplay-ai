@@ -422,7 +422,13 @@
   .composer .hint #hintLeft { flex: 1; min-width: 0; }
 
   /* ---------- Drawer (settings) ---------- */
-  .drawer-body { overflow-y: auto; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 20px; }
+  .drawer-body { overflow-y: auto; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+  .drawer-foot { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+  .drawer-foot .primary { flex: 1; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding: 0 20px; }
+  .tab { padding: 10px 14px; border: 0; background: transparent; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-panel[hidden] { display: none; }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
   .field input, .field select, .field textarea {
@@ -599,6 +605,7 @@
         <button class="btn" id="importChar" title="导入 SillyTavern 角色卡（.png / .json）">导入角色卡</button>
         <input type="file" id="importFile" accept=".png,.json,image/png,application/json" multiple hidden>
       </div>
+      <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <div class="stat" id="storeStat">本地保存 · 仅此浏览器</div>
     </div>
   </aside>
@@ -616,6 +623,7 @@
         <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
+        <button class="btn ghost" id="openLib" title="世界书 · 预设 · 正则（对所有角色生效）">全局库</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
       </div>
@@ -793,48 +801,6 @@
       </div>
 
       <div class="section">
-        <div class="section-title">提示词预设 · SillyTavern</div>
-        <div class="field">
-          <label for="psActive">当前预设</label>
-          <select id="psActive"></select>
-          <div class="help" id="psHelp"></div>
-        </div>
-        <div class="row">
-          <button class="btn" id="psImport">导入预设</button>
-          <button class="btn" id="psEdit">管理提示词</button>
-        </div>
-        <div class="row">
-          <button class="btn" id="psExport">导出预设</button>
-          <button class="btn danger" id="psDelete">删除预设</button>
-        </div>
-        <input type="file" id="psFile" accept=".json,application/json" multiple hidden>
-        <div class="help">兼容 ST「聊天补全」预设（含 prompts / prompt_order 的 JSON）。温度、top_p 等采样参数在这里不可用，其余按提示词管理器的顺序拼装。</div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">世界书 · 全局</div>
-        <div class="rx-list" id="wiGlobalList"></div>
-        <div class="row">
-          <button class="btn" id="wiGlobalImport">导入世界书</button>
-          <button class="btn" id="wiGlobalNew">＋ 新建</button>
-        </div>
-        <input type="file" id="wiFile" accept=".json,application/json" multiple hidden>
-        <div class="help">兼容 SillyTavern 导出的世界书 JSON。勾选的对所有角色生效；角色卡自带的在「编辑角色 › 高级」里。</div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">正则脚本 · 全局</div>
-        <div class="rx-list" id="rxGlobalList"></div>
-        <div class="row">
-          <button class="btn" id="rxGlobalImport">导入脚本</button>
-          <button class="btn" id="rxGlobalNew">＋ 新建</button>
-        </div>
-        <button class="btn block" id="rxGlobalExport">导出全部（JSON）</button>
-        <input type="file" id="rxFile" accept=".json,application/json" multiple hidden>
-        <div class="help">兼容 SillyTavern 的 Regex 扩展脚本。对所有角色生效；角色卡自带的脚本在「编辑角色 › 高级」里。</div>
-      </div>
-
-      <div class="section">
         <div class="section-title">当前对话</div>
         <div class="stat" id="chatStat"></div>
         <button class="btn block" id="memBtn2">记忆总结</button>
@@ -844,6 +810,10 @@
         <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
         <button class="btn danger block" id="deleteChar">删除这个角色</button>
       </div>
+    </div>
+    <div class="drawer-foot">
+      <button class="btn ghost" id="openLib2">📚 全局库</button>
+      <button class="btn primary" id="saveSettings">保存设置</button>
     </div>
   </aside>
 </div>
@@ -1276,6 +1246,70 @@
         <button class="btn" id="ppCancel">取消</button>
         <button class="btn primary" id="ppSave">确定</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="libBack" hidden style="z-index:55">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="libTitle" style="width:min(760px,100%)">
+    <div class="modal-head">
+      <span id="libTitle">全局库 · 对所有角色生效</span>
+      <button class="btn ghost icon" id="libClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-tab="wi" role="tab">世界书</button>
+      <button class="tab" data-tab="ps" role="tab">提示词预设</button>
+      <button class="tab" data-tab="rx" role="tab">正则脚本</button>
+    </div>
+    <div class="modal-body">
+      <div class="tab-panel" data-panel="wi">
+      <div class="section">
+        <div class="rx-list" id="wiGlobalList"></div>
+        <div class="row">
+          <button class="btn" id="wiGlobalImport">导入世界书</button>
+          <button class="btn" id="wiGlobalNew">＋ 新建</button>
+        </div>
+        <input type="file" id="wiFile" accept=".json,application/json" multiple hidden>
+        <div class="help">兼容 SillyTavern 导出的世界书 JSON。勾选的对所有角色生效；角色自带的在「编辑角色 › 角色世界书」里。</div>
+      </div>
+
+      </div>
+      <div class="tab-panel" data-panel="ps" hidden>
+      <div class="section">
+        <div class="field">
+          <label for="psActive">当前预设</label>
+          <select id="psActive"></select>
+          <div class="help" id="psHelp"></div>
+        </div>
+        <div class="row">
+          <button class="btn" id="psImport">导入预设</button>
+          <button class="btn" id="psEdit">管理提示词</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="psExport">导出预设</button>
+          <button class="btn danger" id="psDelete">删除预设</button>
+        </div>
+        <input type="file" id="psFile" accept=".json,application/json" multiple hidden>
+        <div class="help">兼容 ST「聊天补全」预设（含 prompts / prompt_order 的 JSON）。温度、top_p 等采样参数在这里不可用，其余按提示词管理器的顺序拼装。</div>
+      </div>
+
+      </div>
+      <div class="tab-panel" data-panel="rx" hidden>
+      <div class="section">
+        <div class="rx-list" id="rxGlobalList"></div>
+        <div class="row">
+          <button class="btn" id="rxGlobalImport">导入脚本</button>
+          <button class="btn" id="rxGlobalNew">＋ 新建</button>
+        </div>
+        <button class="btn block" id="rxGlobalExport">导出全部（JSON）</button>
+        <input type="file" id="rxFile" accept=".json,application/json" multiple hidden>
+        <div class="help">兼容 SillyTavern 的 Regex 扩展脚本。对所有角色生效；角色卡自带的脚本在「编辑角色 › 高级」里。</div>
+      </div>
+
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right"><button class="btn primary" id="libDone">关闭</button></div>
     </div>
   </div>
 </div>
@@ -3958,6 +3992,33 @@
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
   $("sMemTrim").addEventListener("change", (e) => { state.settings.memTrim = e.target.checked; save(); refreshContextMeter(); });
+  function openLib(tab) {
+    if (tab) switchLibTab(tab);
+    renderGlobalBooks(); renderPresetSelect(); refreshGlobalRx();
+    $("libBack").hidden = false;
+    closeOverlays();
+  }
+  function closeLib() { $("libBack").hidden = true; refreshContextMeter(); }
+  function switchLibTab(tab) {
+    for (const t of document.querySelectorAll("#libBack .tab")) t.classList.toggle("on", t.dataset.tab === tab);
+    for (const pnl of document.querySelectorAll("#libBack .tab-panel")) pnl.hidden = pnl.dataset.panel !== tab;
+  }
+  for (const t of document.querySelectorAll("#libBack .tab")) t.onclick = () => switchLibTab(t.dataset.tab);
+  $("openLib").onclick = () => openLib();
+  $("openLib2").onclick = () => openLib();
+  $("openLib3").onclick = () => openLib();
+  $("libClose").onclick = closeLib;
+  $("libDone").onclick = closeLib;
+  $("libBack").addEventListener("click", (e) => { if (e.target === $("libBack")) closeLib(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("libBack").hidden && !confirmResolve && !wiEditing && !psEditing && !rxEditing && !ppEditing) { e.stopPropagation(); closeLib(); } }, true);
+  $("saveSettings").onclick = () => {
+    // fields save as they change; this flushes anything still focused and confirms
+    for (const id of ["pName", "pDesc", "apiUrl", "apiKey", "apiModel", "sLenMin", "sLenMax"]) { const n = $(id); if (n && document.activeElement === n) n.dispatchEvent(new Event("change")); }
+    state.persona.name = $("pName").value; state.persona.desc = $("pDesc").value;
+    save(); renderHead(); renderMessages(); refreshContextMeter();
+    toast("设置已保存");
+    if (window.matchMedia("(max-width: 1080px)").matches) closeOverlays();
+  };
   $("ctxBtn").onclick = openContext;
   $("ctxBtnHead").onclick = openContext;
   $("ctxClose").onclick = closeContext;
