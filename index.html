@@ -419,6 +419,19 @@
     background-size: 4px 4px, 4px 4px; background-repeat: no-repeat;
   }
   .pill-select select:focus { border-color: var(--accent); outline: none; }
+  .snips {
+    max-width: 860px; margin: 0 auto 6px;
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+  }
+  .snip {
+    padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--line-strong); background: var(--raised); color: var(--text);
+    font-size: 13px; line-height: 1.5; font-family: var(--font-body);
+    white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .snip:hover { border-color: var(--accent); }
+  .snip.edit { color: var(--muted); border-style: dashed; }
+  .snip kbd { font-family: var(--font-mono); font-size: 9px; color: var(--faint); margin-left: 5px; }
   .ideas {
     max-width: 860px; margin: 0 auto 8px;
     display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;
@@ -671,6 +684,7 @@
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
       </div>
       <div class="ideas" id="ideas" hidden></div>
+      <div class="snips" id="snips"></div>
       <div class="composer-inner">
         <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
         <div class="send-col">
@@ -1388,6 +1402,36 @@
   </div>
 </div>
 
+<div class="modal-back" id="snipBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="snipTitle" style="width:min(560px,100%)">
+    <div class="modal-head">
+      <span id="snipTitle">快捷输入</span>
+      <button class="btn ghost icon" id="snipClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="snipList">按钮列表（一行一个）</label>
+        <textarea id="snipList" style="min-height:220px" class="mono"></textarea>
+        <div class="help">
+          写 <code>|</code> 表示光标停的位置，例如 <code>「|」</code>；选中文字再点会把文字放到 <code>|</code> 处。<br>
+          写 <code>标签=内容</code> 可以给长句起个短名字，例如 <code>叹气=*轻轻叹了口气。*</code>。<br>
+          前 9 个可以用 Alt+1 … Alt+9 触发。
+        </div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="snipShow" checked> 显示快捷输入条</label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="snipReset">恢复默认</button>
+      <div class="right">
+        <button class="btn" id="snipCancel">取消</button>
+        <button class="btn primary" id="snipSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -1461,6 +1505,8 @@
       presets: [],
       activePreset: "",
       bg: null,
+      snippets: null,
+      snipShow: true,
       leftOpen: true,
     };
   }
@@ -2691,6 +2737,58 @@
     const more = el("button", "idea more", "换一批");
     more.onclick = () => inspire();
     box.appendChild(more);
+  }
+
+  // ---------- Quick-insert snippets ----------
+  const SNIP_DEFAULT = ["「|」", "“|”", "*|*", "（|）", "……", "——", "？", "！", "～", "…|…"];
+  function snippets() { return Array.isArray(state.snippets) ? state.snippets : SNIP_DEFAULT; }
+  function parseSnip(line) {
+    const eq = line.indexOf("=");
+    if (eq > 0 && eq < 12 && !line.startsWith("=")) return { label: line.slice(0, eq).trim(), text: line.slice(eq + 1) };
+    return { label: line.replace(/\|/g, ""), text: line };
+  }
+  function renderSnips() {
+    const box = $("snips");
+    box.innerHTML = "";
+    if (state.snipShow === false) { const ed = el("button", "snip edit", "快捷输入…"); ed.onclick = openSnipEditor; box.appendChild(ed); return; }
+    snippets().forEach((line, i) => {
+      const sn = parseSnip(line);
+      if (!sn.text) return;
+      const b = el("button", "snip");
+      b.textContent = sn.label || sn.text;
+      b.title = sn.text.replace(/\|/g, "") + (i < 9 ? `（Alt+${i + 1}）` : "");
+      if (i < 9) { const k = document.createElement("kbd"); k.textContent = String(i + 1); b.appendChild(k); }
+      b.onmousedown = (e) => e.preventDefault(); // keep focus/selection in the textarea
+      b.onclick = () => insertSnip(sn.text);
+      box.appendChild(b);
+    });
+    const ed = el("button", "snip edit", "＋ 编辑");
+    ed.onclick = openSnipEditor;
+    box.appendChild(ed);
+  }
+  function insertSnip(text) {
+    const ta = $("input");
+    if (ta.disabled) return;
+    const start = ta.selectionStart ?? ta.value.length, end = ta.selectionEnd ?? start;
+    const selected = ta.value.slice(start, end);
+    const bar = text.indexOf("|");
+    let ins, caret;
+    if (bar >= 0) {
+      const before = text.slice(0, bar), after = text.slice(bar + 1).replace(/\|/g, "");
+      ins = before + selected + after;
+      caret = start + before.length + selected.length;
+    } else {
+      ins = text; caret = start + text.length;
+    }
+    ta.value = ta.value.slice(0, start) + ins + ta.value.slice(end);
+    ta.focus();
+    ta.setSelectionRange(caret, caret);
+    autosize(ta);
+  }
+  function openSnipEditor() {
+    $("snipList").value = snippets().join("\n");
+    $("snipShow").checked = state.snipShow !== false;
+    $("snipBack").hidden = false;
   }
 
   // ---------- Chat background ----------
@@ -4196,6 +4294,25 @@
     toast("设置已保存");
     if (window.matchMedia("(max-width: 1080px)").matches) closeOverlays();
   };
+  renderSnips();
+  $("snipClose").onclick = () => { $("snipBack").hidden = true; };
+  $("snipCancel").onclick = () => { $("snipBack").hidden = true; };
+  $("snipBack").addEventListener("click", (e) => { if (e.target === $("snipBack")) $("snipBack").hidden = true; });
+  $("snipSave").onclick = () => {
+    const lines = $("snipList").value.split("\n").map((x) => x.replace(/\r$/, "")).filter((x) => x.trim());
+    state.snippets = lines.length ? lines : null;
+    state.snipShow = $("snipShow").checked;
+    save(); renderSnips(); $("snipBack").hidden = true; toast("快捷输入已保存");
+  };
+  $("snipReset").onclick = () => { $("snipList").value = SNIP_DEFAULT.join("\n"); $("snipShow").checked = true; };
+  document.addEventListener("keydown", (e) => {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-9]$/.test(e.code) && state.snipShow !== false) {
+      const list = snippets();
+      const i = Number(e.code.slice(5)) - 1;
+      if (list[i] && document.activeElement === $("input")) { e.preventDefault(); insertSnip(parseSnip(list[i]).text); }
+    }
+    if (e.key === "Escape" && !$("snipBack").hidden && !confirmResolve) { e.stopPropagation(); $("snipBack").hidden = true; }
+  }, true);
   $("bgBtn").onclick = openBg;
   $("bgClose").onclick = () => { $("bgBack").hidden = true; };
   $("bgDone").onclick = () => { $("bgBack").hidden = true; };
