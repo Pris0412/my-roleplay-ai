@@ -122,7 +122,21 @@ details.acc .body{padding:0 0 12px}
 .floor .swp button{padding:2px 8px;border-radius:6px;background:var(--surface2)}
 .floor .ed{width:100%;font-family:inherit;font-size:inherit;line-height:inherit;min-height:160px}
 .floor .note{font-family:var(--sans);font-size:12px;color:var(--gold);margin-top:4px}
-.empty{text-align:center;color:var(--muted);font-family:var(--sans);font-size:15px;padding:60px 20px}
+.empty{text-align:center;color:var(--muted);font-family:var(--sans);font-size:15px;padding:40px 20px}
+.mascot{position:relative;width:150px;height:130px;margin:0 auto 14px}
+.mascot .blob{position:absolute;left:35px;top:14px;width:80px;height:80px;background:var(--accent);border-radius:46% 54% 50% 50%/60% 60% 40% 40%;animation:bob 3.2s ease-in-out infinite;box-shadow:inset -10px -8px 0 rgba(0,0,0,.08)}
+.mascot .eye{position:absolute;top:34px;width:10px;height:14px;background:#fff;border-radius:50%;animation:wink 4.5s infinite}
+.mascot .eye::after{content:"";position:absolute;left:3px;top:3px;width:4px;height:5px;background:var(--accent);border-radius:50%}
+.mascot .cheek{position:absolute;top:52px;width:12px;height:6px;background:rgba(255,255,255,.4);border-radius:50%}
+.mascot .shadow{position:absolute;left:50px;bottom:10px;width:50px;height:10px;background:var(--line);border-radius:50%;animation:shade 3.2s ease-in-out infinite}
+.mascot .sp{position:absolute;width:6px;height:6px;background:var(--gold);border-radius:50%;animation:spark 2.6s infinite}
+.mascot .bubble{position:absolute;left:118px;top:0;background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:6px 10px;font-size:13px;white-space:nowrap;color:var(--ink2);animation:fadein .8s .3s both}
+@keyframes bob{50%{transform:translateY(-8px) rotate(-3deg)}}
+@keyframes wink{0%,90%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes shade{50%{transform:scaleX(.78);opacity:.55}}
+@keyframes spark{0%{opacity:0;transform:translateY(0) scale(.4)}40%{opacity:1}100%{opacity:0;transform:translateY(-28px) scale(1)}}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.mascot *{animation:none!important}}
 .empty h3{font-size:28px;margin-bottom:8px;color:var(--ink)}
 
 /* ===== composer ===== */
@@ -302,58 +316,33 @@ const DEFAULT_PRESET=`你是一位文笔细腻的小说作者，正在与用户�
 - 尺度与氛围跟随用户的引导，保持文学性。`;
 const DEFAULT_QUICK=['「」','『』','……','——','（）','【】','♪','~','*','—'];
 
-const SEED_CHAR={id:'c_jiang',name:'江遇',role:'main',gender:'男',age:'26',color:'#2B3A55',
- appearance:'一米八五，黑发微长，几缕挑染的浅金发丝总是垂在眉骨上。皮肤冷白，眼下有常年熬夜的淡青。永远穿黑衬衫，领口敞两颗扣子；右手腕一条细银链，脖子上挂着头戴式耳机，指间夹烟的样子像一幅画。眼神懒散，看人时总像隔着一层烟。',
- personality:'夜行动物，白天几乎不存在。冷淡、寡言、极度自我，对无聊的人连敷衍都懒得给；但对声音、对音乐、对真正在意的人有近乎偏执的敏感。嘴上刻薄，行动诚实：会记得你随口提过的歌，会在你说困的时候把音量调小。抗拒承诺，害怕被看穿。',
- background:'独立音乐制作人，同时在午夜十二点主持一档城市电台节目《失眠频道》。住在市中心一栋高层公寓的顶楼，整面落地窗对着城市夜景，屋里堆满设备和唱片。两年前一场失败的乐队解散让他不再和人合作。三个月前，uu 作为节目的实习编导进了电台，是唯一一个敢在直播间里改他歌单的人。',
- speech:'声音低而哑，说话慢半拍，句尾总是不完整，像烟一样散掉。喜欢用「嗯」「随你」应付，真正在意时反而会沉默很久再开口。偶尔用歌词回答问题。叫 uu 的名字时会去掉姓。',
- relation:'与 uu：从互相看不顺眼到默契的搭档，最近气氛开始变得微妙，谁都没说破。与阿泽：前乐队鼓手，唯一还联系的老朋友，也是他的经纪人。',
- firstMessage:`凌晨一点二十分，直播结束的红灯熄了。
-
-江遇没有摘耳机。他靠在导播台后面的旋转椅里，把椅背压到最低，一只手撑着耳罩，像是还在听什么，其实频道里只剩下电流的白噪音。落地窗外，这座城市的灯还醒着，雨后的玻璃上挂着一层薄雾，把霓虹晕成一片片模糊的光斑。
-
-烟从指间升起来，慢慢缠上耳机线。
-
-「今晚最后那首，」他没回头，声音低得几乎被空调声盖过去，「你换的。」
-
-不是疑问句。他早就发现了——第二段副歌的时候，他抬眼看了导播间一眼，uu 正低着头假装看台本，耳朵尖是红的。
-
-他把烟按灭在铁皮烟灰缸里，终于摘下耳机，挂回脖子上。转过身的时候，眼底那点困倦还没散，却难得没有不耐烦。
-
-「……选得不差。」`};
-const SEED_NPC={id:'c_ze',name:'阿泽',role:'npc',gender:'男',age:'28',color:COLORS[4],
- appearance:'寸头，络腮胡刮得很干净，胳膊上有一片旧的乐队纹身，总穿工装外套。',personality:'外向、讲义气、脑子活络，是那种在酒桌上能把所有人哄开心的人；但对江遇的事格外上心，护得像亲弟弟。',
- background:'前乐队鼓手，乐队解散后转做经纪人，唯一一个还留在江遇身边的老朋友。在电台附近开了一家 live house。',speech:'嗓门大，爱叫人「老弟」「小妹」，说话夹着几句方言，喜欢拍人肩膀。',
- relation:'与江遇：兄弟，也是经纪人，知道他所有的黑历史。与 uu：第一次见面就叫她「小编导」，觉得她是能把江遇从壳里拽出来的人。',firstMessage:''};
-const SEED_NPC2={id:'c_lin',name:'林小满',role:'npc',gender:'女',age:'24',color:COLORS[2],
- appearance:'齐耳短发，总是戴一顶鸭舌帽，笑起来有虎牙。',personality:'话痨、热心、八卦，嘴上没把门但心眼好。',
- background:'uu 的大学同学兼室友，在隔壁楼的咖啡店打工，晚上常来电台送咖啡顺便围观。',speech:'语速快，喜欢用「哎哎哎」开头，爱起外号。',
- relation:'与 uu：闺蜜/损友。与江遇：她单方面觉得江遇「长得像会渣人的」，嘴上嫌弃，其实偷偷听他的节目。',firstMessage:''};
-
+function emptyWorld(presetId,name){return {id:'w_'+uid(),name:name||'新的世界',presetId,charIds:[],user:{name:'uu',desc:''},lorebook:[],floors:[],branches:[],summaries:[],state:{date:'',time:'',place:'',weather:'',inner:'',present:''},relations:[],notes:[]}}
 function seedState(){
-  const wid='w_demo';
-  return {version:1, updatedAt:now(),
+  const w=emptyWorld('p_default');
+  return {version:2, updatedAt:now(),
     settings:{fontSize:19,font:'serif',tier:'default',model:'claude-opus-5',backendUrl:'',length:800,replyMode:'expr',quick:DEFAULT_QUICK.slice(),summaryPrompt:DEFAULT_SUMMARY_PROMPT,keepRecent:4,autoSumEvery:20,ftsK:15,warnKB:44,theme:'auto',pov:'third',bgOpacity:.35},
-    assets:{},
+    assets:{}, regex:[],
     presets:[{id:'p_default',name:'默认 · 小说叙事',text:DEFAULT_PRESET}],
-    characters:[SEED_CHAR,SEED_NPC,SEED_NPC2],
-    activeWorldId:wid,
-    worlds:[{id:wid,name:'失眠频道（示例）',presetId:'p_default',charIds:['c_jiang','c_ze','c_lin'],
-      user:{name:'uu',desc:'23 岁，电台实习编导，刚毕业。看起来安静乖巧，其实胆子很大、审美很倔；耳朵极好，能听出一首歌哪一秒混音出了问题。怕冷，随身带着一条围巾；嘴硬心软，被夸会脸红。'},
-      lorebook:[
-        {id:uid(),title:'顶楼公寓',keys:['公寓','顶楼','落地窗','家里'],content:'江遇住在「云澜公馆」32 层的顶楼，一整面落地窗对着城市夜景。客厅没有沙发，只有地毯、两台合成器和一整墙唱片。冰箱里永远只有气泡水和速冻饺子。没人来过，除了阿泽。',enabled:true,always:false,group:'设定'},
-        {id:uid(),title:'失眠频道',keys:['电台','直播','节目','导播'],content:'《失眠频道》每晚 00:00–01:00 在城市音乐电台直播，江遇是主持兼选曲，uu 是编导。直播间在电台大楼 9 层，导播间隔着一层玻璃。节目有一个固定环节「今晚的最后一首」，由听众来信决定。',enabled:true,always:true,group:'设定'},
-        {id:uid(),title:'解散的乐队',keys:['乐队','解散','以前','鼓手'],content:'江遇曾是乐队「潮汐」的主唱兼制作人，两年前因为主音吉他手带着作品跳槽而解散。这件事是他的禁区，只有阿泽敢提。',enabled:true,always:false,group:'设定',charId:'c_jiang'},
-      ],
-      floors:[{id:uid(),n:1,role:'char',charId:'c_jiang',swipes:[SEED_CHAR.firstMessage],si:0,hidden:false,t:now(),meta:null}],
-      branches:[], summaries:[],
-      state:{date:'十月三日，周五',time:'01:20',place:'电台大楼 9 层直播间',weather:'雨后，微凉',inner:'……她耳朵红成那样，以为我看不见。',present:'江遇、uu'},
-      relations:[{id:uid(),a:'江遇',b:'uu',label:'微妙的搭档',history:[{n:1,label:'微妙的搭档',note:'三个月的直播默契，谁都没说破'}]},{id:uid(),a:'江遇',b:'阿泽',label:'兄弟/经纪人',history:[{n:1,label:'兄弟/经纪人',note:'乐队时代留下的唯一老友'}]},{id:uid(),a:'林小满',b:'uu',label:'闺蜜',history:[{n:1,label:'闺蜜',note:'大学室友'}]}],
-      notes:[{n:1,text:'uu 私自换了「今晚的最后一首」，江遇发现了却说「选得不差」。'}],
-      notesFromAI:true
-    }]
+    characters:[], activeWorldId:w.id, worlds:[w]
   };
 }
+/* 旧版本升级：删掉没玩过的示例世界与示例角色，去掉「主角/NPC」类型 */
+function migrate(s){
+  const seedIds=['c_shen','c_lin','c_jiang','c_ze'];
+  const demo=(s.worlds||[]).find(w=>w.id==='w_demo');
+  if(demo&&!demo.floors.some(f=>f.role==='user')){s.worlds=s.worlds.filter(w=>w!==demo);dirty.add('w_demo')}
+  s.characters=(s.characters||[]).filter(c=>!(seedIds.includes(c.id)&&!s.worlds.some(w=>w.charIds.includes(c.id))));
+  s.characters.forEach(c=>{delete c.role});
+  s.regex=s.regex||[];s.assets=s.assets||{};s.presets=s.presets&&s.presets.length?s.presets:[{id:'p_default',name:'默认 · 小说叙事',text:DEFAULT_PRESET}];
+  if(!s.worlds.length){const w=emptyWorld(s.presets[0].id);s.worlds.push(w);dirty.add(w.id)}
+  if(!s.worlds.some(w=>w.id===s.activeWorldId))s.activeWorldId=s.worlds[0].id;
+  const def=seedState().settings;for(const k in def)if(s.settings[k]===undefined)s.settings[k]=def[k];
+  return s;
+}
+/* 世界书里的「人物」条目：ST 风格的 NPC，也是小手机的联系人 */
+function persons(w=world()){return (w.lorebook||[]).filter(e=>e.person&&e.enabled!==false&&(!e.charId||w.charIds.includes(e.charId))).map(e=>({id:'lore:'+e.id,name:e.title,color:'#5B6B8C',personality:String(e.content||'').slice(0,80),block:`■ ${e.title}（世界书人物）\n${fillVars(e.content,w)}`}))}
+function personOf(id,w=world()){if(id==='user')return {id:'user',name:w.user.name};return S.characters.find(c=>c.id===id)||persons(w).find(p=>p.id===id)||null}
+function contacts(w=world()){return [...chars(w),...persons(w)]}
 
 /* ---------------- persistence ---------------- */
 let S=null, DB=null, SAMPLE=null, DOWNLOADS=null, BACKEND=null, LAST_MODEL='';
@@ -438,7 +427,7 @@ function importStRegexScript(sc,charId){const {find,flags}=parseStRegex(sc.findR
 
 /* ---------------- prompt assembly ---------------- */
 function fillVars(t,w=world()){const cs=chars(w);return String(t||'').replace(/\{\{user\}\}/g,w.user.name).replace(/\{\{char\}\}/g,cs[0]?.name||'char')}
-function charBlock(c,w){return `■ ${c.name}（${c.role==='main'?'主要角色':'NPC'}）
+function charBlock(c,w){if(c.block)return c.block;return `■ ${c.name}
 性别/年龄：${c.gender||'—'} / ${c.age||'—'}
 外貌：${c.appearance||'—'}
 性格：${c.personality||'—'}
@@ -459,12 +448,12 @@ function buildPrompt(w,opts={}){
   const lore=triggeredLore(w,recent);
   const mode=REPLY_MODES.find(m=>m.id===st.replyMode)||REPLY_MODES[1];
   const pov=st.pov==='second'?'以第二人称「你」称呼 '+w.user.name+' 来叙述':'以第三人称叙述';
-  const cardSys=st.preferCardPrompt!==false?cs.find(c=>c.role==='main'&&c.systemPrompt)?.systemPrompt:'';
+  const cardSys=st.preferCardPrompt!==false?cs.find(c=>c.systemPrompt)?.systemPrompt:'';
   const stableLore=lore.filter(e=>e.always), dynLore=lore.filter(e=>!e.always);
   const head=[
     `【预设】\n${fillVars(cardSys||preset(w).text,w)}`,
     `【用户扮演的角色】\n${w.user.name}：${w.user.desc||'—'}\n（${w.user.name} 由用户本人扮演，你不能替 ${w.user.name} 做决定。）`,
-    `【在场角色（你负责扮演，最多 ${cs.length} 位；也可临时引入路人 NPC）】\n${cs.map(c=>charBlock(c,w)).join('\n\n')}`,
+    `【角色卡（这些角色由你扮演；世界书里的人物与临时路人 NPC 也由你扮演）】\n${cs.map(c=>charBlock(c,w)).join('\n\n')}`,
     stableLore.length?`【世界书 · 常驻条目】\n${stableLore.map(e=>`◆ ${e.title}\n${fillVars(e.content,w)}`).join('\n\n')}`:'',
   ];
   const dyn=[
@@ -506,9 +495,9 @@ function buildPrompt(w,opts={}){
 function phoneDigest(w){
   const ph=w.phone;if(!ph||!ph.chats.some(c=>c.msgs.length))return '';
   const parts=[];
-  for(const c of ph.chats){if(!c.msgs.length)continue;const names=c.memberIds.map(id=>S.characters.find(x=>x.id===id)?.name).filter(Boolean);
+  for(const c of ph.chats){if(!c.msgs.length)continue;const names=c.memberIds.map(id=>personOf(id,w)?.name).filter(Boolean);
     const head=c.type==='group'?`群聊「${c.name}」（成员：${names.join('、')}、${w.user.name}；群里所有成员都知道这些内容）`:`${names[0]} 与 ${w.user.name} 的私聊（只有他们两人知道，其他角色一概不知情，不得提及）`;
-    parts.push(`◆ ${head}\n${c.msgs.slice(-10).map(m=>`[${m.time||''}] ${m.from==='user'?w.user.name:(S.characters.find(x=>x.id===m.from)?.name||'?')}：${m.amount?`（转账 ¥${m.amount}）`:''}${m.text||''}`).join('\n')}`)}
+    parts.push(`◆ ${head}\n${c.msgs.slice(-10).map(m=>`[${m.time||''}] ${personOf(m.from,w)?.name||'?'}：${m.amount?`（转账 ¥${m.amount}）`:''}${m.text||''}`).join('\n')}`)}
   return parts.length?`【手机聊天记录（WhatsApp）】\n${parts.join('\n\n')}`:'';
 }
 function parseState(text){
@@ -566,8 +555,8 @@ function renderWorlds(b){
   <label class="f">背景图（显示在剧情区后面）</label>
   <div class="row"><button class="btn sm" id="bgUp">上传背景</button>${w.bgId?'<button class="btn sm ghost danger" id="bgRm">移除</button>':''}<span class="tiny">${w.bgId?'已设置':'无'}</span></div>
   <label class="f">背景透明度：<b id="bgov">${Math.round((S.settings.bgOpacity??.35)*100)}%</b></label><input type="range" min="5" max="90" value="${Math.round((S.settings.bgOpacity??.35)*100)}" id="bgo" style="width:100%">
-  <label class="f">在场角色（最多 5 位）</label>
-  <div id="wChars">${S.characters.map(c=>`<label class="row" style="padding:6px 0;cursor:pointer"><input type="checkbox" data-wc="${c.id}" ${w.charIds.includes(c.id)?'checked':''}><span class="ava" style="background:${c.color}">${esc(c.name[0])}</span><span class="grow">${esc(c.name)} <span class="tiny">${c.role==='main'?'主角':'NPC'}</span></span></label>`).join('')||'<span class="muted">角色库为空，先去「角色」创建。</span>'}</div>
+  <label class="f">角色卡（最多 5 张；NPC 按 ST 习惯放在世界书里，勾上「人物」即可）</label>
+  <div id="wChars">${S.characters.map(c=>`<label class="row" style="padding:6px 0;cursor:pointer"><input type="checkbox" data-wc="${c.id}" ${w.charIds.includes(c.id)?'checked':''}><span class="ava" style="background:${c.color}">${esc(c.name[0])}</span><span class="grow">${esc(c.name)}</span></label>`).join('')||'<span class="muted">角色库为空，先去「角色」导入或创建。</span>'}</div>
   <div class="sep"></div>
   <h3 style="font-size:18px">存档快照</h3>
   <p class="muted">每次生成新楼、总结、回溯前都会自动留一份快照（最多 30 份），误操作可以整体回滚。</p>
@@ -607,13 +596,13 @@ let editChar=null;
 function renderChars(b){
   if(editChar)return renderCharForm(b,editChar);
   b.innerHTML=`<p class="muted">角色卡放这里。可以手写，也可以只写一句关系描述让 AI 随机生成性格、样貌。支持导入 SillyTavern 的 PNG 角色卡。</p>
-  ${S.characters.map(c=>`<div class="card" data-ec="${c.id}" style="cursor:pointer"><div class="row">${avatar(c)}<div class="grow"><b>${esc(c.name)}</b> <span class="chip ${c.role==='main'?'acc':''}">${c.role==='main'?'主角':'NPC'}</span><div class="tiny" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.personality||c.relation||'')}</div></div><button class="btn sm p" data-start="${c.id}" title="用这个角色开一个新世界，直接开始">▶ 开始</button></div></div>`).join('')}
+  ${S.characters.map(c=>`<div class="card" data-ec="${c.id}" style="cursor:pointer"><div class="row">${avatar(c)}<div class="grow"><b>${esc(c.name)}</b>${(S.regex||[]).some(r=>r.charId===c.id)||c.lorebook?.length?'<span class="chip">ST 卡</span>':''}<div class="tiny" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.personality||c.relation||'')}</div></div><button class="btn sm p" data-start="${c.id}" title="用这个角色开一个新世界，直接开始">▶ 开始</button></div></div>`).join('')}
   <div class="row" style="margin-top:8px"><button class="btn p" id="newChar">＋ 新角色</button><button class="btn" id="importPng">导入角色卡（PNG / JSON）</button><button class="btn ghost" id="pasteCard">粘贴 JSON</button></div>
   <div class="tiny" style="margin-top:6px">也可以把 PNG / JSON 卡直接拖进这个面板。</div>
   <p class="tiny" style="margin-top:8px">兼容 SillyTavern V2/V3 卡：描述、性格、场景、开场白与备选开场白、示例对话、系统提示、附加指令、角色世界书、正则脚本、头像都会一并导入。</p>`;
   $$('[data-ec]',b).forEach(el=>el.onclick=e=>{if(e.target.closest('[data-start]'))return;editChar=JSON.parse(JSON.stringify(S.characters.find(c=>c.id===el.dataset.ec)));renderPanel()});
   $$('[data-start]',b).forEach(el=>el.onclick=()=>startWorldWith(S.characters.find(c=>c.id===el.dataset.start)));
-  $('#newChar',b).onclick=()=>{editChar={id:'c_'+uid(),name:'',role:'npc',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:'',background:'',speech:'',relation:'',firstMessage:'',_new:true};renderPanel()};
+  $('#newChar',b).onclick=()=>{editChar={id:'c_'+uid(),name:'',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:'',background:'',speech:'',relation:'',firstMessage:'',_new:true};renderPanel()};
   $('#importPng',b).onclick=()=>pickFile('.png,.json,image/png,application/json',importCard);
   $('#pasteCard',b).onclick=()=>modal(`<h3>粘贴角色卡 JSON</h3><p class="tiny">在 SillyTavern 角色页「导出 → JSON」，打开文件全选复制，粘贴到这里。</p><textarea id="pcTxt" style="min-height:220px;font-size:12px" placeholder='{"spec":"chara_card_v2", ...}'></textarea><div class="row" style="margin-top:12px"><button class="btn p" id="pcOk">导入</button><button class="btn ghost" id="pcNo">取消</button></div>`,m=>{$('#pcOk',m).onclick=()=>{const t=$('#pcTxt',m).value.trim();if(!t)return;closeModal();importCardText(t)};$('#pcNo',m).onclick=closeModal});
   b.ondragover=e=>{e.preventDefault();b.style.outline='2px dashed var(--accent)'};b.ondragleave=()=>{b.style.outline=''};b.ondrop=e=>{e.preventDefault();b.style.outline='';const f=e.dataTransfer?.files?.[0];if(f)importCard(f)};
@@ -623,7 +612,7 @@ function renderCharForm(b,c){
   b.innerHTML=`<div class="row between"><button class="btn sm ghost" id="backChars">← 返回</button><span class="tiny">${c._new?'新角色':'编辑'}</span></div>
   <div class="card" style="margin-top:10px"><label class="f" style="margin-top:0">✦ 让 AI 帮我生成</label><textarea id="genBrief" placeholder="例如：一个跟江遇同一栋楼的邻居女生，性格随机，跟 uu 是第一次见面">${esc(c._brief||'')}</textarea><div class="row" style="margin-top:8px"><button class="btn g" id="genChar">随机生成人设</button><span class="tiny">会填充下面的字段，可再手改</span></div></div>
   <div class="row" style="margin-top:12px">${avatar(c,'big')}<div><div class="row"><button class="btn sm" id="avUp">上传头像</button>${c.avatarId?'<button class="btn sm ghost danger" id="avRm">移除</button>':''}</div><div class="tiny" style="margin-top:4px">会自动压缩到 256px，显示在楼层署名和顶栏。</div></div></div>
-  <div class="grid2">${F('name','名字')}<div><label class="f">类型</label><select data-cf="role"><option value="main" ${c.role==='main'?'selected':''}>主角</option><option value="npc" ${c.role==='npc'?'selected':''}>NPC</option></select></div>${F('gender','性别')}${F('age','年龄')}</div>
+  ${F('name','名字')}<div class="grid2">${F('gender','性别')}${F('age','年龄')}</div>
   <label class="f">头像颜色</label><div class="row">${COLORS.map(col=>`<button class="swatch" data-col="${col}" style="background:${col};width:22px;height:22px;${c.color===col?'outline:2px solid var(--ink);outline-offset:2px':''}"></button>`).join('')}</div>
   ${F('appearance','外貌',1)}${F('personality','性格',1)}${F('background','背景',1)}${F('speech','说话方式 / 口癖',1)}${F('relation','与其他人的关系（与 uu、与其他角色）',1)}${F('firstMessage','开场白（作为主角时，新世界的第一楼）',1)}
   <details class="acc" style="margin-top:12px"><summary>SillyTavern 高级字段</summary><div class="body">
@@ -632,7 +621,7 @@ function renderCharForm(b,c){
   <label class="f">创作者备注（不进提示词）</label><textarea data-cf="creatorNotes">${esc(c.creatorNotes||'')}</textarea>
   <div class="row" style="margin-top:10px"><button class="btn sm" id="expJson">导出 JSON 卡</button><button class="btn sm" id="expPng">导出 PNG 卡</button><span class="tiny">${(S.regex||[]).filter(r=>r.charId===c.id).length} 条随卡正则</span></div>
   </div></details>
-  <div class="card" style="margin-top:14px"><b>✦ 扫描人设里的 NPC</b><p class="tiny">从这个角色的背景/关系里找出提到的其他人物，自动生成 NPC 卡并加进当前世界，顺手写入关系图。</p><button class="btn g sm" id="scanNpc">扫描并生成 NPC</button></div>
+  <div class="card" style="margin-top:14px"><b>✦ 扫描人设里的人物 → 世界书</b><p class="tiny">按 SillyTavern 的习惯，NPC 放在世界书里。这里会从背景/关系里找出提到的人，写成当前世界的世界书「人物」条目（绑定这张卡），同时写入关系图；这些人物也会出现在小手机联系人里。</p><button class="btn g sm" id="scanNpc">扫描并写入世界书</button></div>
   <div class="row" style="margin-top:14px"><button class="btn p" id="saveChar">保存</button>${c._new?'':'<button class="btn danger ghost" id="delChar">删除角色</button>'}</div>`;
   $('#avUp',b).onclick=()=>pickFile('image/*',async f=>{try{const d=await shrinkImage(f,256,.8);const id='av_'+uid();if(c.avatarId)setAsset(c.avatarId,null);c.avatarId=id;setAsset(id,d);renderPanel()}catch(e){toast('图片读取失败')}});
   const avRm=$('#avRm',b);if(avRm)avRm.onclick=()=>{setAsset(c.avatarId,null);c.avatarId='';renderPanel()};
@@ -651,7 +640,7 @@ function renderCharForm(b,c){
 function avatar(c,cls=''){const u=assetUrl(c.avatarId);return `<span class="ava ${cls}" title="${esc(c.name)}" style="background:${c.color}">${u?`<img src="${u}" alt="">`:esc(c.name[0]||'?')}</span>`}
 async function scanNpcs(c){
   if(!AI.ok())return toast('AI 不可用');
-  const w=world();const known=S.characters.map(x=>x.name);
+  const w=world();const known=[...S.characters.map(x=>x.name),...w.lorebook.filter(e=>e.person).map(e=>e.title)];
   setStatus('正在扫描人设中的人物……');busy(true);
   try{const r=await AI.json(`下面是一张角色卡。请找出其中提到的、除本人和 ${w.user.name}（用户）以外的所有人物（朋友、家人、同事、前任等，宠物不算）。只回复 JSON 数组，每项：{"name":"","gender":"","age":"","appearance":"","personality":"","background":"","speech":"","relation":"与${c.name}的关系（一词）","relationNote":"一句说明"}。没有明确信息的字段请合理补全（60-100 字）。已存在的人物不要重复：${known.join('、')||'无'}。
 角色名：${c.name}
@@ -659,10 +648,11 @@ async function scanNpcs(c){
 关系：${c.relation}
 性格：${c.personality}`,{tier:'quick'});
     const list=Array.isArray(r)?r:[];let added=0;
-    for(const n of list){if(!n||!n.name||known.includes(n.name))continue;const nc={id:'c_'+uid(),name:String(n.name),role:'npc',gender:String(n.gender||''),age:String(n.age||''),color:COLORS[S.characters.length%COLORS.length],appearance:String(n.appearance||''),personality:String(n.personality||''),background:String(n.background||''),speech:String(n.speech||''),relation:`与${c.name}：${n.relation||'相识'}。${n.relationNote||''}`,firstMessage:''};S.characters.push(nc);added++;
-      if(w.charIds.length<5&&!w.charIds.includes(nc.id))w.charIds.push(nc.id);
-      if(n.relation)w.relations.push({id:uid(),a:c.name,b:nc.name,label:String(n.relation),history:[{n:w.floors.length,label:String(n.relation),note:String(n.relationNote||'从角色卡扫描')}]})}
-    markDirty();markDirty(w.id);renderTop();toast(added?`已生成 ${added} 位 NPC，并加入当前世界与关系图`:'没有找到新的人物',4000);
+    for(const n of list){if(!n||!n.name||known.includes(n.name))continue;
+      const content=[`性别/年龄：${n.gender||'—'} / ${n.age||'—'}`,`外貌：${n.appearance||''}`,`性格：${n.personality||''}`,`背景：${n.background||''}`,`说话方式：${n.speech||''}`,`与${c.name}的关系：${n.relation||'相识'}。${n.relationNote||''}`].join('\n');
+      w.lorebook.push({id:uid(),title:String(n.name),keys:[String(n.name)],content,enabled:true,always:false,order:100,group:'人物',person:true,charId:c.id});added++;
+      if(n.relation)w.relations.push({id:uid(),a:c.name,b:String(n.name),label:String(n.relation),history:[{n:w.floors.length,label:String(n.relation),note:String(n.relationNote||'从角色卡扫描')}]})}
+    markDirty(w.id);renderTop();toast(added?`已把 ${added} 位人物写入世界书「人物」分组（绑定 ${c.name}）${w.charIds.includes(c.id)?'':'；把 '+c.name+' 加入本世界后生效'}`:'没有找到新的人物',5000);
   }catch(e){toast('扫描失败：'+(e.message||e.code),4000)}finally{busy(false);setStatus('')}
 }
 async function generateChar(c,brief){
@@ -691,7 +681,7 @@ async function importCard(file){
     if(!data||typeof data!=='object')throw new Error('角色卡数据为空');
     if(!(data.data||data).name)throw new Error('文件里没有 name 字段，不像是角色卡');
     const d=data.data||data; const ext=d.extensions||{};
-    const c={id:'c_'+uid(),name:d.name||'未命名',role:'main',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:d.personality||'',background:d.description||'',speech:'',relation:'',firstMessage:d.first_mes||'',
+    const c={id:'c_'+uid(),name:d.name||'未命名',gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:d.personality||'',background:d.description||'',speech:'',relation:'',firstMessage:d.first_mes||'',
       scenario:d.scenario||'',mesExample:d.mes_example||'',systemPrompt:d.system_prompt||'',postHistory:d.post_history_instructions||'',altGreetings:Array.isArray(d.alternate_greetings)?d.alternate_greetings.filter(Boolean):[],creatorNotes:d.creator_notes||'',tags:Array.isArray(d.tags)?d.tags:[],creator:d.creator||'',version:d.character_version||'',
       depthPrompt:ext.depth_prompt?.prompt?{prompt:ext.depth_prompt.prompt,depth:ext.depth_prompt.depth||4}:null};
     const book=d.character_book?.entries||[];if(book.length)c.lorebook=book.map(e=>stEntryToLore(e,c.name));
@@ -807,7 +797,7 @@ function renderLore(b,compact=false){
   const w=world();const groups=[...new Set(w.lorebook.map(e=>e.group||'设定'))];
   b.innerHTML=`${compact?'':'<p class="muted">世界书条目会在关键词出现在最近 4 楼或你的输入里时注入提示词；「常驻」条目每次都注入。总结产生的条目会自动归入「总结」分组。</p>'}
   <div class="row" style="margin-bottom:10px"><button class="btn p sm" id="newLore">＋ 新条目</button>${compact?'':'<button class="btn sm" id="impLore">导入 ST 世界书</button><button class="btn sm ghost" id="expLore">导出</button>'}<span class="tiny">${w.lorebook.length} 条 · ${w.lorebook.filter(e=>e.enabled).length} 启用</span></div>
-  ${groups.map(g=>`<details class="acc" open><summary><b class="grow">${esc(g)}</b><span class="tiny">${w.lorebook.filter(e=>(e.group||'设定')===g).length}</span></summary><div class="body">${w.lorebook.filter(e=>(e.group||'设定')===g).map(e=>`<div class="lore ${e.enabled?'':'off'}" data-lore="${e.id}"><div class="h"><button class="sw ${e.enabled?'on':''}" data-lsw="${e.id}" title="启用/停用"></button><b>${esc(e.title)}</b>${e.always?'<span class="chip gold">常驻</span>':''}${e.charId?`<span class="chip">${esc(S.characters.find(c=>c.id===e.charId)?.name||'?')}</span>`:''}<button class="btn sm ghost" data-ledit="${e.id}">编辑</button></div><div class="keys">${e.always?'每次注入':'关键词：'+(e.keys||[]).join('、')||'（无）'}</div></div>`).join('')}</div></details>`).join('')||'<span class="tiny">还没有条目。</span>'}`;
+  ${groups.map(g=>`<details class="acc" open><summary><b class="grow">${esc(g)}</b><span class="tiny">${w.lorebook.filter(e=>(e.group||'设定')===g).length}</span></summary><div class="body">${w.lorebook.filter(e=>(e.group||'设定')===g).map(e=>`<div class="lore ${e.enabled?'':'off'}" data-lore="${e.id}"><div class="h"><button class="sw ${e.enabled?'on':''}" data-lsw="${e.id}" title="启用/停用"></button><b>${esc(e.title)}</b>${e.person?'<span class="chip acc">人物</span>':''}${e.always?'<span class="chip gold">常驻</span>':''}${e.charId?`<span class="chip">${esc(S.characters.find(c=>c.id===e.charId)?.name||'?')}</span>`:''}<button class="btn sm ghost" data-ledit="${e.id}">编辑</button></div><div class="keys">${e.always?'每次注入':'关键词：'+(e.keys||[]).join('、')||'（无）'}</div></div>`).join('')}</div></details>`).join('')||'<span class="tiny">还没有条目。</span>'}`;
   $('#newLore',b).onclick=()=>editLore(w,{id:uid(),title:'',keys:[],content:'',enabled:true,always:false,group:'设定'},true);
   const il=$('#impLore',b);if(il)il.onclick=()=>pickFile('.json',async f=>{try{const d=JSON.parse(await f.text());const raw=d.entries?(Array.isArray(d.entries)?d.entries:Object.values(d.entries)):(Array.isArray(d)?d:[]);if(!raw.length)throw new Error('没有找到条目');const g=(d.name||f.name.replace(/\.json$/i,'')).slice(0,20);raw.forEach(e=>w.lorebook.push(stEntryToLore(e,g)));markDirty(w.id);renderLore(b,compact);toast(`已导入 ${raw.length} 条到分组「${g}」`)}catch(e){toast('导入失败：'+e.message,4000)}});
   const el_=$('#expLore',b);if(el_)el_.onclick=()=>saveFile(`${w.name}-世界书.json`,JSON.stringify({name:w.name,entries:Object.fromEntries(w.lorebook.map((e,i)=>[i,loreToStEntry(e,i)]))},null,2));
@@ -820,10 +810,11 @@ function editLore(w,e,isNew,after){
   <label class="f">关键词（用逗号/顿号分隔）</label><input type="text" id="lK" value="${esc((e.keys||[]).join('、'))}">
   <div class="grid2"><div><label class="f">次级关键词（可选，需同时命中）</label><input type="text" id="lK2" value="${esc((e.secondaryKeys||[]).join('、'))}"></div><div><label class="f">顺序（小的先注入）</label><input type="number" id="lO" value="${e.order??100}"></div></div>
   <label class="row" style="margin-top:10px;cursor:pointer"><input type="checkbox" id="lA" ${e.always?'checked':''}> 常驻（每次都注入，适合总结与核心设定）</label>
+  <label class="row" style="margin-top:6px;cursor:pointer"><input type="checkbox" id="lP" ${e.person?'checked':''}> 这是一个人物（NPC）：会出现在小手机联系人里，可以私聊、拉群</label>
   <label class="f">绑定角色（只有该角色在这个世界里时才生效；不绑定则属于整个世界）</label><select id="lB"><option value="">不绑定 · 整个世界</option>${S.characters.map(c=>`<option value="${c.id}" ${e.charId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
   <label class="f">内容</label><textarea id="lC" style="min-height:200px">${esc(e.content)}</textarea>
   <div class="row" style="margin-top:14px"><button class="btn p" id="lSave">保存</button>${isNew?'':'<button class="btn danger ghost" id="lDel">删除</button>'}<button class="btn ghost" id="lCancel">取消</button></div>`,m=>{
-    $('#lSave',m).onclick=()=>{e.title=$('#lT',m).value||'未命名';e.group=$('#lG',m).value||'设定';e.keys=$('#lK',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.secondaryKeys=$('#lK2',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.selective=e.secondaryKeys.length>0;e.order=+$('#lO',m).value||100;e.always=$('#lA',m).checked;e.charId=$('#lB',m).value||'';e.content=$('#lC',m).value;if(isNew)w.lorebook.push(e);markDirty(w.id);closeModal();(after||renderPanel)()};
+    $('#lSave',m).onclick=()=>{e.title=$('#lT',m).value||'未命名';e.group=$('#lG',m).value||'设定';e.keys=$('#lK',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.secondaryKeys=$('#lK2',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.selective=e.secondaryKeys.length>0;e.order=+$('#lO',m).value||100;e.always=$('#lA',m).checked;e.person=$('#lP',m).checked;e.charId=$('#lB',m).value||'';e.content=$('#lC',m).value;if(isNew)w.lorebook.push(e);markDirty(w.id);closeModal();(after||renderPanel)()};
     const d=$('#lDel',m);if(d)d.onclick=()=>{w.lorebook=w.lorebook.filter(x=>x.id!==e.id);markDirty(w.id);closeModal();(after||renderPanel)()};
     $('#lCancel',m).onclick=closeModal;
   });
@@ -884,7 +875,7 @@ function renderSettings(b){
   <label class="f">上下文提醒阈值（KB，上限 64）</label><input type="number" id="warnKB" value="${st.warnKB}" min="10" max="60">
   <div class="sep"></div><h3 style="font-size:18px">快捷符号</h3><p class="tiny">显示在输入框上方，点一下插入。用空格分隔。</p><input type="text" id="quick" value="${esc(st.quick.join(' '))}">
   <div class="sep"></div><h3 style="font-size:18px">备份与缓存</h3><p class="tiny">本地缓存：${IDB.db?'IndexedDB（无 5MB 限制，含图片）':'localStorage（受限，建议换浏览器）'}${DB?' + 云端同步':''}${BACKEND?' + 本地后端文件':''}。快照在「世界」面板里。</p><p class="tiny">导出全部数据（角色、世界、楼层、世界书、正则、设置）为一个 JSON 文件；换设备后导入即可。</p>
-  <div class="row"><button class="btn p" id="exportAll">一键备份</button><button class="btn" id="importAll">导入备份</button><button class="btn ghost danger" id="resetAll">重置为示例</button></div>
+  <div class="row"><button class="btn p" id="exportAll">一键备份</button><button class="btn" id="importAll">导入备份</button><button class="btn ghost danger" id="resetAll">清空全部数据</button></div>
   <div id="exportBox" class="hidden" style="margin-top:8px"><p class="tiny">这个页面不能直接下载文件，请全选复制下面内容保存为 .json：</p><textarea id="exportTxt" style="min-height:120px;font-size:12px"></textarea></div>
   <div class="sep"></div><h3 style="font-size:18px">AI 来源</h3>
   <div class="card"><div class="row between"><b>当前</b><span class="chip ${BACKEND?'gold':'acc'}">${BACKEND?'本地后端 · '+esc(BACKEND.url):(SAMPLE?'claude.ai 订阅（页面内置）':'未连接')}</span></div>
@@ -902,7 +893,7 @@ function renderSettings(b){
   $('#exportAll',b).onclick=exportAll;$('#importAll',b).onclick=()=>pickFile('.json',importAll);
   $('#beTest',b).onclick=async()=>{st.backendUrl=$('#beUrl',b).value.trim();markDirty();setStatus('正在连接后端……');await connectBackend(true);renderPanel();renderModelSelect()};
   const bm=$('#beModel',b);if(bm)bm.onchange=()=>{st.model=bm.value;markDirty();renderModelSelect()};
-  $('#resetAll',b).onclick=()=>{if(!confirm('清空全部数据并恢复示例？此操作不可撤销。'))return;const old=S.worlds.map(w=>w.id);S=seedState();old.forEach(id=>dirty.add(id));saveAll();renderAll();renderPanel()};
+  $('#resetAll',b).onclick=()=>{if(!confirm('清空全部角色、世界、聊天与设置？建议先备份。此操作不可撤销。'))return;const old=S.worlds.map(w=>w.id);S=seedState();old.forEach(id=>dirty.add(id));saveAll();renderAll();renderPanel()};
 }
 function applyBackground(){const w=world();const u=assetUrl(w.bgId);$('#main').classList.toggle('hasbg',!!u);$('#bg').style.backgroundImage=u?`url(${u})`:'';document.documentElement.style.setProperty('--bg-opacity',S.settings.bgOpacity??.35)}
 function applySettings(){const st=S.settings;document.documentElement.style.setProperty('--reader-size',st.fontSize+'px');document.documentElement.style.setProperty('--reader-font',{serif:'var(--serif)',sans:'var(--sans)',display:'var(--display)'}[st.font]||'var(--serif)');if(st.theme==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',st.theme)}
@@ -942,7 +933,8 @@ function renderTop(){const w=world();$('#worldTitle').textContent=w.name;$('#who
 function renderCtx(){const w=world();const p=buildPrompt(w,{userText:$('#msg').value});const kb=p.bytes/KB;const el=$('#ctx');el.className=kb>60?'bad':kb>S.settings.warnKB?'warn':'';const lastEnd=w.summaries.reduce((m,s)=>Math.max(m,+String(s.range).split('-')[1]||0),0);const pending=w.floors.filter(f=>f.n>lastEnd&&!f.hidden).length-(S.settings.keepRecent||0);const needSum=pending>=(S.settings.autoSumEvery||20);$('#ctxLabel').textContent=`上下文 ${kb.toFixed(1)} / 64 KB${p.omitted?` · 已自动省略前 ${p.omitted} 楼`:''}${needSum?` · 建议总结（${pending} 楼未总结）`:''}`;if(needSum&&!renderCtx._warned){renderCtx._warned=true;toast(`已有 ${pending} 楼没有总结，去「记忆」或 ➕ 面板点一下「总结」吧`,5000)}if(!needSum)renderCtx._warned=false;$('#ctxBar').style.width=Math.min(100,kb/64*100)+'%';el.title=kb>S.settings.warnKB?'上下文偏大：建议去「记忆」总结早期楼层，或隐藏楼层。隐藏后仍可被检索。':'';return p}
 function renderFloors(){
   const w=world();const box=$('#floors');
-  if(!w.floors.length){const c=chars(w)[0];box.innerHTML=`<div class="empty"><h3>${esc(w.name)}</h3>${c?`<p>主角 ${esc(c.name)} 已就位。</p>${c.firstMessage?`<button class="btn p" id="useFirst">用 ${esc(c.name)} 的开场白开始</button> `:''}<button class="btn" id="aiOpen">让 AI 写开场</button>`:'<p>这个世界还没有角色。</p><button class="btn p" data-nav="chars">去角色库选一个 ▶ 开始</button> <button class="btn" data-nav="world">或在「世界」里勾选在场角色</button>'}</div>`;const uf=$('#useFirst');if(uf)uf.onclick=()=>{w.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage,...(c.altGreetings||[])],si:0,hidden:false,t:now(),meta:null});markDirty(w.id);renderAll()};const ao=$('#aiOpen');if(ao)ao.onclick=()=>generate({mode:'continue',continueText:'（请写下这个故事的开场：交代时间、地点、氛围，让在场角色登场。）'});return}
+  if(!w.floors.length){const c=chars(w)[0];const mascot=t=>`<div class="mascot"><div class="shadow"></div><div class="blob"><span class="eye" style="left:22px"></span><span class="eye" style="left:48px"></span><span class="cheek" style="left:12px"></span><span class="cheek" style="left:56px"></span></div><i class="sp" style="left:20px;top:36px"></i><i class="sp" style="left:120px;top:60px;animation-delay:.9s"></i><i class="sp" style="left:76px;top:0;animation-delay:1.7s"></i><div class="bubble">${t}</div></div>`;
+    box.innerHTML=`<div class="empty">${mascot(c?'准备好了，开始吧 ♪':'今晚想读谁的故事？')}<h3>${esc(w.name)}</h3>${c?`<p>${esc(c.name)} 已就位。</p><div class="row" style="justify-content:center">${c.firstMessage?`<button class="btn p" id="useFirst">用 ${esc(c.name)} 的开场白开始</button>`:''}<button class="btn" id="aiOpen">让 AI 写开场</button></div>`:`<p>这个世界还没有角色。导入一张 SillyTavern 角色卡，或者自己写一个。</p><div class="row" style="justify-content:center"><button class="btn p" data-nav="chars">导入 / 新建角色</button><button class="btn" data-nav="world">在「世界」里挑选角色</button></div>`}</div>`;const uf=$('#useFirst');if(uf)uf.onclick=()=>{w.floors.push({id:uid(),n:1,role:'char',charId:c.id,swipes:[c.firstMessage,...(c.altGreetings||[])],si:0,hidden:false,t:now(),meta:null});markDirty(w.id);renderAll()};const ao=$('#aiOpen');if(ao)ao.onclick=()=>generate({mode:'continue',continueText:'（请写下这个故事的开场：交代时间、地点、氛围，让在场角色登场。）'});return}
   const last=w.floors[w.floors.length-1];
   box.innerHTML=w.floors.map(f=>`<article class="floor ${f.role} ${f.hidden?'hid':''}" data-f="${f.id}" id="f${f.id}">
     <div class="lbl">${floorAvatar(f,w)}<b>${esc(labelOf(f,w))}</b><span>#${f.n}</span>${f.model?`<span class="tiny">${esc(f.model)}</span>`:''}${f.hidden?'<span class="chip">已隐藏 · 仍可检索</span>':''}${f.swipes.length>1?`<span class="chip">${f.si+1}/${f.swipes.length}</span>`:''}</div>
@@ -1084,21 +1076,23 @@ function renderDrawer(){
 }
 /* ---------------- phone (WhatsApp) ---------------- */
 let phoneChat=null, phoneBusy=false;
-function ensurePhone(w){if(!w.phone)w.phone={chats:[],wallet:{balance:3000,tx:[]}};for(const c of chars(w)){if(!w.phone.chats.some(x=>x.type==='dm'&&x.memberIds[0]===c.id))w.phone.chats.push({id:uid(),type:'dm',name:c.name,memberIds:[c.id],msgs:[],unread:0})}return w.phone}
-function chatName(c){return c.type==='group'?c.name:(S.characters.find(x=>x.id===c.memberIds[0])?.name||c.name)}
-function nameOf(id,w){return id==='user'?w.user.name:(S.characters.find(x=>x.id===id)?.name||'?')}
+function ensurePhone(w){if(!w.phone)w.phone={chats:[],wallet:{balance:3000,tx:[]}};for(const c of contacts(w)){if(!w.phone.chats.some(x=>x.type==='dm'&&x.memberIds[0]===c.id))w.phone.chats.push({id:uid(),type:'dm',name:c.name,memberIds:[c.id],msgs:[],unread:0})}
+  // 联系人已不在本世界（角色被移出 / 人物条目停用）的私聊，只保留有消息的
+  w.phone.chats=w.phone.chats.filter(c=>c.type==='group'||c.msgs.length||personOf(c.memberIds[0],w));return w.phone}
+function chatName(c,w=world()){return c.type==='group'?c.name:(personOf(c.memberIds[0],w)?.name||c.name)}
+function nameOf(id,w){return personOf(id,w)?.name||'?'}
 function unreadTotal(w){return (w.phone?.chats||[]).reduce((a,c)=>a+(c.unread||0),0)}
 function renderPlusDot(){const w=world();const n=unreadTotal(w);let d=$('#plusBtn .dot');if(n&&!d){d=document.createElement('span');d.className='dot';$('#plusBtn').appendChild(d)}if(!n&&d)d.remove()}
 function renderPhone(b){
   const w=world();const ph=ensurePhone(w);
   if(!phoneChat||!ph.chats.some(c=>c.id===phoneChat)){phoneChat=null;
     b.innerHTML=`<div class="wa"><div class="wallet"><span>钱包余额</span><b>¥${ph.wallet.balance.toLocaleString()}</b></div>
-    <div class="list">${ph.chats.map(c=>{const last=c.msgs[c.msgs.length-1];const cc=c.type==='dm'?S.characters.find(x=>x.id===c.memberIds[0]):null;return `<div class="item" data-chat="${c.id}">${cc?avatar(cc):`<span class="ava" style="background:var(--gold)">群</span>`}<div class="t"><b>${esc(chatName(c))}</b><span>${last?esc((last.from==='user'?'我：':'')+(last.amount?`[转账 ¥${last.amount}] `:'')+(last.text||'')):'还没有消息'}</span></div>${c.unread?`<span class="badge">${c.unread}</span>`:''}</div>`}).join('')}
+    <div class="list">${ph.chats.map(c=>{const last=c.msgs[c.msgs.length-1];const cc=c.type==='dm'?personOf(c.memberIds[0],w):null;return `<div class="item" data-chat="${c.id}">${cc?avatar(cc):`<span class="ava" style="background:var(--gold)">群</span>`}<div class="t"><b>${esc(chatName(c))}</b><span>${last?esc((last.from==='user'?'我：':'')+(last.amount?`[转账 ¥${last.amount}] `:'')+(last.text||'')):'还没有消息'}</span></div>${c.unread?`<span class="badge">${c.unread}</span>`:''}</div>`}).join('')}
     <div class="row" style="padding:10px 8px"><button class="btn sm" id="newGroup">＋ 新建群聊</button></div></div></div>`;
     $$('[data-chat]',b).forEach(el=>el.onclick=()=>{phoneChat=el.dataset.chat;const c=ph.chats.find(x=>x.id===phoneChat);c.unread=0;markDirty(w.id);renderPlusDot();renderPhone(b)});
-    $('#newGroup',b).onclick=()=>modal(`<h3>新建群聊</h3><label class="f">群名</label><input type="text" id="gName" value="夜聊小队"><label class="f">成员</label>${chars(w).map(c=>`<label class="row" style="padding:6px 0;cursor:pointer"><input type="checkbox" data-gm="${c.id}" checked>${avatar(c)}<span>${esc(c.name)}</span></label>`).join('')}<div class="row" style="margin-top:14px"><button class="btn p" id="gOk">创建</button><button class="btn ghost" id="gNo">取消</button></div>`,m=>{$('#gOk',m).onclick=()=>{const ids=$$('[data-gm]:checked',m).map(x=>x.dataset.gm);if(ids.length<2)return toast('群聊至少两位角色');ph.chats.push({id:uid(),type:'group',name:$('#gName',m).value||'群聊',memberIds:ids,msgs:[],unread:0});markDirty(w.id);closeModal();renderPhone(b)};$('#gNo',m).onclick=closeModal});
+    $('#newGroup',b).onclick=()=>modal(`<h3>新建群聊</h3><label class="f">群名</label><input type="text" id="gName" value="夜聊小队"><label class="f">成员</label>${contacts(w).map(c=>`<label class="row" style="padding:6px 0;cursor:pointer"><input type="checkbox" data-gm="${c.id}" checked>${avatar(c)}<span>${esc(c.name)}</span>${c.block?'<span class="chip">世界书人物</span>':''}</label>`).join('')}<div class="row" style="margin-top:14px"><button class="btn p" id="gOk">创建</button><button class="btn ghost" id="gNo">取消</button></div>`,m=>{$('#gOk',m).onclick=()=>{const ids=$$('[data-gm]:checked',m).map(x=>x.dataset.gm);if(ids.length<2)return toast('群聊至少两位角色');ph.chats.push({id:uid(),type:'group',name:$('#gName',m).value||'群聊',memberIds:ids,msgs:[],unread:0});markDirty(w.id);closeModal();renderPhone(b)};$('#gNo',m).onclick=closeModal});
     return}
-  const c=ph.chats.find(x=>x.id===phoneChat);const members=c.memberIds.map(id=>S.characters.find(x=>x.id===id)).filter(Boolean);
+  const c=ph.chats.find(x=>x.id===phoneChat);const members=c.memberIds.map(id=>personOf(id,w)).filter(Boolean);
   b.innerHTML=`<div class="wa"><div class="bar"><button class="btn sm ghost" id="phBack">←</button>${c.type==='dm'&&members[0]?avatar(members[0]):''}<b>${esc(chatName(c))}</b><span class="tiny">${c.type==='group'?members.map(m=>m.name).join('、'):(w.state.time||'')}</span>${c.type==='group'?'<button class="btn sm ghost danger" id="phDelChat" title="解散群聊">解散</button>':'<button class="btn sm ghost" id="phClear" title="清空记录">清空</button>'}</div>
   <div class="msgs" id="phMsgs">${c.msgs.length?c.msgs.map(m=>bubble(m,c,w)).join(''):'<div class="day">还没有消息，先说点什么吧</div>'}</div>
   <div class="in"><button class="ib btn" id="phTx" title="转账">¥</button><textarea id="phIn" placeholder="发消息…"></textarea><button class="btn p" id="phSend">发送</button></div></div>`;
@@ -1114,7 +1108,7 @@ function bubble(m,c,w){const me=m.from==='user';const who=c.type==='group'&&!me?
 function pushMsg(c,m){const w=world();c.msgs.push({id:uid(),t:now(),time:w.state.time||'',...m});markDirty(w.id)}
 async function replyPhone(c,b){
   const w=world();if(!AI.ok())return toast('AI 不可用');
-  const members=c.memberIds.map(id=>S.characters.find(x=>x.id===id)).filter(Boolean);if(!members.length)return;
+  const members=c.memberIds.map(id=>personOf(id,w)).filter(Boolean);if(!members.length)return toast('这个聊天的对象已不在本世界');
   const ph=w.phone;const others=ph.chats.filter(x=>x.id!==c.id&&x.type==='group'&&x.msgs.length&&x.memberIds.some(id=>c.memberIds.includes(id)));
   const story=w.floors.filter(f=>!f.hidden).slice(-6).map(f=>`(#${f.n}) ${f.role==='user'?w.user.name:labelOf(f,w)}：${floorText(f).slice(0,500)}`).join('\n');
   const lore=triggeredLore(w,c.msgs.slice(-6).map(m=>m.text||'').join(' '));
@@ -1174,13 +1168,13 @@ function bindUI(){
 }
 (async function init(){
   try{await IDB.open()}catch(e){console.warn('IndexedDB 不可用，退回 localStorage')}
-  S=(await loadLocal())||seedState();S.regex=S.regex||[];
-  const def=seedState().settings;for(const k in def)if(S.settings[k]===undefined)S.settings[k]=def[k];S.assets=S.assets||{};
+  S=migrate((await loadLocal())||seedState());if(dirty.size)markDirty();
+  const def=seedState().settings;
   applySettings();renderRail();bindUI();renderAll();
   if(!window.claude||!window.claude.use){
     setStatus('离线模式：正在寻找本地后端……');
     const ok=await connectBackend(false);renderModelSelect();
-    if(ok){try{const r=await BACKEND.getState();if(r.state&&(r.state.updatedAt||0)>(S.updatedAt||0)){S=r.state;S.assets=S.assets||{};applySettings();renderAll();renderModelSelect();toast('已从本地后端载入存档')}else{await BACKEND.putState()}}catch(e){console.warn(e)}
+    if(ok){try{const r=await BACKEND.getState();if(r.state&&(r.state.updatedAt||0)>(S.updatedAt||0)){S=migrate(r.state);applySettings();renderAll();renderModelSelect();toast('已从本地后端载入存档')}else{await BACKEND.putState()}}catch(e){console.warn(e)}
       const _md=markDirty;markDirty=function(x){_md(x);clearTimeout(markDirty._bt);markDirty._bt=setTimeout(()=>BACKEND&&BACKEND.putState().catch(()=>{}),1200)}}
     else setStatus('离线模式：数据只保存在这个浏览器里。要用 AI，请在 claude.ai 里打开，或运行本地后端后在设置里连接。',false);
     return}
@@ -1188,7 +1182,7 @@ function bindUI(){
   SAMPLE=sample;DOWNLOADS=dl;DB=db;
   if(!SAMPLE)setStatus('AI 未授权：发送时会提示授权，或此视图不支持 AI。',true);
   if(S.settings.backendUrl){await connectBackend(false);renderModelSelect()}
-  if(DB){try{const remote=await loadFromDb();if(remote&&remote.updatedAt>=(S.updatedAt||0)){S=remote;S.assets=S.assets||{};S.regex=S.regex||[];for(const k in def)if(S.settings[k]===undefined)S.settings[k]=def[k];applySettings();renderAll();$('#replyMode').value=S.settings.replyMode;$('#lenSel').value=S.settings.length;renderModelSelect();if(panelKind)renderPanel();toast('已从云端载入存档')}else if(!remote){saveAll()}}catch(e){console.warn('db load',e);setStatus('云端读取失败，使用本地数据。',true)}}
+  if(DB){try{const remote=await loadFromDb();if(remote&&remote.updatedAt>=(S.updatedAt||0)){S=migrate(remote);if(dirty.size)markDirty();applySettings();renderAll();$('#replyMode').value=S.settings.replyMode;$('#lenSel').value=S.settings.length;renderModelSelect();if(panelKind)renderPanel();toast('已从云端载入存档')}else if(!remote){saveAll()}}catch(e){console.warn('db load',e);setStatus('云端读取失败，使用本地数据。',true)}}
 })();
 </script>
 </body>
