@@ -68,6 +68,27 @@
     --shadow: 0 12px 40px rgba(60, 40, 10, 0.14);
   }
 
+  :root {
+    /* SillyTavern theme variables — frontend cards reference these in their CSS */
+    --SmartThemeBodyColor: var(--text);
+    --SmartThemeEmColor: var(--muted);
+    --SmartThemeUnderlineColor: var(--accent);
+    --SmartThemeQuoteColor: var(--accent-strong);
+    --SmartThemeBlurTintColor: var(--surface);
+    --SmartThemeChatTintColor: var(--ground);
+    --SmartThemeUserMesBlurTintColor: var(--user-bubble);
+    --SmartThemeBotMesBlurTintColor: var(--char-bubble);
+    --SmartThemeShadowColor: rgba(0, 0, 0, 0.4);
+    --SmartThemeBorderColor: var(--line-strong);
+    --mainFontSize: 15px;
+    --mainFontFamily: var(--font-body);
+    --monoFontFamily: var(--font-mono);
+    --fontScale: 1;
+    --blurStrength: 10px;
+    --shadowWidth: 2px;
+    --avatar-base-height: 50px;
+    --avatar-base-width: 50px;
+  }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
@@ -1088,6 +1109,11 @@
     ul, ol { margin: 0.2em 0; padding-left: 1.4em; }
     hr { border: 0; border-top: 1px solid var(--line); }
     details { border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+    q { quotes: none; color: var(--SmartThemeQuoteColor); }
+    q::before, q::after { content: none; }
+    details.reasoning { color: var(--muted); font-size: 0.92em; margin-bottom: 0.6em; }
+    details.reasoning summary { cursor: pointer; color: var(--faint); font-size: 12px; }
+    .mes_text > :first-child { margin-top: 0; }
   `;
   const canHtml = () => !!(window.marked && window.DOMPurify && window.DOMPurify.isSupported);
 
@@ -1133,14 +1159,28 @@
   function restoreHtml(html, blocks) {
     return html.replace(/(?:<p>)?@@HTMLBLOCK(\d+)@@(?:<\/p>)?/g, (_, i) => blocks[+i] ?? "");
   }
+  // <think>…</think> (and thinking / reasoning) → a collapsed block, like SillyTavern's reasoning display
+  const REASON_RE = /<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi;
+  const REASON_OPEN_RE = /<(think|thinking|reasoning)>([\s\S]*)$/i;
+  function foldReasoning(t, streaming) {
+    t = t.replace(REASON_RE, (_, __, body) => `<details class="reasoning"><summary>思考过程</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
+    if (streaming) t = t.replace(REASON_OPEN_RE, (_, __, body) => `<details class="reasoning" open><summary>思考中…</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
+    return t;
+  }
+  function stripReasoning(t) { return t.replace(REASON_RE, "").trim(); }
+  // "quoted speech" → <q>, outside tags and inline code (SillyTavern does the same; card CSS styles q)
+  function wrapQuotes(t) {
+    return t.split(/(<[^>]+>|`[^`\n]*`|@@HTMLBLOCK\d+@@)/).map((seg, i) => (i % 2 ? seg : seg.replace(/(["“])([^"”\n]{1,400}?)(["”])/g, "<q>$2</q>"))).join("");
+  }
   function messageHtml(text, ctx) {
     let t = sub(text, ctx.c);
     t = applyRegex(t, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
     if (!canHtml()) return { html: renderRich(t), plain: true };
     let html;
     try {
+      t = foldReasoning(t, !!ctx.streaming);
       const p = protectHtml(t);
-      html = restoreHtml(window.marked.parse(p.text, { breaks: true, gfm: true, mangle: false, headerIds: false }), p.blocks);
+      html = restoreHtml(window.marked.parse(wrapQuotes(p.text), { breaks: true, gfm: true, mangle: false, headerIds: false }), p.blocks);
     } catch (e) { return { html: renderRich(t), plain: true }; }
     html = window.DOMPurify.sanitize(html, {
       FORCE_BODY: true, // otherwise a leading <style> is hoisted into <head> and dropped
@@ -1155,7 +1195,10 @@
     if (!host) { host = el("div", "rendered"); bubble.appendChild(host); }
     const root = host.shadowRoot || host.attachShadow({ mode: "open" });
     const { html, plain } = messageHtml(text, ctx);
-    root.innerHTML = `<style>${BUBBLE_CSS}${plain ? ":host{white-space:pre-wrap}" : ""}</style>` + html;
+    const name = esc(ctx.role === "user" ? (state.persona.name || "你") : (ctx.c ? ctx.c.name : ""));
+    // the same wrapper classes SillyTavern uses, so card CSS like ".mes_text .panel" matches
+    root.innerHTML = `<style>${BUBBLE_CSS}${plain ? ":host{white-space:pre-wrap}" : ""}</style>`
+      + `<div class="mes" is_user="${ctx.role === "user"}" is_system="false" ch_name="${name}"><div class="mes_block"><div class="mes_text">${html}</div></div></div>`;
     for (const a of root.querySelectorAll("a[href]")) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   }
 
@@ -1440,7 +1483,8 @@
     const turns = [{ role: "user", content: buildInstruction(c, kept) }];
     kept.forEach((m, i) => {
       const depth = kept.length - 1 - i;
-      const txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
+      let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
+      if (m.role === "assistant") txt = stripReasoning(txt);
       if (txt.trim()) turns.push({ role: m.role, content: txt });
     });
     if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
@@ -1527,7 +1571,7 @@
         onText: ({ text }) => {
           setText(text);
           if (node.querySelector(".dots")) node.innerHTML = "";
-          paintBubble(node, text, { c, role: "assistant", depth });
+          paintBubble(node, text, { c, role: "assistant", depth, streaming: true });
           const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
           if (nearBottom) box.scrollTop = box.scrollHeight;
         },
