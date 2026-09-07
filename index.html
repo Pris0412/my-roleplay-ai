@@ -712,13 +712,18 @@
           </div>
           <div class="row">
             <div class="field">
-              <label for="apiMaxTokens">max_tokens</label>
+              <label for="apiMaxTokens">max_tokens（回复上限）</label>
               <input id="apiMaxTokens" type="number" step="1" min="1" class="mono">
             </div>
             <div class="field">
-              <label for="apiStream">流式输出</label>
-              <select id="apiStream"><option value="1">开</option><option value="0">关</option></select>
+              <label for="apiContext">上下文窗口（token）</label>
+              <input id="apiContext" type="number" step="1000" min="2000" class="mono">
             </div>
+          </div>
+          <div class="help">上下文窗口决定「上下文」按钮的上限：按 1 token ≈ 3 字节粗略换算，并预留回复的 max_tokens。填你模型的实际窗口，例如 32000 / 128000 / 200000。</div>
+          <div class="field">
+            <label for="apiStream">流式输出</label>
+            <select id="apiStream"><option value="1">开</option><option value="0">关</option></select>
           </div>
           <div class="checks">
             <label><input type="checkbox" id="apiFollowPreset"> 采样参数跟随当前预设（temperature / top_p / 惩罚 / max_tokens）</label>
@@ -1388,7 +1393,7 @@
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
       settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10, backend: "claude" },
-      api: { url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, stream: true, followPreset: true },
+      api: { url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true },
       regex: [],
       books: [],
       presets: [],
@@ -1533,7 +1538,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, stream: true, followPreset: true }, s.api || {}); s.settings.backend = s.settings.backend || "claude"; return s; }
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true }, s.api || {}); s.settings.backend = s.settings.backend || "claude"; return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -2308,7 +2313,10 @@
     }
     // keep total under the 64 KiB input cap (measured in UTF-8 bytes: CJK is 3 bytes a character)
     const bytes = (t) => utf8.enc.encode(t).length;
-    const CAP = 58000;
+    // Claude-in-page: fixed 64 KiB input cap. Custom API: the model's window minus the reply reserve, ~3 bytes per token.
+    const CAP = isCustom()
+      ? Math.max(20000, ((state.api.maxContext || 32000) - (samplerParams().max_tokens || state.api.maxTokens || 2048)) * 3)
+      : 58000;
     if (bytes(turns[0].content) > CAP - 4000) {
       // the card alone is too big: cut its tail so at least a few turns fit
       let txt = turns[0].content;
@@ -2748,6 +2756,7 @@
     kv.innerHTML = "";
     const add = (k, v) => { kv.appendChild(el("dt", null, k)); kv.appendChild(el("dd", null, v)); };
     add("合计", `${fmtKB(r.total)} / ${fmtKB(r.cap)}（${Math.round(pct * 100)}%）`);
+    add("上限来源", isCustom() ? `接口设置的上下文窗口 ${state.api.maxContext || 32000} token，扣掉回复预留后按 1 token ≈ 3 字节估算` : "页内 Claude 接口的固定输入上限 64 KB");
     add("角色设定 + 世界书 + 记忆", fmtKB(r.instruction));
     add("对话历史", `${fmtKB(r.history)} · ${r.floors} 楼（第 ${r.firstFloor}–${r.lastFloor} 楼）`);
     add("检索带入", `${r.retrieved} 楼`);
@@ -3486,7 +3495,7 @@
     $("tierField").hidden = custom;
     const a = state.api;
     $("apiUrl").value = a.url || ""; $("apiKey").value = a.key || ""; $("apiModel").value = a.model || "";
-    $("apiTemp").value = a.temperature; $("apiTopP").value = a.topP; $("apiMaxTokens").value = a.maxTokens;
+    $("apiTemp").value = a.temperature; $("apiTopP").value = a.topP; $("apiMaxTokens").value = a.maxTokens; $("apiContext").value = a.maxContext || 32000;
     $("apiStream").value = a.stream === false ? "0" : "1"; $("apiFollowPreset").checked = a.followPreset !== false;
     renderModelSelect();
     const inArtifact = !!(window.claude && typeof window.claude.use === "function");
@@ -3839,8 +3848,9 @@
   $("apiModelSel").addEventListener("change", (e) => { if (e.target.value) { state.api.model = e.target.value; $("apiModel").value = e.target.value; save(); refreshBackendUi(); } });
   $("apiTemp").addEventListener("change", (e) => { state.api.temperature = Math.max(0, Math.min(2, parseFloat(e.target.value) || 0)); save(); });
   $("apiTopP").addEventListener("change", (e) => { state.api.topP = Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)); save(); });
-  $("apiMaxTokens").addEventListener("change", (e) => { state.api.maxTokens = Math.max(1, parseInt(e.target.value, 10) || 2048); save(); });
+  $("apiMaxTokens").addEventListener("change", (e) => { state.api.maxTokens = Math.max(1, parseInt(e.target.value, 10) || 2048); save(); refreshContextMeter(); });
   $("apiStream").addEventListener("change", (e) => { state.api.stream = e.target.value === "1"; save(); });
+  $("apiContext").addEventListener("change", (e) => { state.api.maxContext = Math.max(2000, parseInt(e.target.value, 10) || 32000); e.target.value = state.api.maxContext; save(); refreshContextMeter(); });
   $("apiFollowPreset").addEventListener("change", (e) => { state.api.followPreset = e.target.checked; save(); });
   $("apiTest").onclick = apiTest;
   $("dataExport").onclick = async () => {
