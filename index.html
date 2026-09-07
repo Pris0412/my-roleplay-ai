@@ -461,6 +461,24 @@
   }
   .toast.bad { border-color: var(--danger); }
   .rx-list { display: flex; flex-direction: column; gap: 4px; }
+  .wi-entry { border: 1px solid var(--line); border-radius: 10px; background: var(--raised); }
+  .wi-entry .head {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+    padding: 8px 10px; cursor: pointer; font-size: 13px;
+  }
+  .wi-entry .head .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wi-entry .head .ttl small { color: var(--faint); font-family: var(--font-mono); font-size: 10px; margin-left: 6px; }
+  .wi-entry.off .head .ttl { color: var(--faint); text-decoration: line-through; }
+  .wi-entry .head .pill {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px;
+  }
+  .wi-entry .form { display: flex; flex-direction: column; gap: 10px; padding: 4px 10px 12px; border-top: 1px solid var(--line); }
+  .wi-entry .form .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .wi-entry .form .checks { padding-top: 2px; }
+  .wi-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .wi-toolbar .spacer { flex: 1; }
+  @media (max-width: 760px) { .wi-entry .form .row3 { grid-template-columns: 1fr; } }
   .rx-row {
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
     padding: 6px 8px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line);
@@ -618,6 +636,17 @@
       </div>
 
       <div class="section">
+        <div class="section-title">世界书 · 全局</div>
+        <div class="rx-list" id="wiGlobalList"></div>
+        <div class="row">
+          <button class="btn" id="wiGlobalImport">导入世界书</button>
+          <button class="btn" id="wiGlobalNew">＋ 新建</button>
+        </div>
+        <input type="file" id="wiFile" accept=".json,application/json" multiple hidden>
+        <div class="help">兼容 SillyTavern 导出的世界书 JSON。勾选的对所有角色生效；角色卡自带的在「编辑角色 › 高级」里。</div>
+      </div>
+
+      <div class="section">
         <div class="section-title">正则脚本 · 全局</div>
         <div class="rx-list" id="rxGlobalList"></div>
         <div class="row">
@@ -693,6 +722,16 @@
         <label for="edAlt">备用开场白（可选）</label>
         <textarea id="edAlt" placeholder="多个开场白之间用单独一行 --- 隔开。聊天开头可以切换。"></textarea>
       </div>
+      <div class="field">
+        <label>角色世界书</label>
+        <div class="book-note" id="edBook"></div>
+        <div class="wi-toolbar">
+          <button class="btn" id="wiCharEdit">编辑条目</button>
+          <button class="btn" id="wiCharImport">导入到角色</button>
+          <button class="btn ghost danger" id="wiCharRemove">移除</button>
+        </div>
+        <div class="help">随角色卡一起导入导出。关键词出现在最近几条消息里时自动带给模型。</div>
+      </div>
       <details class="adv">
         <summary>高级 · SillyTavern 兼容字段</summary>
         <div class="inner">
@@ -718,7 +757,6 @@
             <label for="edPost">对话后指令（post_history_instructions）</label>
             <textarea id="edPost" placeholder="放在整段对话之后的提醒，例如格式或长度要求。"></textarea>
           </div>
-          <div class="book-note" id="edBook"></div>
           <div class="field">
             <label>角色自带正则脚本（extensions.regex_scripts）</label>
             <div class="rx-list" id="rxCharList"></div>
@@ -821,6 +859,50 @@
   </div>
 </div>
 
+<div class="modal-back" id="wiBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wiTitle" style="width:min(820px,100%)">
+    <div class="modal-head">
+      <span id="wiTitle">世界书</span>
+      <button class="btn ghost icon" id="wiClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <div class="field">
+          <label for="wiName">名称</label>
+          <input id="wiName" placeholder="世界书名字">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="wiDepth">默认扫描深度</label>
+            <input id="wiDepth" type="number" min="1" value="4" class="mono">
+          </div>
+          <div class="field">
+            <label for="wiBudget">预算（token）</label>
+            <input id="wiBudget" type="number" min="100" value="1000" class="mono">
+          </div>
+        </div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="wiRecursive"> 递归扫描（已触发条目的内容可以再触发别的条目）</label>
+      </div>
+      <div class="wi-toolbar">
+        <span class="stat" id="wiStat"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="wiAddEntry">＋ 新条目</button>
+        <button class="btn" id="wiExport" title="导出为 SillyTavern 世界书 JSON">导出</button>
+      </div>
+      <div class="rx-list" id="wiEntries"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat">点条目标题展开编辑。常驻 = 每次都带入；否则关键词出现在最近几条消息里才带入。</span>
+      <div class="right">
+        <button class="btn" id="wiCancel">取消</button>
+        <button class="btn primary" id="wiSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -889,6 +971,7 @@
       persona: { name: "旅人", desc: "" },
       settings: { tier: "default", len: "medium", lang: "auto", mem: "40" },
       regex: [],
+      books: [],
       leftOpen: true,
     };
   }
@@ -907,6 +990,101 @@
     delete m.gi;
     return m;
   }
+  // ---------- Lorebook model: accepts V2 character_book and SillyTavern world-info shapes ----------
+  const asArr = (x) => (Array.isArray(x) ? x : typeof x === "string" ? x.split(",").map((k) => k.trim()).filter(Boolean) : []);
+  const pickNum = (...xs) => { for (const x of xs) if (typeof x === "number" && !Number.isNaN(x)) return x; return null; };
+  const pickBool = (...xs) => { for (const x of xs) if (typeof x === "boolean") return x; return null; };
+  function normalizeEntry(e, i) {
+    if (!e || typeof e !== "object") return null;
+    const ext = e.extensions && typeof e.extensions === "object" ? e.extensions : {};
+    const secondary = asArr(e.secondary_keys ?? e.keysecondary);
+    let position = e.position;
+    if (typeof position !== "string") {
+      const n = pickNum(position, ext.position);
+      position = n === 0 || n === 5 ? "before_char" : "after_char";
+    }
+    return {
+      id: pickNum(e.id, e.uid) ?? i,
+      keys: asArr(e.keys ?? e.key),
+      secondary_keys: secondary,
+      selective_logic: pickNum(e.selective_logic, e.selectiveLogic, ext.selectiveLogic) ?? 0,
+      content: typeof e.content === "string" ? e.content : "",
+      comment: String(e.comment || e.name || ""),
+      enabled: pickBool(e.enabled) ?? (typeof e.disable === "boolean" ? !e.disable : true),
+      constant: !!e.constant,
+      insertion_order: pickNum(e.insertion_order, e.order) ?? 100,
+      position,
+      depth: pickNum(e.depth, ext.depth) ?? 4,
+      probability: pickNum(e.probability, ext.probability) ?? 100,
+      case_sensitive: pickBool(e.case_sensitive, e.caseSensitive, ext.case_sensitive) ?? false,
+      match_whole_words: pickBool(e.match_whole_words, e.matchWholeWords, ext.match_whole_words) ?? false,
+      scan_depth: pickNum(e.scan_depth, e.scanDepth, ext.scan_depth),
+      exclude_recursion: pickBool(e.exclude_recursion, e.excludeRecursion, ext.exclude_recursion) ?? false,
+      prevent_recursion: pickBool(e.prevent_recursion, e.preventRecursion, ext.prevent_recursion) ?? false,
+      group: String(e.group || ext.group || ""),
+      extensions: ext,
+    };
+  }
+  function normalizeBook(b) {
+    if (!b || typeof b !== "object") return null;
+    let raw = b.entries;
+    if (raw && !Array.isArray(raw) && typeof raw === "object") raw = Object.values(raw); // ST keys entries by uid
+    if (!Array.isArray(raw)) raw = [];
+    const entries = raw.map(normalizeEntry).filter(Boolean);
+    return {
+      name: String(b.name || ""),
+      description: String(b.description || ""),
+      scan_depth: pickNum(b.scan_depth) ?? 4,
+      token_budget: pickNum(b.token_budget) ?? 1000,
+      recursive_scanning: !!b.recursive_scanning,
+      extensions: b.extensions && typeof b.extensions === "object" ? b.extensions : {},
+      entries,
+    };
+  }
+  function bookToV2(book) {
+    return {
+      name: book.name, description: book.description, scan_depth: book.scan_depth, token_budget: book.token_budget,
+      recursive_scanning: book.recursive_scanning, extensions: book.extensions || {},
+      entries: book.entries.map((e, i) => ({
+        id: e.id ?? i, keys: e.keys, secondary_keys: e.secondary_keys, comment: e.comment, name: e.comment, content: e.content,
+        enabled: e.enabled, constant: e.constant, selective: e.secondary_keys.length > 0, insertion_order: e.insertion_order,
+        position: e.position, case_sensitive: e.case_sensitive, priority: 10,
+        extensions: { ...(e.extensions || {}), position: e.position === "before_char" ? 0 : 1, depth: e.depth, probability: e.probability,
+          useProbability: true, selectiveLogic: e.selective_logic, match_whole_words: e.match_whole_words, scan_depth: e.scan_depth,
+          exclude_recursion: e.exclude_recursion, prevent_recursion: e.prevent_recursion, group: e.group },
+      })),
+    };
+  }
+  function bookToSt(book) {
+    const entries = {};
+    book.entries.forEach((e, i) => {
+      entries[String(i)] = {
+        uid: i, key: e.keys, keysecondary: e.secondary_keys, comment: e.comment, content: e.content, constant: e.constant,
+        vectorized: false, selective: e.secondary_keys.length > 0, selectiveLogic: e.selective_logic, addMemo: true,
+        order: e.insertion_order, position: e.position === "before_char" ? 0 : 1, disable: !e.enabled,
+        excludeRecursion: e.exclude_recursion, preventRecursion: e.prevent_recursion, delayUntilRecursion: false,
+        probability: e.probability, useProbability: true, depth: e.depth, group: e.group, groupOverride: false, groupWeight: 100,
+        scanDepth: e.scan_depth, caseSensitive: e.case_sensitive, matchWholeWords: e.match_whole_words, useGroupScoring: null,
+        automationId: "", role: null, sticky: 0, cooldown: 0, delay: 0, displayIndex: i,
+      };
+    });
+    return { entries, name: book.name, description: book.description };
+  }
+  function parseBookFile(data, fallbackName) {
+    // a world-info file, a V2 character_book, or a whole card carrying one
+    if (data && data.data && data.data.character_book) data = data.data.character_book;
+    if (data && data.character_book) data = data.character_book;
+    if (!data || typeof data !== "object" || !data.entries) return null;
+    const b = normalizeBook(data);
+    if (!b.name) b.name = (fallbackName || "世界书").replace(/\.json$/i, "");
+    return b;
+  }
+  function newBook(name) { return normalizeBook({ name: name || "新世界书", entries: [] }); }
+  function newEntry(book) {
+    const id = book.entries.reduce((m, e) => Math.max(m, typeof e.id === "number" ? e.id : 0), -1) + 1;
+    return normalizeEntry({ id, keys: [], content: "", comment: "新条目", enabled: true }, id);
+  }
+
   function normalizeChar(c) {
     c.tags = Array.isArray(c.tags) ? c.tags : [];
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
@@ -915,7 +1093,7 @@
     c.version = c.version || "";
     c.systemPrompt = c.systemPrompt || "";
     c.postHistory = c.postHistory || "";
-    c.book = c.book || null;
+    c.book = normalizeBook(c.book);
     c.extensions = c.extensions || {};
     c.chat = Array.isArray(c.chat) ? c.chat : [];
     c.chat.forEach(normalizeMsg);
@@ -928,7 +1106,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; return s; }
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -1416,35 +1594,75 @@
     ].map((r) => "- " + r).join("\n");
   }
 
-  // Lorebook: constant entries always; keyed entries when a key appears in recent messages
+  // ---------- Lorebook activation (character book + enabled global books) ----------
+  function keyMatches(key, hay, entry) {
+    key = sub(String(key), null).trim();
+    if (!key) return false;
+    const rx = key.match(/^\/(.+)\/([a-z]*)$/);
+    if (rx) { try { return new RegExp(rx[1], rx[2].replace("g", "")).test(hay); } catch (e) { return false; } }
+    const h = entry.case_sensitive ? hay : hay.toLowerCase();
+    const k = entry.case_sensitive ? key : key.toLowerCase();
+    if (entry.match_whole_words && /^[\w'-]+$/.test(k)) {
+      const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp("(^|[^\\p{L}\\p{N}_])" + esc + "(?=[^\\p{L}\\p{N}_]|$)", "u").test(h);
+    }
+    return h.includes(k);
+  }
+  function entryHits(e, hay) {
+    if (!e.keys.some((k) => keyMatches(k, hay, e))) return false;
+    const sec = e.secondary_keys;
+    if (!sec.length) return true;
+    const hits = sec.map((k) => keyMatches(k, hay, e));
+    switch (e.selective_logic) {
+      case 1: return !hits.every(Boolean);   // NOT ALL
+      case 2: return !hits.some(Boolean);    // NOT ANY
+      case 3: return hits.every(Boolean);    // AND ALL
+      default: return hits.some(Boolean);    // AND ANY
+    }
+  }
   function activeLore(c, history) {
-    const book = c.book;
-    if (!book || !Array.isArray(book.entries) || !book.entries.length) return [];
-    const depthDefault = book.scan_depth || 4;
-    const out = [];
-    let budget = 6000;
-    for (const e of book.entries) {
-      if (!e || e.enabled === false || !e.content) continue;
-      let hit = !!e.constant;
-      if (!hit) {
-        const depth = e.scan_depth || depthDefault;
-        const hay = history.slice(-depth).map((m) => sub(m.content, c)).join("\n");
-        const hayL = e.case_sensitive ? hay : hay.toLowerCase();
-        const keys = (e.keys || []).map((k) => sub(String(k), c)).filter(Boolean);
-        hit = keys.some((k) => hayL.includes(e.case_sensitive ? k : k.toLowerCase()));
-        if (hit && Array.isArray(e.secondary_keys) && e.secondary_keys.length) {
-          const sec = e.secondary_keys.map((k) => sub(String(k), c));
-          const anySec = sec.some((k) => hayL.includes(e.case_sensitive ? k : k.toLowerCase()));
-          if (e.selective !== false && !anySec) hit = false;
+    const books = [c && c.book, ...(state.books || []).filter((b) => b && b.enabled !== false)].filter((b) => b && b.entries && b.entries.length);
+    const empty = { before: [], after: [] };
+    if (!books.length) return empty;
+    const msgs = history.map((m) => sub(m.content, c));
+    const hayAt = (depth) => msgs.slice(-Math.max(1, depth)).join("\n");
+    const picked = [];
+    const seen = new Set();
+    let recursionText = "";
+    for (let pass = 0; pass < 4; pass++) {
+      let added = false;
+      books.forEach((book, bi) => {
+        for (const e of book.entries) {
+          const key = bi + ":" + e.id;
+          if (seen.has(key) || !e.enabled || !e.content.trim()) continue;
+          let hit = e.constant;
+          if (!hit) {
+            if (pass > 0 && (!book.recursive_scanning || e.exclude_recursion)) continue;
+            const hay = pass === 0 ? hayAt(e.scan_depth ?? book.scan_depth ?? 4) : recursionText;
+            hit = entryHits(e, hay);
+          }
+          if (!hit) continue;
+          if (e.probability < 100 && Math.random() * 100 > e.probability) { seen.add(key); continue; }
+          seen.add(key);
+          picked.push({ e, book });
+          if (!e.prevent_recursion) recursionText += "\n" + sub(e.content, c);
+          added = true;
         }
-      }
-      if (!hit) continue;
+      });
+      if (!added || !books.some((b) => b.recursive_scanning)) break;
+    }
+    // budget: rough 1 token ≈ 2 characters of mixed text
+    let budget = Math.max(2000, books.reduce((n, b) => n + (b.token_budget || 1000), 0) * 2);
+    picked.sort((a, b) => (b.e.insertion_order - a.e.insertion_order)); // higher order = higher priority for budget
+    const out = { before: [], after: [] };
+    for (const { e } of picked) {
       const text = applyRegex(sub(e.content, c), { placement: 5, stage: "prompt", c }).trim();
       if (!text || text.length > budget) continue;
       budget -= text.length;
-      out.push({ order: e.insertion_order || 0, text });
+      out[e.position === "before_char" ? "before" : "after"].push({ order: e.insertion_order, text });
     }
-    return out.sort((a, b) => a.order - b.order).map((x) => x.text);
+    for (const k of ["before", "after"]) out[k] = out[k].sort((a, b) => a.order - b.order).map((x) => x.text);
+    return out;
   }
 
   function buildInstruction(c, history) {
@@ -1457,12 +1675,13 @@
       parts.push(`这是一个沉浸式角色扮演。你从现在起完全扮演「${c.name}」，用户扮演「${u}」。`);
     }
     parts.push("");
+    const lore = activeLore(c, history || c.chat);
+    if (lore.before.length) parts.push(`## 世界设定\n${lore.before.join("\n\n")}\n`);
     parts.push(`## ${c.name} 的设定`);
     if (c.description) parts.push(c.description);
     if (c.personality) parts.push(`性格：${c.personality}`);
     if (c.scenario) parts.push(`\n## 场景\n${c.scenario}`);
-    const lore = activeLore(c, history || c.chat);
-    if (lore.length) parts.push(`\n## 世界设定\n${lore.join("\n\n")}`);
+    if (lore.after.length) parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`);
     if (state.persona.desc) parts.push(`\n## 关于 ${u}\n${state.persona.desc}`);
     if (c.examples && c.examples.trim()) {
       const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
@@ -1661,8 +1880,7 @@
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
     $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || "";
-    const bookN = d.book && Array.isArray(d.book.entries) ? d.book.entries.length : 0;
-    $("edBook").textContent = bookN ? `世界书：${d.book.name || "未命名"} · ${bookN} 条。关键词出现在最近几条消息里时会自动带入，${d.book.entries.filter((e) => e && e.constant).length} 条为常驻。（编辑功能之后再加）` : "没有世界书。导入带 character_book 的卡会自动带上。";
+    renderEdBook();
     refreshCharRx();
     $("editorDelete").hidden = !c;
     $("exportJson").disabled = $("exportPng").disabled = !downloads;
@@ -1897,7 +2115,7 @@
       tags,
       systemPrompt: str(d.system_prompt),
       postHistory: str(d.post_history_instructions),
-      book: d.character_book && typeof d.character_book === "object" ? d.character_book : null,
+      book: normalizeBook(d.character_book),
       extensions: d.extensions && typeof d.extensions === "object" ? d.extensions : {},
       regex: d.extensions && Array.isArray(d.extensions.regex_scripts) ? d.extensions.regex_scripts.map(normalizeScript).filter(Boolean) : [],
       chat: [],
@@ -1918,7 +2136,7 @@
       system_prompt: c.systemPrompt || "",
       post_history_instructions: c.postHistory || "",
       alternate_greetings: c.altGreetings || [],
-      character_book: c.book || undefined,
+      character_book: c.book && c.book.entries.length ? bookToV2(c.book) : undefined,
       tags: c.tags || [],
       creator: c.creator || "",
       character_version: c.version || "",
@@ -2014,6 +2232,146 @@
       if (e && e.code === "cancelled") return;
       toast("导出失败：" + (e && (e.message || e.code) || "未知错误"), true);
     }
+  }
+
+  // ---------- Lorebook UI ----------
+  function bookSummary(b) {
+    if (!b || !b.entries.length) return "没有世界书。";
+    const on = b.entries.filter((e) => e.enabled).length, konst = b.entries.filter((e) => e.enabled && e.constant).length;
+    return `${b.name || "未命名"} · ${b.entries.length} 条（启用 ${on}，常驻 ${konst}）`;
+  }
+  function renderEdBook() {
+    if (!editing) return;
+    const b = editing.draft.book;
+    $("edBook").textContent = bookSummary(b);
+    $("wiCharRemove").hidden = !(b && b.entries.length);
+  }
+  function renderGlobalBooks() {
+    const box = $("wiGlobalList");
+    box.innerHTML = "";
+    if (!state.books.length) { box.appendChild(el("div", "rx-empty", "还没有全局世界书。")); return; }
+    state.books.forEach((b, i) => {
+      const row = el("div", "rx-row" + (b.enabled === false ? " off" : ""));
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = b.enabled !== false; cb.title = "启用";
+      cb.onchange = () => { b.enabled = cb.checked; save(); renderGlobalBooks(); };
+      const nm = el("div", "nm"); nm.textContent = b.name || "未命名";
+      const small = document.createElement("small"); small.textContent = `${b.entries.length} 条`; nm.appendChild(small);
+      const bEd = el("button", "btn ghost", "编辑");
+      bEd.onclick = () => openBookEditor(b, (nb) => { state.books[i] = nb; save(); renderGlobalBooks(); });
+      const bDel = el("button", "btn ghost danger", "删除");
+      bDel.onclick = async () => { if (!(await askConfirm(`删除世界书「${b.name || "未命名"}」？`, "删除", true))) return; state.books.splice(i, 1); save(); renderGlobalBooks(); };
+      row.append(cb, nm, bEd, bDel);
+      box.appendChild(row);
+    });
+  }
+
+  let wiEditing = null; // { book, done, open:Set }
+  function openBookEditor(book, done) {
+    wiEditing = { book: JSON.parse(JSON.stringify(book || newBook())), done, open: new Set() };
+    const b = wiEditing.book;
+    if (b.enabled === undefined && book && book.enabled !== undefined) b.enabled = book.enabled;
+    $("wiTitle").textContent = b.name ? `世界书 · ${b.name}` : "世界书";
+    $("wiName").value = b.name || ""; $("wiDepth").value = b.scan_depth; $("wiBudget").value = b.token_budget; $("wiRecursive").checked = !!b.recursive_scanning;
+    $("wiExport").disabled = !downloads;
+    renderWiEntries();
+    $("wiBack").hidden = false;
+    $("wiName").focus();
+  }
+  function closeBookEditor() { $("wiBack").hidden = true; wiEditing = null; }
+  function readWiHead() {
+    const b = wiEditing.book;
+    b.name = $("wiName").value.trim();
+    b.scan_depth = Math.max(1, parseInt($("wiDepth").value, 10) || 4);
+    b.token_budget = Math.max(100, parseInt($("wiBudget").value, 10) || 1000);
+    b.recursive_scanning = $("wiRecursive").checked;
+    return b;
+  }
+  function renderWiEntries() {
+    const b = wiEditing.book;
+    const box = $("wiEntries");
+    box.innerHTML = "";
+    $("wiStat").textContent = `${b.entries.length} 条 · 约 ${b.entries.reduce((n, e) => n + e.content.length, 0)} 字`;
+    if (!b.entries.length) { box.appendChild(el("div", "rx-empty", "还没有条目。点「新条目」，或从 SillyTavern 导入。")); return; }
+    b.entries.forEach((e, i) => {
+      const card = el("div", "wi-entry" + (e.enabled ? "" : " off"));
+      const head = el("div", "head");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = e.enabled; cb.title = "启用";
+      cb.onclick = (ev) => ev.stopPropagation();
+      cb.onchange = () => { e.enabled = cb.checked; card.classList.toggle("off", !e.enabled); };
+      const ttl = el("div", "ttl"); ttl.textContent = e.comment || e.keys[0] || `条目 ${i + 1}`;
+      const small = document.createElement("small"); small.textContent = e.keys.slice(0, 4).join(", ") + (e.keys.length > 4 ? " …" : ""); ttl.appendChild(small);
+      const pill = el("span", "pill", e.constant ? "常驻" : e.position === "before_char" ? "前置" : "");
+      if (!pill.textContent) pill.style.visibility = "hidden";
+      const bDel = el("button", "btn ghost danger", "删除");
+      bDel.onclick = async (ev) => { ev.stopPropagation(); if (!(await askConfirm(`删除条目「${ttl.firstChild.textContent}」？`, "删除", true))) return; b.entries.splice(i, 1); wiEditing.open.delete(e.id); renderWiEntries(); };
+      head.append(cb, ttl, pill, bDel);
+      head.onclick = () => { if (wiEditing.open.has(e.id)) wiEditing.open.delete(e.id); else wiEditing.open.add(e.id); renderWiEntries(); };
+      card.appendChild(head);
+      if (wiEditing.open.has(e.id)) card.appendChild(entryForm(e, () => { ttl.firstChild.textContent = e.comment || e.keys[0] || `条目 ${i + 1}`; small.textContent = e.keys.slice(0, 4).join(", "); pill.textContent = e.constant ? "常驻" : e.position === "before_char" ? "前置" : ""; pill.style.visibility = pill.textContent ? "" : "hidden"; }));
+      box.appendChild(card);
+    });
+  }
+  function field(labelText, input, help) {
+    const f = el("div", "field");
+    const l = el("label", null, labelText); f.appendChild(l); f.appendChild(input);
+    if (help) f.appendChild(el("div", "help", help));
+    return f;
+  }
+  function entryForm(e, onChange) {
+    const form = el("div", "form");
+    const inp = (v, ph, mono) => { const i = document.createElement("input"); i.value = v; i.placeholder = ph || ""; if (mono) i.className = "mono"; return i; };
+    const ta = (v, ph) => { const t = document.createElement("textarea"); t.value = v; t.placeholder = ph || ""; return t; };
+    const sel = (opts, v) => { const s = document.createElement("select"); for (const [val, txt] of opts) { const o = document.createElement("option"); o.value = val; o.textContent = txt; s.appendChild(o); } s.value = String(v); return s; };
+    const chk = (v, txt) => { const l = document.createElement("label"); const c = document.createElement("input"); c.type = "checkbox"; c.checked = v; l.append(c, " " + txt); return [l, c]; };
+
+    const iTitle = inp(e.comment, "标题（备注）");
+    const iKeys = inp(e.keys.join(", "), "关键词，逗号分隔；/正则/ 也行", true);
+    const iSec = inp(e.secondary_keys.join(", "), "次要关键词（可选）", true);
+    const sLogic = sel([["0", "任一次要词出现"], ["3", "全部次要词出现"], ["1", "并非全部出现"], ["2", "都不出现"]], e.selective_logic);
+    const tContent = ta(e.content, "触发后带给模型的内容");
+    const [lConst, cConst] = chk(e.constant, "常驻");
+    const [lCase, cCase] = chk(e.case_sensitive, "区分大小写");
+    const [lWhole, cWhole] = chk(e.match_whole_words, "整词匹配");
+    const [lExcl, cExcl] = chk(e.exclude_recursion, "不被递归触发");
+    const [lPrev, cPrev] = chk(e.prevent_recursion, "不触发别的条目");
+    const sPos = sel([["before_char", "角色设定之前"], ["after_char", "角色设定之后"]], e.position);
+    const iOrder = inp(String(e.insertion_order), "顺序", true); iOrder.type = "number";
+    const iProb = inp(String(e.probability), "概率", true); iProb.type = "number"; iProb.min = 0; iProb.max = 100;
+    const iScan = inp(e.scan_depth == null ? "" : String(e.scan_depth), "默认", true); iScan.type = "number"; iScan.min = 1;
+
+    const row1 = el("div", "row"); row1.append(field("标题", iTitle), field("关键词", iKeys));
+    const row2 = el("div", "row"); row2.append(field("次要关键词", iSec), field("次要词逻辑", sLogic));
+    const checks = el("div", "checks"); checks.append(lConst, lCase, lWhole, lExcl, lPrev);
+    const row3 = el("div", "row3"); row3.append(field("插入位置", sPos), field("顺序", iOrder, "数字小的排前面；预算不够时数字大的优先保留"), field("概率 %", iProb));
+    const row4 = el("div", "row3"); row4.append(field("扫描深度", iScan, "留空用世界书默认"));
+    form.append(row1, row2, field("内容", tContent), checks, row3, row4);
+
+    const sync = () => {
+      e.comment = iTitle.value.trim();
+      e.keys = iKeys.value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
+      e.secondary_keys = iSec.value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
+      e.selective_logic = Number(sLogic.value);
+      e.content = tContent.value;
+      e.constant = cConst.checked; e.case_sensitive = cCase.checked; e.match_whole_words = cWhole.checked;
+      e.exclude_recursion = cExcl.checked; e.prevent_recursion = cPrev.checked;
+      e.position = sPos.value; e.insertion_order = Number(iOrder.value) || 0;
+      e.probability = Math.min(100, Math.max(0, Number(iProb.value) || 0));
+      e.scan_depth = iScan.value === "" ? null : Math.max(1, Number(iScan.value) || 1);
+      onChange();
+    };
+    for (const n of form.querySelectorAll("input, select, textarea")) { n.addEventListener("input", sync); n.addEventListener("change", sync); }
+    return form;
+  }
+
+  async function importBookFiles(files) {
+    const books = [], bad = [];
+    for (const f of files) {
+      try {
+        const b = parseBookFile(JSON.parse(await f.text()), f.name);
+        if (b) books.push(b); else bad.push(f.name);
+      } catch (e) { bad.push(f.name); }
+    }
+    return { books, bad };
   }
 
   // ---------- Regex scripts UI ----------
@@ -2213,6 +2571,42 @@
   $("confirmNo").onclick = () => settleConfirm(false);
   $("confirmBack").addEventListener("click", (e) => { if (e.target === $("confirmBack")) settleConfirm(false); });
   document.addEventListener("keydown", (e) => { if (confirmResolve && e.key === "Escape") { e.stopPropagation(); settleConfirm(false); } }, true);
+  // lorebooks
+  let wiImportTarget = null; // "global" | "char"
+  $("wiGlobalImport").onclick = () => { wiImportTarget = "global"; $("wiFile").click(); };
+  $("wiCharImport").onclick = () => { if (!editing) return; wiImportTarget = "char"; $("wiFile").click(); };
+  $("wiFile").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []); e.target.value = "";
+    if (!files.length) return;
+    const { books, bad } = await importBookFiles(files);
+    if (wiImportTarget === "global") {
+      for (const b of books) { b.enabled = true; state.books.push(b); }
+      save(); renderGlobalBooks();
+    } else if (editing) {
+      const d = editing.draft;
+      for (const b of books) {
+        if (!d.book || !d.book.entries.length) d.book = b;
+        else { const base = d.book.entries.reduce((m, x) => Math.max(m, typeof x.id === "number" ? x.id : 0), -1) + 1; b.entries.forEach((x, i) => { x.id = base + i; d.book.entries.push(x); }); }
+      }
+      renderEdBook();
+    }
+    toast(books.length ? `导入了 ${books.length} 本世界书，共 ${books.reduce((n, b) => n + b.entries.length, 0)} 条${bad.length ? "，跳过 " + bad.join("、") : ""}` : `没有可用的世界书：${bad.join("、")}`, !books.length);
+  });
+  $("wiGlobalNew").onclick = () => openBookEditor(newBook(), (b) => { b.enabled = true; state.books.push(b); save(); renderGlobalBooks(); });
+  $("wiCharEdit").onclick = () => { if (!editing) return; openBookEditor(editing.draft.book || newBook(editing.draft.name + " 的世界书"), (b) => { editing.draft.book = b; renderEdBook(); }); };
+  $("wiCharRemove").onclick = async () => { if (!editing) return; if (!(await askConfirm("移除这个角色的世界书？", "移除", true))) return; editing.draft.book = null; renderEdBook(); };
+  $("wiClose").onclick = closeBookEditor;
+  $("wiCancel").onclick = closeBookEditor;
+  $("wiBack").addEventListener("click", (e) => { if (e.target === $("wiBack")) closeBookEditor(); });
+  $("wiSave").onclick = () => { if (!wiEditing) return; const b = readWiHead(); const done = wiEditing.done; closeBookEditor(); done(b); };
+  $("wiAddEntry").onclick = () => { if (!wiEditing) return; const b = wiEditing.book; const e = newEntry(b); b.entries.unshift(e); wiEditing.open.add(e.id); renderWiEntries(); };
+  $("wiExport").onclick = async () => {
+    if (!wiEditing || !downloads) return;
+    const b = readWiHead();
+    try { await downloads.save({ filename: safeName(b.name || "worldinfo") + ".json", data: JSON.stringify(bookToSt(b), null, 2) }); toast("已导出"); }
+    catch (e) { if (e && e.code !== "cancelled") toast("导出失败：" + (e.message || e.code), true); }
+  };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && wiEditing && !confirmResolve) { e.stopPropagation(); closeBookEditor(); } }, true);
   $("rxClose").onclick = closeRxEditor;
   $("rxCancel").onclick = closeRxEditor;
   $("rxBack").addEventListener("click", (e) => { if (e.target === $("rxBack")) closeRxEditor(); });
@@ -2255,7 +2649,7 @@
   $("editorCancel").onclick = closeEditor;
   $("editorSave").onclick = saveEditor;
   $("editorBack").addEventListener("click", (e) => { if (e.target === $("editorBack")) closeEditor(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && editing && !rxEditing) closeEditor(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && editing && !rxEditing && !wiEditing) closeEditor(); });
   for (const id of ["edName", "edDesc", "edPersonality", "edScenario", "edFirst", "edExamples"]) {
     $(id).addEventListener("input", () => { if (editing) renderEditorAvatar(); });
   }
@@ -2285,6 +2679,7 @@
   // ============================================================
   renderAll();
   refreshGlobalRx();
+  renderGlobalBooks();
   initSample().then(() => renderMessages());
 })();
 </script>
