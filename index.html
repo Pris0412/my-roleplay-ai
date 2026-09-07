@@ -289,6 +289,27 @@
   .stage-head .tools { display: flex; gap: 4px; }
   .toggle-rail, .toggle-drawer, #closeRail, #closeDrawer { display: none; }
 
+  .status-strip {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding: 8px 20px; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+  }
+  .status-strip .sp {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--raised);
+    font-size: 12px; color: var(--text); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .status-strip .sp b { font-weight: 500; color: var(--muted); }
+  .status-strip .sp .bar { width: 46px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .status-strip .sp .bar span { display: block; height: 100%; background: var(--accent); }
+  .status-strip .voice { color: var(--muted); font-style: italic; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; flex: 1; min-width: 0; }
+  .st-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+  .st-row input[type=range] { width: 100%; }
+  .st-row .num { width: 70px; }
+  .st-row .lbl { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-row .wrap { display: flex; gap: 8px; align-items: center; }
   .notice {
     margin: 12px 20px 0;
     padding: 10px 14px;
@@ -655,6 +676,7 @@
         <div class="scene" id="headScene"></div>
       </div>
       <div class="tools">
+        <button class="btn ghost" id="statusBtn" title="好感度 / 关系 / 地点 / 心声">状态</button>
         <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
@@ -665,6 +687,7 @@
       </div>
     </header>
 
+    <div class="status-strip" id="statusStrip" hidden title="点开查看和修改状态"></div>
     <div class="notice" id="notice" hidden></div>
 
     <div class="messages" id="messages" aria-live="polite"></div>
@@ -1441,6 +1464,48 @@
   </div>
 </div>
 
+<div class="modal-back" id="stBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stTitle" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <span id="stTitle">状态面板</span>
+      <button class="btn ghost icon" id="stClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="checks">
+        <label><input type="checkbox" id="stEnabled"> 启用：每次回复末尾让模型更新状态（状态块不会显示，也不进上下文）</label>
+      </div>
+      <div class="section">
+        <div class="section-title">当前状态 <span class="stat" id="stUpdated"></span></div>
+        <div id="stFields" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div class="wi-toolbar">
+          <input id="stNewLabel" placeholder="新字段名，如 信任度 / 天气" style="flex:1;min-width:120px;padding:6px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)">
+          <select id="stNewType" style="padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"><option value="number">数值 0–100</option><option value="text">文字</option></select>
+          <button class="btn" id="stAdd">＋ 添加</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="stVoice">心声（{{char}} 此刻不会说出口的想法）</label>
+        <textarea id="stVoice" style="min-height:80px"></textarea>
+      </div>
+      <details class="adv">
+        <summary>给模型的补充说明（可选）</summary>
+        <div class="inner">
+          <div class="field">
+            <textarea id="stExtra" placeholder="例如：好感度每次最多变化 5；关系只能是 陌生人/熟人/朋友/恋人 之一。"></textarea>
+          </div>
+          <div class="book-note" id="stPromptPreview"></div>
+        </div>
+      </details>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost danger" id="stReset">恢复默认字段</button>
+      <div class="right">
+        <button class="btn primary" id="stDone">完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -1631,6 +1696,65 @@
     return normalizeEntry({ id, keys: [], content: "", comment: "新条目", enabled: true }, id);
   }
 
+  // ---------- Status panel model ----------
+  const STATUS_DEFAULT_FIELDS = () => [
+    { key: "好感度", type: "number", value: 20 },
+    { key: "关系", type: "text", value: "陌生人" },
+    { key: "心情", type: "text", value: "" },
+    { key: "时间", type: "text", value: "" },
+    { key: "地点", type: "text", value: "" },
+  ];
+  function normalizeStatus(st) {
+    const out = st && typeof st === "object" ? { ...st } : {};
+    out.enabled = !!out.enabled;
+    out.fields = Array.isArray(out.fields) && out.fields.length ? out.fields.filter((f) => f && f.key).map((f) => ({ key: String(f.key), type: f.type === "number" ? "number" : "text", value: f.type === "number" ? Math.max(0, Math.min(100, Number(f.value) || 0)) : String(f.value ?? "") })) : STATUS_DEFAULT_FIELDS();
+    out.voice = typeof out.voice === "string" ? out.voice : "";
+    out.extra = typeof out.extra === "string" ? out.extra : "";
+    out.updatedFloor = Number(out.updatedFloor) || 0;
+    return out;
+  }
+  const STATUS_RE = /<status>\s*([\s\S]*?)\s*<\/status>/gi;
+  const STATUS_OPEN_RE = /<status>[\s\S]*$/i;
+  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").trim(); }
+  function statusInstruction(c) {
+    const st = c.status;
+    if (!st || !st.enabled) return "";
+    const cur = st.fields.map((f) => `${f.key}：${f.type === "number" ? `${f.value}/100` : (f.value || "（未知）")}`).join("，");
+    const example = {};
+    for (const f of st.fields) example[f.key] = f.type === "number" ? f.value : (f.value || "…");
+    example["心声"] = `${c.name}此刻不会说出口的真实想法，一两句，第一人称`;
+    return [
+      "## 状态面板",
+      `当前状态：${cur}${st.voice ? `。上一次的心声：${st.voice}` : ""}`,
+      "在每次回复的最末尾，另起一行输出一个状态块来更新这些值：只改真的变了的项，数值要合理渐变（一次通常不超过 5），文字项简短。格式严格如下，键名照抄，不要加别的内容：",
+      `<status>${JSON.stringify(example)}</status>`,
+      st.extra.trim() ? st.extra.trim() : "",
+    ].filter(Boolean).join("\n");
+  }
+  function applyStatusFromText(c, text, floor) {
+    const st = c.status;
+    if (!st || !st.enabled) return false;
+    const blocks = [...String(text || "").matchAll(STATUS_RE)];
+    if (!blocks.length) return false;
+    const raw = blocks[blocks.length - 1][1];
+    let obj = null;
+    const tryParse = (t) => { try { const v = JSON.parse(t); return v && typeof v === "object" ? v : null; } catch (e) { return null; } };
+    obj = tryParse(raw) || (() => { const a = raw.indexOf("{"), b = raw.lastIndexOf("}"); return a >= 0 && b > a ? tryParse(raw.slice(a, b + 1)) : null; })();
+    if (!obj) return false;
+    let changed = false;
+    for (const [k, v] of Object.entries(obj)) {
+      const key = String(k).trim();
+      if (key === "心声" || key.toLowerCase() === "voice") { st.voice = String(v ?? "").trim(); changed = true; continue; }
+      const f = st.fields.find((x) => x.key === key);
+      if (!f) continue;
+      if (f.type === "number") { const n = Number(String(v).replace(/[^\d.-]/g, "")); if (!Number.isNaN(n)) { f.value = Math.max(0, Math.min(100, Math.round(n))); changed = true; } }
+      else { f.value = String(v ?? "").trim(); changed = true; }
+    }
+    if (changed) st.updatedFloor = floor || c.chat.length;
+    return changed;
+  }
+  function statusSnapshot(c) { return JSON.parse(JSON.stringify({ fields: c.status.fields, voice: c.status.voice })); }
+
   function normalizeChar(c) {
     c.tags = Array.isArray(c.tags) ? c.tags : [];
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
@@ -1643,6 +1767,7 @@
     if (c.book) { const b = normalizeBook(c.book); if (b && b.entries.length) c.books.push(b); delete c.book; }
     for (const b of c.books) if (b.enabled === undefined) b.enabled = true;
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
+    c.status = normalizeStatus(c.status);
     c.worldName = typeof c.worldName === "string" ? c.worldName : (c.extensions && typeof c.extensions.world === "string" ? c.extensions.world : "");
     c.extensions = c.extensions || {};
     c.chat = Array.isArray(c.chat) ? c.chat : [];
@@ -1891,6 +2016,8 @@
   const REASON_RE = /<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi;
   const REASON_OPEN_RE = /<(think|thinking|reasoning)>([\s\S]*)$/i;
   function foldReasoning(t, streaming) {
+    t = t.replace(STATUS_RE, "");
+    if (streaming) t = t.replace(STATUS_OPEN_RE, "");
     t = t.replace(REASON_RE, (_, __, body) => `<details class="reasoning"><summary>思考过程</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     if (streaming) t = t.replace(REASON_OPEN_RE, (_, __, body) => `<details class="reasoning" open><summary>思考中…</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     return t;
@@ -2130,6 +2257,7 @@
     const c = active();
     if (!c) return;
     applyBg();
+    renderStatusStrip();
     renderAvatar($("headAvatar"), c, "sm");
     $("headName").textContent = c.name;
     $("headScene").textContent = sub(c.scenario || c.tag || "", c);
@@ -2177,7 +2305,9 @@
         if (busy) return;
         if (m.greeting) i = (i + m.swipes.length) % m.swipes.length;
         if (i < 0 || i >= m.swipes.length) return;
-        m.si = i; m.content = m.swipes[i]; save(); renderMessages(); renderCharList();
+        m.si = i; m.content = m.swipes[i];
+        if (c.status && c.status.enabled && applyStatusFromText(c, m.content, c.chat.indexOf(m) + 1)) renderStatusStrip();
+        save(); renderMessages(); renderCharList();
       };
       left.disabled = !m.greeting && m.si === 0;
       left.onclick = () => go(m.si - 1);
@@ -2207,7 +2337,7 @@
     actions.appendChild(bHide);
     const bCopy = el("button", "btn ghost", "复制");
     bCopy.onclick = async () => {
-      try { await navigator.clipboard.writeText(sub(m.content, c)); bCopy.textContent = "已复制"; setTimeout(() => (bCopy.textContent = "复制"), 1200); } catch (e) { bCopy.textContent = "无法复制"; }
+      try { await navigator.clipboard.writeText(stripStatus(sub(m.content, c))); bCopy.textContent = "已复制"; setTimeout(() => (bCopy.textContent = "复制"), 1200); } catch (e) { bCopy.textContent = "无法复制"; }
     };
     actions.appendChild(bCopy);
 
@@ -2420,6 +2550,8 @@
       const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
       parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`);
     }
+    const stIns = statusInstruction(c);
+    if (stIns) parts.push("\n" + stIns);
     parts.push("\n## 规则");
     if (!(c.systemPrompt && c.systemPrompt.trim())) parts.push(rules);
     parts.push(`- ${lengthHint()}`);
@@ -2501,7 +2633,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [`- ${lengthHint()}`, `- ${langHint()}`, `- ${voiceRule(c, u)}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].map((x) => sub(x, c)).join("\n");
+        case "lanternRules": return [[`- ${lengthHint()}`, `- ${langHint()}`, `- ${voiceRule(c, u)}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
@@ -2526,7 +2658,7 @@
     const history = kept.map((m, i) => {
       const depth = kept.length - 1 - i;
       let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
-      if (m.role === "assistant") txt = stripReasoning(txt);
+      if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
       if (ps.namesInContent) txt = `${m.role === "user" ? u : c.name}: ${txt}`;
       return { role: m.role, content: txt, hist: true };
     }).filter((t) => t.content.trim());
@@ -2563,7 +2695,7 @@
       kept.forEach((m, i) => {
         const depth = kept.length - 1 - i;
         let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
-        if (m.role === "assistant") txt = stripReasoning(txt);
+        if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
         if (txt.trim()) turns.push({ role: m.role, content: txt, hist: true });
       });
       if (c.postHistory && c.postHistory.trim()) turns.push({ role: "system", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
@@ -2781,6 +2913,7 @@
       });
       setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
+      if (applyStatusFromText(c, res.text, c.chat.indexOf(msg) + 1)) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); }
     } catch (e) {
       const dropSwipe = () => {
         if (target) { msg.swipes.pop(); msg.si = msg.swipes.length - 1; msg.content = msg.swipes[msg.si]; }
@@ -2884,6 +3017,67 @@
     const more = el("button", "idea more", "换一批");
     more.onclick = () => inspire();
     box.appendChild(more);
+  }
+
+  // ---------- Status strip + panel ----------
+  function renderStatusStrip() {
+    const c = active();
+    const strip = $("statusStrip");
+    if (!c || !c.status || !c.status.enabled) { strip.hidden = true; return; }
+    strip.innerHTML = "";
+    for (const f of c.status.fields) {
+      if (f.type !== "number" && !f.value) continue;
+      const sp = el("span", "sp");
+      sp.appendChild(el("b", null, f.key));
+      if (f.type === "number") {
+        const bar = el("span", "bar"); const fill = el("span"); fill.style.width = f.value + "%"; bar.appendChild(fill);
+        sp.appendChild(bar); sp.appendChild(el("span", null, String(f.value)));
+      } else sp.appendChild(el("span", null, f.value));
+      strip.appendChild(sp);
+    }
+    if (c.status.voice) strip.appendChild(el("span", "voice", "💭 " + c.status.voice));
+    strip.hidden = false;
+  }
+  function openStatus() {
+    const c = active();
+    if (!c) return;
+    $("stTitle").textContent = `状态面板 · ${c.name}`;
+    $("stEnabled").checked = !!c.status.enabled;
+    $("stVoice").value = c.status.voice || "";
+    $("stExtra").value = c.status.extra || "";
+    renderStatusFields();
+    $("stBack").hidden = false;
+  }
+  function renderStatusFields() {
+    const c = active();
+    const st = c.status;
+    const box = $("stFields");
+    box.innerHTML = "";
+    $("stUpdated").textContent = st.updatedFloor ? `· 模型最近在第 ${st.updatedFloor} 楼更新` : "· 还没有被模型更新过";
+    st.fields.forEach((f, i) => {
+      const row = el("div", "st-row");
+      row.appendChild(el("div", "lbl", f.key));
+      const wrap = el("div", "wrap");
+      if (f.type === "number") {
+        const r = document.createElement("input"); r.type = "range"; r.min = 0; r.max = 100; r.value = f.value;
+        const n = document.createElement("input"); n.type = "number"; n.min = 0; n.max = 100; n.value = f.value; n.className = "num mono";
+        n.style.cssText = "padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)";
+        const syncTo = (v) => { f.value = Math.max(0, Math.min(100, Math.round(Number(v) || 0))); r.value = f.value; n.value = f.value; save(); renderStatusStrip(); };
+        r.addEventListener("input", () => syncTo(r.value)); n.addEventListener("change", () => syncTo(n.value));
+        wrap.append(r, n);
+      } else {
+        const t = document.createElement("input"); t.value = f.value; t.placeholder = "（未知）";
+        t.style.cssText = "flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)";
+        t.addEventListener("change", () => { f.value = t.value.trim(); save(); renderStatusStrip(); });
+        wrap.appendChild(t);
+      }
+      row.appendChild(wrap);
+      const del = el("button", "btn ghost danger", "删除");
+      del.onclick = () => { st.fields.splice(i, 1); save(); renderStatusFields(); renderStatusStrip(); };
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+    $("stPromptPreview").textContent = statusInstruction(c) || "（未启用）";
   }
 
   // ---------- Quick-insert snippets ----------
@@ -4461,6 +4655,26 @@
     }
     if (e.key === "Escape" && !$("snipBack").hidden && !confirmResolve) { e.stopPropagation(); $("snipBack").hidden = true; }
   }, true);
+  $("statusBtn").onclick = openStatus;
+  $("statusStrip").onclick = openStatus;
+  $("stClose").onclick = () => { $("stBack").hidden = true; };
+  $("stDone").onclick = () => { $("stBack").hidden = true; };
+  $("stBack").addEventListener("click", (e) => { if (e.target === $("stBack")) $("stBack").hidden = true; });
+  $("stEnabled").addEventListener("change", (e) => { const c = active(); c.status.enabled = e.target.checked; save(); renderStatusStrip(); renderStatusFields(); refreshContextMeter(); });
+  $("stVoice").addEventListener("change", (e) => { const c = active(); c.status.voice = e.target.value.trim(); save(); renderStatusStrip(); });
+  $("stExtra").addEventListener("change", (e) => { const c = active(); c.status.extra = e.target.value.trim(); save(); renderStatusFields(); });
+  $("stAdd").onclick = () => {
+    const c = active();
+    const key = $("stNewLabel").value.trim();
+    if (!key) return $("stNewLabel").focus();
+    if (c.status.fields.some((f) => f.key === key)) return toast("已经有这个字段了", true);
+    c.status.fields.push({ key, type: $("stNewType").value === "number" ? "number" : "text", value: $("stNewType").value === "number" ? 50 : "" });
+    $("stNewLabel").value = "";
+    save(); renderStatusFields(); renderStatusStrip();
+  };
+  $("stNewLabel").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("stAdd").click(); } });
+  $("stReset").onclick = async () => { const c = active(); if (!(await askConfirm("恢复默认的五个字段？当前的值会丢。", "恢复", true))) return; c.status.fields = STATUS_DEFAULT_FIELDS(); c.status.voice = ""; save(); renderStatusFields(); renderStatusStrip(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("stBack").hidden && !confirmResolve) { e.stopPropagation(); $("stBack").hidden = true; } }, true);
   $("bgBtn").onclick = openBg;
   $("bgClose").onclick = () => { $("bgBack").hidden = true; };
   $("bgDone").onclick = () => { $("bgBack").hidden = true; };
