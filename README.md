@@ -34,5 +34,13 @@
 - 回复支持多版本：‹ n/N ›，最后一条回复按 › 生成新版本；开场白在多个开场白之间循环切换
 - 库从 cdnjs 加载，加载不到时退回纯文本渲染
 
+## v3.1 · 前端卡渲染修复、宏、删除角色
+- 渲染前先把成对的块级 HTML（div / table / details / style …）整体保护起来，再交给 marked，空行和缩进不再被拆成代码块
+- DOMPurify 开 `FORCE_BODY`，开头的 `<style>` 不再被丢掉
+- 常用宏：`{{persona}}` `{{description}}` `{{scenario}}` `{{time}}` `{{date}}` `{{random}}` `{{pick}}` `{{roll}}` `{{newline}}` `{{//注释}}`
+  `{{lastMessage}}` 系列、`{{setvar/getvar/addvar/incvar/decvar}}` 和 global 版本
+- 角色列表悬停出现 ✕，编辑角色底部有「删除角色」，设置栏原有的按钮保留
+- 渲染库加载失败时页面顶部会提示
+
 ## 后续计划
 见对话记录，一步一步加。

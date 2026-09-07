@@ -140,7 +140,7 @@
   }
   .char-item {
     display: grid;
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: 40px 1fr auto;
     gap: 10px;
     align-items: center;
     padding: 8px 10px;
@@ -152,6 +152,12 @@
     width: 100%;
   }
   .char-item:hover { background: var(--raised); }
+  .char-item .del {
+    opacity: 0; border: 0; background: transparent; color: var(--faint);
+    padding: 4px 6px; border-radius: 6px; font-size: 14px; line-height: 1;
+  }
+  .char-item:hover .del, .char-item:focus-within .del { opacity: 1; }
+  .char-item .del:hover { color: var(--danger); background: var(--surface); }
   .char-item.active {
     background: var(--accent-soft);
     border-color: var(--accent);
@@ -706,6 +712,7 @@
       <div class="right">
         <button class="btn" id="exportJson" title="导出为 SillyTavern V2 JSON">导出 JSON</button>
         <button class="btn" id="exportPng" title="导出为带角色数据的 PNG">导出 PNG</button>
+        <button class="btn danger" id="editorDelete" title="删除这个角色和它的聊天记录">删除角色</button>
         <span class="stat" id="edStat"></span>
       </div>
       <div class="right">
@@ -918,11 +925,73 @@
   function active() {
     return state.characters.find((c) => c.id === state.activeId) || state.characters[0];
   }
+  // {{macros}} — the SillyTavern set that cards and regex scripts commonly rely on
+  const pad2 = (n) => String(n).padStart(2, "0");
+  function rollDice(spec) {
+    const m = String(spec).trim().match(/^(\d*)d(\d+)([+-]\d+)?$/i) || (/^\d+$/.test(String(spec).trim()) ? [null, "1", spec.trim(), ""] : null);
+    if (!m) return "";
+    const n = Math.max(1, parseInt(m[1] || "1", 10)), sides = Math.max(1, parseInt(m[2], 10)), mod = parseInt(m[3] || "0", 10);
+    let t = 0; for (let i = 0; i < n; i++) t += 1 + Math.floor(Math.random() * sides);
+    return String(t + mod);
+  }
+  function splitArgs(body) { return body.includes("::") ? body.split("::") : body.split(/[,，]/); }
+  function vars(scope, c) { if (scope === "global") { state.vars = state.vars || {}; return state.vars; } c.vars = c.vars || {}; return c.vars; }
   function sub(text, c) {
-    const ch = c || active();
-    return (text || "")
-      .replace(/\{\{char\}\}/gi, ch ? ch.name : "角色")
-      .replace(/\{\{user\}\}/gi, state.persona.name || "你");
+    if (!text) return "";
+    const ch = c || active() || { name: "角色" };
+    const uname = state.persona.name || "你";
+    let depthGuard = 0;
+    const one = (whole, body) => {
+      if (body.startsWith("//")) return "";
+      const colon = body.indexOf(":");
+      const name = (colon >= 0 ? body.slice(0, colon) : body).trim().toLowerCase();
+      const arg = colon >= 0 ? body.slice(colon + 1).replace(/^:/, "") : "";
+      switch (name) {
+        case "char": case "group": return ch.name || "角色";
+        case "user": return uname;
+        case "persona": return state.persona.desc || "";
+        case "description": return ch.description || "";
+        case "personality": return ch.personality || "";
+        case "scenario": return ch.scenario || "";
+        case "mesexamples": return ch.examples || "";
+        case "charprompt": return ch.systemPrompt || "";
+        case "charinstruction": case "charjailbreak": return ch.postHistory || "";
+        case "charversion": return ch.version || "";
+        case "newline": return "\n";
+        case "trim": case "noop": return "";
+        case "input": return $("input") ? $("input").value : "";
+        case "time": { const d = new Date(); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+        case "date": return new Date().toLocaleDateString();
+        case "weekday": return new Date().toLocaleDateString(undefined, { weekday: "long" });
+        case "isotime": { const d = new Date(); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()); }
+        case "isodate": { const d = new Date(); return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+        case "random": case "pick": { const a = splitArgs(arg).map((x) => x.trim()).filter(Boolean); return a.length ? a[Math.floor(Math.random() * a.length)] : ""; }
+        case "roll": return rollDice(arg);
+        case "lastmessage": { const m = ch.chat && ch.chat[ch.chat.length - 1]; return m ? m.content : ""; }
+        case "lastusermessage": { const m = ch.chat && [...ch.chat].reverse().find((x) => x.role === "user"); return m ? m.content : ""; }
+        case "lastcharmessage": { const m = ch.chat && [...ch.chat].reverse().find((x) => x.role === "assistant"); return m ? m.content : ""; }
+        case "lastmessageid": return ch.chat ? String(Math.max(0, ch.chat.length - 1)) : "0";
+        default: break;
+      }
+      const vm = name.match(/^(set|get|add|inc|dec)(global)?var$/);
+      if (vm) {
+        const store = vars(vm[2] ? "global" : "char", ch);
+        const [key, val] = splitArgs(arg).map((x) => x.trim());
+        if (!key) return "";
+        switch (vm[1]) {
+          case "set": store[key] = val ?? ""; return "";
+          case "get": return store[key] == null ? "" : String(store[key]);
+          case "add": store[key] = String((parseFloat(store[key]) || 0) + (parseFloat(val) || 0)); return "";
+          case "inc": store[key] = String((parseFloat(store[key]) || 0) + 1); return "";
+          case "dec": store[key] = String((parseFloat(store[key]) || 0) - 1); return "";
+        }
+      }
+      return whole; // unknown macro: leave it visible
+    };
+    let out = String(text).replace(/\{\{([^{}]*)\}\}/g, one);
+    // values we inserted may themselves hold {{char}} / {{user}}
+    while (depthGuard++ < 2 && /\{\{(char|user)\}\}/i.test(out)) out = out.replace(/\{\{(char|user)\}\}/gi, (_, k) => (k.toLowerCase() === "char" ? ch.name || "角色" : uname));
+    return out;
   }
   function fmtTime(ts) {
     const d = new Date(ts);
@@ -1008,14 +1077,60 @@
     details { border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
   `;
   const canHtml = () => !!(window.marked && window.DOMPurify && window.DOMPurify.isSupported);
+
+  // marked splits an HTML block at the first blank line and turns indented lines into code;
+  // frontend cards are full of both. Hash balanced block-level HTML out of the way first (showdown does the same).
+  const BLOCK_TAG = /^(div|table|thead|tbody|tfoot|tr|td|th|details|summary|section|article|aside|header|footer|main|nav|style|ul|ol|li|pre|blockquote|center|figure|figcaption|dl|dt|dd|fieldset|legend|p|h[1-6]|font|svg|iframe|video|audio|object)$/i;
+  const VOID_TAG = /^(br|hr|img|input|meta|link|source|track|wbr|col|area|base|embed|param)$/i;
+  function protectHtml(text) {
+    const blocks = [];
+    const tagRe = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^<>]*?)?(\/?)>/g;
+    let out = "", pos = 0, m;
+    while ((m = tagRe.exec(text))) {
+      const [whole, closing, rawName, selfClose] = m;
+      const name = rawName.toLowerCase();
+      if (closing || selfClose || VOID_TAG.test(name) || !BLOCK_TAG.test(name)) continue;
+      const start = m.index;
+      let end = -1;
+      if (name === "style" || name === "svg" || name === "pre") {
+        const closeIdx = text.toLowerCase().indexOf("</" + name + ">", start + whole.length);
+        end = closeIdx < 0 ? text.length : closeIdx + name.length + 3;
+      } else {
+        const stack = [name];
+        const inner = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^<>]*?)?(\/?)>/g;
+        inner.lastIndex = start + whole.length;
+        let t;
+        while (stack.length && (t = inner.exec(text))) {
+          const n = t[2].toLowerCase();
+          if (t[3] || VOID_TAG.test(n) || !BLOCK_TAG.test(n)) continue;
+          if (t[1]) { const i = stack.lastIndexOf(n); if (i >= 0) stack.length = i; }
+          else stack.push(n);
+          if (!stack.length) end = t.index + t[0].length;
+        }
+        if (end < 0) end = text.length; // unbalanced: let the browser auto-close
+      }
+      out += text.slice(pos, start) + "\n\n@@HTMLBLOCK" + blocks.length + "@@\n\n";
+      blocks.push(text.slice(start, end));
+      pos = end;
+      tagRe.lastIndex = end;
+    }
+    out += text.slice(pos);
+    return { text: out, blocks };
+  }
+  function restoreHtml(html, blocks) {
+    return html.replace(/(?:<p>)?@@HTMLBLOCK(\d+)@@(?:<\/p>)?/g, (_, i) => blocks[+i] ?? "");
+  }
   function messageHtml(text, ctx) {
     let t = sub(text, ctx.c);
     t = applyRegex(t, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
     if (!canHtml()) return { html: renderRich(t), plain: true };
     let html;
-    try { html = window.marked.parse(t, { breaks: true, gfm: true, mangle: false, headerIds: false }); }
-    catch (e) { return { html: renderRich(t), plain: true }; }
+    try {
+      const p = protectHtml(t);
+      html = restoreHtml(window.marked.parse(p.text, { breaks: true, gfm: true, mangle: false, headerIds: false }), p.blocks);
+    } catch (e) { return { html: renderRich(t), plain: true }; }
     html = window.DOMPurify.sanitize(html, {
+      FORCE_BODY: true, // otherwise a leading <style> is hoisted into <head> and dropped
       ADD_TAGS: ["style"],
       FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
       ADD_ATTR: ["target"],
@@ -1068,8 +1183,9 @@
     const list = $("charList");
     list.innerHTML = "";
     for (const c of state.characters) {
-      const b = el("button", "char-item" + (c.id === state.activeId ? " active" : ""));
+      const b = el("div", "char-item" + (c.id === state.activeId ? " active" : ""));
       b.setAttribute("role", "option");
+      b.tabIndex = 0;
       b.setAttribute("aria-selected", c.id === state.activeId ? "true" : "false");
       const av = el("div");
       renderAvatar(av, c);
@@ -1077,8 +1193,14 @@
       txt.appendChild(el("div", "name", c.name));
       const last = c.chat[c.chat.length - 1];
       txt.appendChild(el("div", "sub", c.tag || (last ? sub(last.content, c).replace(/\*/g, "").slice(0, 40) : "")));
-      b.append(av, txt);
-      b.onclick = () => { if (busy) return; state.activeId = c.id; save(); renderAll(); closeOverlays(); };
+      const del = el("button", "del", "✕");
+      del.title = `删除「${c.name}」`;
+      del.setAttribute("aria-label", `删除 ${c.name}`);
+      del.onclick = (e) => { e.stopPropagation(); deleteCharacter(c); };
+      b.append(av, txt, del);
+      const pick = () => { if (busy) return; state.activeId = c.id; save(); renderAll(); closeOverlays(); };
+      b.onclick = pick;
+      b.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } };
       list.appendChild(b);
     }
   }
@@ -1350,11 +1472,13 @@
     } catch (e) { sample = null; downloads = null; }
     if (editing) { $("exportJson").disabled = $("exportPng").disabled = !downloads; }
     sampleReady = true;
+    const libNote = canHtml() ? "" : `<br>渲染库没有加载出来（marked ${window.marked ? "✓" : "✗"}，DOMPurify ${window.DOMPurify ? "✓" : "✗"}），角色卡的 HTML 前端会显示为纯文本，刷新页面试试。`;
     if (!sample) {
-      showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能调用模型；你仍然可以编辑角色和整理聊天记录。");
+      showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能调用模型；你仍然可以编辑角色和整理聊天记录。" + libNote);
       $("send").disabled = true;
       $("hintRight").textContent = "离线模式";
     } else {
+      if (libNote) showNotice("<strong>提示</strong>" + libNote);
       $("hintRight").textContent = "第一次发送时会请求你的允许";
     }
   }
@@ -1483,6 +1607,7 @@
     const bookN = d.book && Array.isArray(d.book.entries) ? d.book.entries.length : 0;
     $("edBook").textContent = bookN ? `世界书：${d.book.name || "未命名"} · ${bookN} 条。关键词出现在最近几条消息里时会自动带入，${d.book.entries.filter((e) => e && e.constant).length} 条为常驻。（编辑功能之后再加）` : "没有世界书。导入带 character_book 的卡会自动带上。";
     refreshCharRx();
+    $("editorDelete").hidden = !c;
     $("exportJson").disabled = $("exportPng").disabled = !downloads;
     $("exportJson").title = $("exportPng").title = downloads ? "" : "只有在 Claude 里打开时才能保存文件";
     renderEditorAvatar();
@@ -2030,15 +2155,18 @@
     c.chat = [greeting(c)];
     save(); renderMessages(); renderCharList();
   };
-  $("deleteChar").onclick = () => {
-    const c = active();
+  function deleteCharacter(c) {
     if (!c || busy) return;
     if (!confirm(`删除角色「${c.name}」和全部聊天记录？此操作不可恢复。`)) return;
     state.characters = state.characters.filter((x) => x.id !== c.id);
-    if (!state.characters.length) state.characters = exampleCharacters().map((x) => (x.chat = [greeting(x)], x));
-    state.activeId = state.characters[0].id;
+    if (!state.characters.length) state.characters = exampleCharacters().map(normalizeChar).map((x) => (x.chat = [greeting(x)], x));
+    if (!state.characters.some((x) => x.id === state.activeId)) state.activeId = state.characters[0].id;
+    if (editing && editing.id === c.id) closeEditor();
     save(); renderAll(); closeOverlays();
-  };
+    toast(`已删除「${c.name}」`);
+  }
+  $("deleteChar").onclick = () => deleteCharacter(active());
+  $("editorDelete").onclick = () => { if (editing && editing.id) deleteCharacter(state.characters.find((x) => x.id === editing.id)); };
 
   $("editorClose").onclick = closeEditor;
   $("editorCancel").onclick = closeEditor;
