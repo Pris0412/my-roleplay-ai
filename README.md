@@ -17,28 +17,41 @@
 
 所有进度保存在浏览器本地（localStorage），不上传任何数据。
 
-## 使用
+## 在线使用（云端）
 
-1. 直接双击 `index.html`，或部署到 GitHub Pages（Settings → Pages → 选择分支根目录）
+仓库自带 GitHub Pages 自动部署（`.github/workflows/pages.yml`）。推送后，Actions 会把页面发布到：
+
+`https://<你的用户名>.github.io/my-roleplay-ai/`
+
+如果第一次部署失败，去仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**，再重新运行一次 workflow 即可。
+
+也可以离线用：`node scripts/build-single.js` 会生成 `dist/ielts-vocab.html` 单文件，发到手机上用浏览器打开就行。
+
+## 本地使用
+
+1. 直接双击 `index.html`
 2. 推荐使用 Chrome / Edge / Safari，语音效果最好
 3. 键盘快捷键（学习页）：`空格` 翻面，`←` `→` 切换，`1` `2` `3` 评分
 
-## 添加单词
+## 添加 / 修改单词
 
-编辑 `js/words.js`，按现有格式添加即可：
+词库源文件在 `data/<主题>.jsonl`，每行一个词：
 
-```js
-{ id: 71, topic: "env", word: "...", ipa: "/.../", pos: "n.", cn: "中文",
-  pun: "谐音", punStory: "谐音小故事",
-  example: "IELTS-style example sentence.", exampleCn: "例句翻译",
-  collocations: ["常用搭配 1", "常用搭配 2"] }
+```json
+{"w":"drought","ipa":"/draʊt/","pos":"n.","cn":"干旱","pun":"抓土","story":"干旱时地里没水，一伸手只能抓到干土。","ex":"The region has suffered from severe drought for three years.","exCn":"该地区已连续三年遭受严重干旱。","col":["severe drought","drought-stricken areas"]}
 ```
+
+改完后运行 `node scripts/build-words.js` 重新生成 `js/words.js`（会自动去重、编号）。
 
 ## 文件结构
 
 ```
-index.html      页面骨架
-css/style.css   样式
-js/words.js     词库（主题 + 单词数据）
-js/app.js       逻辑（发音、卡片、测验、拼写、填空、进度）
+index.html               页面骨架
+css/style.css            样式
+js/words.js              词库（由脚本生成，勿手改）
+js/app.js                逻辑（发音、卡片、测验、拼写、填空、词库）
+data/*.jsonl             各主题词库源文件
+scripts/build-words.js   合并词库
+scripts/build-single.js  打包成单文件
+.github/workflows/       GitHub Pages 自动部署
 ```

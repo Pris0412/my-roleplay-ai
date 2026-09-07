@@ -79,7 +79,9 @@
     <!-- 我的进度 -->
     <section class="panel" id="panel-progress">
       <div class="summary" id="summary"></div>
+      <input class="search" id="searchInput" placeholder="🔍 搜单词 / 中文 / 谐音，回车或直接输入" autocomplete="off" />
       <div class="wlist" id="wlist"></div>
+      <div style="margin-top:10px;text-align:center"><button class="ghost" id="moreBtn" hidden>显示更多 ↓</button></div>
       <div style="margin-top:16px;text-align:center">
         <button class="ghost danger" id="resetBtn">🗑️ 清空学习记录</button>
       </div>
@@ -91,7 +93,7 @@
     <button class="tab" data-panel="quiz"><span class="ico">🎯</span>测验</button>
     <button class="tab" data-panel="spell"><span class="ico">⌨️</span>拼写</button>
     <button class="tab" data-panel="cloze"><span class="ico">✍️</span>填空</button>
-    <button class="tab" data-panel="progress"><span class="ico">📈</span>进度</button>
+    <button class="tab" data-panel="progress"><span class="ico">📚</span>词库</button>
   </nav>
 
   <div class="toast" id="toast"></div>

@@ -101,9 +101,9 @@
   function pool() { return state.topic === "all" ? window.WORDS : window.WORDS.filter((w) => w.topic === state.topic); }
   function speakBtns(w) {
     return `<div class="speak-row">
-      <button class="speak" data-say="${esc(w.word)}" data-accent="en-GB">🇬🇧 英式</button>
-      <button class="speak" data-say="${esc(w.word)}" data-accent="en-US">🇺🇸 美式</button>
-      <button class="speak" data-say="${esc(w.word)}" data-rate="0.5">🐢 慢速</button>
+      <button class="speak" data-say="${esc(w.w)}" data-accent="en-GB">🇬🇧 英式</button>
+      <button class="speak" data-say="${esc(w.w)}" data-accent="en-US">🇺🇸 美式</button>
+      <button class="speak" data-say="${esc(w.w)}" data-rate="0.5">🐢 慢速</button>
     </div>`;
   }
   // 事件委托：所有 data-say 按钮
@@ -116,7 +116,8 @@
   // ───────── 主题 chips / 口音 / 语速 ─────────
   function renderTopics() {
     const all = [{ id: "all", name: "全部", emoji: "🌈", color: "#fbbf24" }].concat(window.TOPICS);
-    $("#topics").innerHTML = all.map((t) => `<button class="chip ${state.topic === t.id ? "active" : ""}" data-topic="${t.id}" style="--chip:${t.color}">${t.emoji} ${t.name}</button>`).join("");
+    const count = (id) => (id === "all" ? window.WORDS.length : window.WORDS.filter((w) => w.topic === id).length);
+    $("#topics").innerHTML = all.map((t) => `<button class="chip ${state.topic === t.id ? "active" : ""}" data-topic="${t.id}" style="--chip:${t.color}">${t.emoji} ${t.name}<small>${count(t.id)}</small></button>`).join("");
   }
   $("#topics").addEventListener("click", (e) => {
     const c = e.target.closest("[data-topic]"); if (!c) return;
@@ -150,30 +151,30 @@
     const t = topicOf(w.topic); const p = state.progress[w.id];
     $("#cardFront").innerHTML = `
       <span class="topic-tag">${t.emoji} ${t.name}</span><span class="card-index">${idx + 1} / ${deck.length}${p && p.next <= Date.now() && p.seen ? " · 📌 到期复习" : ""}</span>
-      <div class="word">${esc(w.word)}</div>
+      <div class="word">${esc(w.w)}</div>
       <div class="ipa">${esc(w.ipa)}</div>
       <span class="pos">${esc(w.pos)}</span>
       ${speakBtns(w)}
       <div class="hint">👆 点击卡片翻面看中文 + 谐音梗</div>`;
     $("#cardBack").innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <div><span class="word-sm">${esc(w.word)}</span> <span class="ipa" style="font-size:.9rem">${esc(w.ipa)}</span></div>
-        <button class="speak small" data-say="${esc(w.word)}">🔊</button>
+        <div><span class="word-sm">${esc(w.w)}</span> <span class="ipa" style="font-size:.9rem">${esc(w.ipa)}</span></div>
+        <button class="speak small" data-say="${esc(w.w)}">🔊</button>
       </div>
       <div class="cn">${esc(w.pos)} ${esc(w.cn)}</div>
       <div class="pun-box">
         <div class="label">🤣 谐音梗</div>
         <div class="pun">${esc(w.pun)}</div>
-        <div class="story">${esc(w.punStory)}</div>
+        <div class="story">${esc(w.story)}</div>
       </div>
       <div class="ex">
-        <div class="en">${highlight(w.example, w.word)} <button class="speak small" data-say="${esc(w.example)}">🔊 读例句</button></div>
-        <div class="zh">${esc(w.exampleCn)}</div>
+        <div class="en">${highlight(w.ex, w.w)} <button class="speak small" data-say="${esc(w.ex)}">🔊 读例句</button></div>
+        <div class="zh">${esc(w.exCn)}</div>
       </div>
-      <div class="colls">${w.collocations.map((c) => `<span>${esc(c)}</span>`).join("")}</div>`;
+      <div class="colls">${w.col.map((c) => `<span>${esc(c)}</span>`).join("")}</div>`;
     if (withPop) { card.classList.remove("pop"); void card.offsetWidth; card.classList.add("pop"); }
     // 自动朗读一次
-    speak(w.word);
+    speak(w.w);
   }
   function highlight(sentence, word) {
     const stem = word.slice(0, Math.max(4, word.length - 3));
@@ -205,24 +206,26 @@
   function newQuiz() {
     const ws = pool(); if (ws.length < 4) { $("#quizBox").innerHTML = '<div class="empty">这个主题词太少，换个主题吧</div>'; return; }
     const w = pick(ws);
-    const others = shuffle(window.WORDS.filter((x) => x.id !== w.id)).slice(0, 3);
-    quiz = { w, options: shuffle([w].concat(others)), done: false };
+    const p0 = (x) => x.pos.split("/")[0];
+    let cands = shuffle(window.WORDS.filter((x) => x.id !== w.id && x.topic === w.topic && p0(x) === p0(w) && x.cn !== w.cn));
+    if (cands.length < 3) cands = cands.concat(shuffle(window.WORDS.filter((x) => x.id !== w.id && x.cn !== w.cn && !cands.includes(x))));
+    quiz = { w, options: shuffle([w].concat(cands.slice(0, 3))), done: false };
     renderQuiz();
   }
   function renderQuiz() {
     const { w, options } = quiz; const mode = state.quizMode;
     let head;
-    if (mode === "meaning") head = `<div class="qword">${esc(w.word)}</div><div class="qsub">${esc(w.ipa)} ${esc(w.pos)}</div>${speakBtns(w)}`;
+    if (mode === "meaning") head = `<div class="qword">${esc(w.w)}</div><div class="qsub">${esc(w.ipa)} ${esc(w.pos)}</div>${speakBtns(w)}`;
     else if (mode === "listen") head = `<div class="qword">🎧</div><div class="qsub">听发音，选出正确的单词</div>${speakBtns(w)}`;
     else head = `<div class="qword">${esc(w.cn)}</div><div class="qsub">${esc(w.pos)} · 提示谐音：<b>${esc(w.pun)}</b></div>`;
-    const label = (o) => (mode === "meaning" ? o.cn : o.word);
+    const label = (o) => (mode === "meaning" ? o.cn : o.w);
     $("#quizBox").innerHTML = `
       <div class="qtitle"><span>🎯 ${mode === "meaning" ? "看词选义" : mode === "listen" ? "听音选词" : "看义选词"}</span><span>${topicOf(w.topic).emoji}</span></div>
       ${head}
       <div class="options">${options.map((o) => `<button class="opt" data-id="${o.id}">${esc(label(o))}</button>`).join("")}</div>
       <div class="feedback" id="quizFb"></div>
       <button class="next-btn" id="quizNext" disabled>下一题 →</button>`;
-    if (mode === "listen") setTimeout(() => speak(w.word), 250); else if (mode === "meaning") speak(w.word);
+    if (mode === "listen") setTimeout(() => speak(w.w), 250); else if (mode === "meaning") speak(w.w);
   }
   $("#quizBox").addEventListener("click", (e) => {
     const o = e.target.closest(".opt");
@@ -232,9 +235,9 @@
       if (!ok) o.classList.add("wrong");
       grade(quiz.w.id, ok ? 2 : 0); ding(ok); if (ok) confetti();
       $("#quizFb").innerHTML = ok
-        ? `🎉 答对了！${esc(quiz.w.word)} = ${esc(quiz.w.cn)}<span class="pun-mini">谐音：${esc(quiz.w.pun)} —— ${esc(quiz.w.punStory)}</span>`
-        : `😅 正确答案是 <b>${esc(quiz.w.word)}</b> = ${esc(quiz.w.cn)}<span class="pun-mini">记住谐音：${esc(quiz.w.pun)} —— ${esc(quiz.w.punStory)}</span>`;
-      if (state.quizMode !== "meaning") speak(quiz.w.word);
+        ? `🎉 答对了！${esc(quiz.w.w)} = ${esc(quiz.w.cn)}<span class="pun-mini">谐音：${esc(quiz.w.pun)} —— ${esc(quiz.w.story)}</span>`
+        : `😅 正确答案是 <b>${esc(quiz.w.w)}</b> = ${esc(quiz.w.cn)}<span class="pun-mini">记住谐音：${esc(quiz.w.pun)} —— ${esc(quiz.w.story)}</span>`;
+      if (state.quizMode !== "meaning") speak(quiz.w.w);
       const nb = $("#quizNext"); nb.disabled = false; nb.focus();
     }
     if (e.target.id === "quizNext") newQuiz();
@@ -251,22 +254,22 @@
       <div class="qword">${esc(w.cn)}</div>
       <div class="qsub">${esc(w.pos)} · 谐音：<b>${esc(w.pun)}</b></div>
       ${speakBtns(w)}
-      <div class="letters" id="letters">${maskWord(w.word, 0)}</div>
+      <div class="letters" id="letters">${maskWord(w.w, 0)}</div>
       <input class="spell-input" id="spellInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="输入单词后按回车" />
       <div class="feedback" id="spellFb"></div>
       <div class="row-btns">
         <button class="ghost" id="hintBtn">💡 提示一个字母</button>
         <button class="next-btn" id="spellNext" style="margin-top:0">换一个 →</button>
       </div>`;
-    speak(w.word);
+    speak(w.w);
     setTimeout(() => $("#spellInput").focus(), 50);
   }
   function maskWord(word, n) { return word.split("").map((ch, i) => (i < n ? ch : "_")).join(" "); }
   $("#spellBox").addEventListener("click", (e) => {
     if (e.target.id === "hintBtn" && spell && !spell.done) {
-      spell.hints = Math.min(spell.w.word.length, spell.hints + 1);
-      $("#letters").textContent = maskWord(spell.w.word, spell.hints);
-      if (spell.hints >= spell.w.word.length) { $("#spellFb").textContent = "😂 全提示了，再输一遍加深记忆吧"; }
+      spell.hints = Math.min(spell.w.w.length, spell.hints + 1);
+      $("#letters").textContent = maskWord(spell.w.w, spell.hints);
+      if (spell.hints >= spell.w.w.length) { $("#spellFb").textContent = "😂 全提示了，再输一遍加深记忆吧"; }
     }
     if (e.target.id === "spellNext") newSpell();
   });
@@ -274,12 +277,12 @@
     if (e.key !== "Enter" || e.target.id !== "spellInput" || !spell) return;
     const input = e.target; const val = input.value.trim().toLowerCase();
     if (!val) return;
-    if (val === spell.w.word.toLowerCase()) {
+    if (val === spell.w.w.toLowerCase()) {
       if (!spell.done) {
         spell.done = true; input.classList.remove("wrong"); input.classList.add("correct");
         const g = spell.hints === 0 ? 2 : 1; grade(spell.w.id, g); ding(true); confetti();
-        $("#spellFb").innerHTML = `🎉 拼对了！<span class="pun-mini">${esc(spell.w.example)}</span>`;
-        speak(spell.w.example);
+        $("#spellFb").innerHTML = `🎉 拼对了！<span class="pun-mini">${esc(spell.w.ex)}</span>`;
+        speak(spell.w.ex);
         setTimeout(newSpell, 2200);
       }
     } else {
@@ -287,7 +290,7 @@
       ding(false); $("#spellFb").textContent = "❌ 不对哦，再听一遍试试";
       // 标记为不熟，但不立刻跳题
       const p = prog(spell.w.id); p.wrong++; p.level = 0; p.next = Date.now(); save();
-      speak(spell.w.word);
+      speak(spell.w.w);
     }
   });
 
@@ -296,19 +299,21 @@
   function newCloze() {
     const ws = pool(); if (ws.length < 4) { $("#clozeBox").innerHTML = '<div class="empty">这个主题词太少，换个主题吧</div>'; return; }
     const w = pick(ws);
-    const others = shuffle(window.WORDS.filter((x) => x.id !== w.id && x.pos.split("/")[0] === w.pos.split("/")[0])).slice(0, 3);
+    const p0 = (x) => x.pos.split("/")[0];
+    let others = shuffle(window.WORDS.filter((x) => x.id !== w.id && x.topic === w.topic && p0(x) === p0(w))).slice(0, 3);
+    if (others.length < 3) others = others.concat(shuffle(window.WORDS.filter((x) => x.id !== w.id && p0(x) === p0(w) && !others.includes(x))).slice(0, 3 - others.length));
     while (others.length < 3) others.push(pick(window.WORDS.filter((x) => x.id !== w.id && !others.includes(x))));
     cloze = { w, options: shuffle([w].concat(others)), done: false };
-    const stem = w.word.slice(0, Math.max(4, w.word.length - 3));
+    const stem = w.w.slice(0, Math.max(4, w.w.length - 3));
     const re = new RegExp(stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[a-z]*", "i");
-    const m = w.example.match(re); const form = m ? m[0] : w.word;
+    const m = w.ex.match(re); const form = m ? m[0] : w.w;
     cloze.form = form;
-    const sentence = esc(w.example).replace(form, `<span class="blank" id="blank">______</span>`);
+    const sentence = esc(w.ex).replace(form, `<span class="blank" id="blank">______</span>`);
     $("#clozeBox").innerHTML = `
       <div class="qtitle"><span>✍️ 例句填空</span><span>${topicOf(w.topic).emoji}</span></div>
       <div class="cloze-sent">${sentence}</div>
-      <div class="qsub">${esc(w.exampleCn)}</div>
-      <div class="options">${cloze.options.map((o) => `<button class="opt" data-id="${o.id}">${esc(o.word)}</button>`).join("")}</div>
+      <div class="qsub">${esc(w.exCn)}</div>
+      <div class="options">${cloze.options.map((o) => `<button class="opt" data-id="${o.id}">${esc(o.w)}</button>`).join("")}</div>
       <div class="feedback" id="clozeFb"></div>
       <button class="next-btn" id="clozeNext" disabled>下一题 →</button>`;
   }
@@ -320,15 +325,16 @@
       if (!ok) o.classList.add("wrong");
       $("#blank").textContent = cloze.form;
       grade(cloze.w.id, ok ? 2 : 0); ding(ok); if (ok) confetti();
-      $("#clozeFb").innerHTML = (ok ? "🎉 完美！" : `😅 应该填 <b>${esc(cloze.w.word)}</b>（${esc(cloze.w.cn)}）`) +
-        `<span class="pun-mini">谐音：${esc(cloze.w.pun)} · 搭配：${cloze.w.collocations.map(esc).join("，")}</span>`;
-      speak(cloze.w.example);
+      $("#clozeFb").innerHTML = (ok ? "🎉 完美！" : `😅 应该填 <b>${esc(cloze.w.w)}</b>（${esc(cloze.w.cn)}）`) +
+        `<span class="pun-mini">谐音：${esc(cloze.w.pun)} · 搭配：${cloze.w.col.map(esc).join("，")}</span>`;
+      speak(cloze.w.ex);
       const nb = $("#clozeNext"); nb.disabled = false; nb.focus();
     }
     if (e.target.id === "clozeNext") newCloze();
   });
 
-  // ───────── 进度 ─────────
+  // ───────── 词库 / 进度 ─────────
+  const PAGE = 120; let listLimit = PAGE, listQuery = "";
   function renderProgress() {
     const ws = pool(); const now = Date.now();
     let learned = 0, mastered = 0, due = 0;
@@ -338,18 +344,34 @@
       <div class="sum-tile"><b>${learned}</b><small>已学习</small></div>
       <div class="sum-tile"><b>${mastered}</b><small>已掌握 ⭐4+</small></div>
       <div class="sum-tile"><b style="color:var(--accent2)">${due}</b><small>待复习</small></div>`;
-    const sorted = ws.slice().sort((a, b) => (state.progress[b.id]?.level || 0) - (state.progress[a.id]?.level || 0));
-    $("#wlist").innerHTML = sorted.map((w) => {
+    const q = listQuery.trim().toLowerCase();
+    // 搜索时查全库，不限主题
+    const source = q ? window.WORDS.filter((w) => w.w.toLowerCase().includes(q) || w.cn.includes(q) || w.pun.includes(q)) : ws;
+    const lv = (w) => (state.progress[w.id] ? state.progress[w.id].level : 0);
+    const sorted = q ? source.slice().sort((a, b) => a.w.toLowerCase().indexOf(q) - b.w.toLowerCase().indexOf(q)) : source.slice().sort((a, b) => lv(b) - lv(a) || (state.progress[b.id]?.seen || 0) - (state.progress[a.id]?.seen || 0));
+    const shown = sorted.slice(0, listLimit);
+    $("#wlist").innerHTML = shown.map((w) => {
       const p = state.progress[w.id] || { level: 0, seen: 0, next: 0 };
       const stars = "★".repeat(p.level) + "☆".repeat(5 - p.level);
       const dueTxt = p.seen ? (p.next <= now ? "📌 待复习" : `⏰ ${Math.ceil((p.next - now) / DAY)} 天后`) : "🆕 未学";
       return `<div class="wrow">
-        <button class="speak small" data-say="${esc(w.word)}">🔊</button>
-        <div class="w">${esc(w.word)}<small>${esc(w.cn)} · ${esc(w.pun)}</small></div>
+        <button class="speak small" data-say="${esc(w.w)}">🔊</button>
+        <div class="w">${esc(w.w)} <span class="ipa" style="font-size:.8rem">${esc(w.ipa)}</span> <button class="jump" data-jump="${w.id}">看卡片</button><small>${esc(w.cn)} · ${esc(w.pun)}</small></div>
         <div style="text-align:right"><div class="stars">${stars}</div><div class="due">${dueTxt}</div></div>
       </div>`;
-    }).join("");
+    }).join("") || '<div class="empty">没找到这个词</div>';
+    $("#moreBtn").hidden = sorted.length <= listLimit;
+    $("#moreBtn").textContent = `显示更多 ↓（还有 ${Math.max(0, sorted.length - listLimit)} 个）`;
   }
+  $("#searchInput").addEventListener("input", (e) => { listQuery = e.target.value; listLimit = PAGE; renderProgress(); });
+  $("#moreBtn").addEventListener("click", () => { listLimit += PAGE; renderProgress(); });
+  $("#wlist").addEventListener("click", (e) => {
+    const j = e.target.closest("[data-jump]"); if (!j) return;
+    const id = +j.dataset.jump; const w = window.WORDS.find((x) => x.id === id);
+    if (state.topic !== "all" && w.topic !== state.topic) { state.topic = "all"; save(); renderTopics(); }
+    buildDeck(); idx = Math.max(0, deck.findIndex((x) => x.id === id));
+    $$(".tab").find((t) => t.dataset.panel === "learn").click();
+  });
   $("#resetBtn").addEventListener("click", () => {
     if (!confirm("确定清空所有学习记录？（XP、连续天数、单词进度都会归零）")) return;
     state.progress = {}; state.xp = 0; state.streak = 0; state.lastStudy = null; save();
