@@ -300,7 +300,8 @@ const REPLY_MODES=[
  {id:'echox',label:'复述+扩展',text:'可以复述 {{user}} 的话，并在不改变其意图的前提下补充相应的动作、表情与小动作，让场景更完整；仍不要替 {{user}} 做出重大新决定。'},
 ];
 const LENGTHS=[{id:300,label:'短 · 约300字'},{id:800,label:'中 · 约800字'},{id:1500,label:'长 · 约1500字'},{id:2500,label:'超长 · 2500字+'}];
-const TIERS=[{id:'quick',label:'模型：快速'},{id:'default',label:'模型：标准'},{id:'complex',label:'模型：深思'}];
+const TIERS=[{id:'quick',label:'快速档（最快·不思考）'},{id:'default',label:'标准档（日常均衡）'},{id:'complex',label:'深思档（最强·思考最久）'}];
+const TIER_NAME={quick:'快速档',default:'标准档',complex:'深思档'};
 const DEFAULT_SUMMARY_PROMPT=`你是这段角色扮演剧情的记录员。请把下面这些楼层的内容压缩成一段条理清晰的剧情总结，供后续对话作为长期记忆使用。要求：
 1. 保留关键事件、时间地点、人物关系变化、承诺/约定、重要物品与伏笔；
 2. 保留角色之间说过的、以后可能被提起的重要台词（可简化）；
@@ -469,7 +470,7 @@ function buildPrompt(w,opts={}){
 - 在场的 NPC 要自然地融入场景：有自己的目的、日程与情绪，会插话、会离开、会带来新信息，不为撮合主角而工具化；不在场的人可以通过消息、电话、传闻出现。
 - 保持时间线连续；如果剧情中时间流逝，更新状态。
 - 正文写完后，另起一行输出一个状态块，格式严格如下（JSON 单行，不要加代码围栏）：
-<state>{"date":"日期","time":"时间","place":"地点","weather":"天气","present":"在场人物","inner":"${cs[0]?.name||'角色'}此刻的真实心声（一两句，第一人称）","relations":[{"a":"人物A","b":"人物B","label":"当前关系一词","note":"本楼的变化原因，没有变化则省略此项"}],"memory":["本楼值得长期记住的事，最多3条，没有则空数组"]}</state>`
+<state>{"date":"日期","time":"时间","place":"地点","weather":"天气","present":"在场人物","inner":"${cs[0]?.name||'角色'}此刻的真实心声（一两句，第一人称）","relations":[{"a":"人物A","b":"人物B","label":"当前关系一词","note":"本楼的变化原因，没有变化则省略此项"}],"memory":["本楼值得长期记住的事，最多3条，没有则空数组"],"model":"你自己的模型名称与版本（如 Claude Sonnet 4.6；不确定就写你最可能的名字）"}</state>`
   +cs.filter(c=>c.postHistory).map(c=>`\n【${c.name} 的附加指令】\n${fillVars(c.postHistory,w)}`).join('')
   +cs.filter(c=>c.depthPrompt?.prompt).map(c=>`\n【${c.name} 附注】\n${fillVars(c.depthPrompt.prompt,w)}`).join('');
   // 稳定部分放最前（预设/角色/常驻世界书），便于提示词缓存；动态部分（状态/检索/规则）放在最后一条用户消息里
@@ -513,6 +514,7 @@ function applyMeta(w,meta,n){
     if(!ex){ex={id:uid(),a:r.a,b:r.b,label:r.label,history:[]};w.relations.push(ex)}
     if(ex.label!==r.label||r.note){ex.history.push({n,label:r.label,note:r.note||''});ex.label=r.label}}
   if(Array.isArray(meta.memory))for(const t of meta.memory){if(t&&typeof t==='string')w.notes.push({n,text:t})}
+  if(meta.model&&typeof meta.model==='string')S._lastSelfModel=meta.model.slice(0,60);
 }
 </script>
 <script>
@@ -879,7 +881,8 @@ function renderSettings(b){
   <div id="exportBox" class="hidden" style="margin-top:8px"><p class="tiny">这个页面不能直接下载文件，请全选复制下面内容保存为 .json：</p><textarea id="exportTxt" style="min-height:120px;font-size:12px"></textarea></div>
   <div class="sep"></div><h3 style="font-size:18px">AI 来源</h3>
   <div class="card"><div class="row between"><b>当前</b><span class="chip ${BACKEND?'gold':'acc'}">${BACKEND?'本地后端 · '+esc(BACKEND.url):(SAMPLE?'claude.ai 订阅（页面内置）':'未连接')}</span></div>
-  <p class="tiny" style="margin-top:6px">在 claude.ai 里打开：直接用你的订阅额度，模型只能选「快速 / 标准 / 深思」三档，具体型号由平台分配，每次回复后状态栏会显示实际用的档位。<br>本地后端：在电脑上运行仓库里的 <code>server/</code>（走 Claude Code 登录的订阅额度），就能指定 Opus 5 / Sonnet 5 / Haiku 4.5 等具体型号，并使用 SQLite FTS5 做记忆检索，手机连同一 Wi-Fi 也能玩。</p>
+  <p class="tiny" style="margin-top:6px">在 claude.ai 里打开：直接用你的订阅额度。平台只开放三档，文档原话是：<b>快速</b> = 最快、不先思考；<b>标准</b> = 日常均衡；<b>深思</b> = 最强、思考最久。平台不告诉页面具体型号，你的套餐没有某一档时会自动降到相邻档（每楼署名旁会标出实际档位）。<br>本地后端：在电脑上运行仓库里的 <code>server/</code>（走 Claude Code 登录的订阅额度），就能指定 Opus 5 / Sonnet 5 / Haiku 4.5 等具体型号，并使用 SQLite FTS5 做记忆检索，手机连同一 Wi-Fi 也能玩。</p>
+  ${SAMPLE&&!BACKEND?`<div class="card" style="margin-top:10px"><div class="row between"><b>模型探测</b><button class="btn sm g" id="probeModels">三档各问一次「你是谁」</button></div><p class="tiny">让每一档的模型自报名称与版本。模型的自我认知不一定准确（尤其是版本号），只能作参考；每次探测会用掉一点点额度。</p><div id="probeOut" style="margin-top:6px">${(st.probe||[]).length?probeTable(st.probe):'<span class="tiny">还没探测过。</span>'}</div></div>`:''}
   <label class="f">本地后端地址（留空 = 不用）</label><div class="row"><input type="text" id="beUrl" class="grow" placeholder="http://localhost:8787" value="${esc(st.backendUrl||'')}"><button class="btn sm" id="beTest">连接</button></div>
   ${BACKEND?`<label class="f">模型（本地后端）</label><select id="beModel">${MODELS.map(([id,l])=>`<option value="${id}" ${st.model===id?'selected':''}>${l} · ${id}</option>`).join('')}</select>`:''}</div>
   <p class="muted">第二期计划：uu 的小手机（WhatsApp / 转账 / Instagram）、论坛、char 日记、时间推进、char 主动联系、关系图谱历史动画、SQLite 后端。</p>`;
@@ -891,10 +894,14 @@ function renderSettings(b){
   $('#warnKB',b).onchange=e=>{st.warnKB=Math.min(60,Math.max(10,+e.target.value||44));markDirty();renderCtx()};
   $('#quick',b).onchange=e=>{st.quick=e.target.value.split(/\s+/).filter(Boolean);markDirty();renderQuick()};
   $('#exportAll',b).onclick=exportAll;$('#importAll',b).onclick=()=>pickFile('.json',importAll);
+  const pb=$('#probeModels',b);if(pb)pb.onclick=async()=>{pb.disabled=true;$('#probeOut',b).innerHTML='<span class="tiny">探测中……（深思档可能要等十几秒）</span>';const res=[];
+    for(const t of ['quick','default','complex']){try{const r=await SAMPLE('请只回答一行：你是哪个公司的哪个模型，名称与版本号是什么？如果不确定版本，写出你最可能的名字并注明「不确定」。不要其他内容。'+'\n（探测时间 '+new Date().toISOString()+'）',{modelTier:t,cache:false});res.push({tier:t,applied:r.modelTierApplied,name:r.text.trim().slice(0,80)})}catch(e){res.push({tier:t,applied:'-',name:'失败：'+(e.message||e.code)})}$('#probeOut',b).innerHTML=probeTable(res)}
+    st.probe=res;st.probeAt=now();markDirty();pb.disabled=false};
   $('#beTest',b).onclick=async()=>{st.backendUrl=$('#beUrl',b).value.trim();markDirty();setStatus('正在连接后端……');await connectBackend(true);renderPanel();renderModelSelect()};
   const bm=$('#beModel',b);if(bm)bm.onchange=()=>{st.model=bm.value;markDirty();renderModelSelect()};
   $('#resetAll',b).onclick=()=>{if(!confirm('清空全部角色、世界、聊天与设置？建议先备份。此操作不可撤销。'))return;const old=S.worlds.map(w=>w.id);S=seedState();old.forEach(id=>dirty.add(id));saveAll();renderAll();renderPanel()};
 }
+function probeTable(res){return `<table style="width:100%;font-size:13px;border-collapse:collapse">${res.map(r=>`<tr><td style="padding:4px 0;color:var(--muted);white-space:nowrap">${TIER_NAME[r.tier]||r.tier}${r.applied&&r.applied!==r.tier?`<span class="chip" title="你的套餐没有这一档，平台换成了相邻档">→ ${TIER_NAME[r.applied]||r.applied}</span>`:''}</td><td style="padding:4px 8px">${esc(r.name)}</td></tr>`).join('')}</table>${S.settings.probeAt?`<div class="tiny">探测于 ${new Date(S.settings.probeAt).toLocaleString()}</div>`:''}`}
 function applyBackground(){const w=world();const u=assetUrl(w.bgId);$('#main').classList.toggle('hasbg',!!u);$('#bg').style.backgroundImage=u?`url(${u})`:'';document.documentElement.style.setProperty('--bg-opacity',S.settings.bgOpacity??.35)}
 function applySettings(){const st=S.settings;document.documentElement.style.setProperty('--reader-size',st.fontSize+'px');document.documentElement.style.setProperty('--reader-font',{serif:'var(--serif)',sans:'var(--sans)',display:'var(--display)'}[st.font]||'var(--serif)');if(st.theme==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',st.theme)}
 async function exportAll(){
@@ -971,7 +978,7 @@ const AI={
     if(BACKEND)return BACKEND.chat(input,o);
     if(!SAMPLE)throw {code:'unavailable',message:'AI 不可用'};
     const r=await SAMPLE(input,{modelTier:o.tier||S.settings.tier,cache:false,signal:o.signal,onText:o.onText});
-    LAST_MODEL=({quick:'快速档',default:'标准档',complex:'深思档'})[r.modelTierApplied]||r.modelTierApplied||'';return r;
+    LAST_MODEL=TIER_NAME[r.modelTierApplied]||r.modelTierApplied||'';const req=o.tier||S.settings.tier;if(r.modelTierApplied&&r.modelTierApplied!==req)LAST_MODEL+='（套餐无'+(TIER_NAME[req]||req)+'，已降级）';return r;
   },
   async json(input,o={}){
     if(BACKEND){const r=await BACKEND.chat(input,o);return parseJsonLoose(r.text)}
@@ -1029,9 +1036,9 @@ async function generate({mode,continueText}){
   ctl=new AbortController();busy(true);setStatus(`已发送 ${(p.bytes/KB).toFixed(1)} KB · 世界书 ${p.lore.length} 条 · 检索 ${p.recall.length} 楼${p.omitted?' · 省略前 '+p.omitted+' 楼':''}`);
   try{
     const r=await AI.text(p.turns,{signal:ctl.signal,onText:({text})=>{const {body}=parseState(text);txt.innerHTML=md(applyRegex(body.replace(/<state>[\s\S]*$/,''),'ai','display',w),{streaming:true});scrollBottom()}});
-    const {body,meta}=parseState(r.text);target.swipes[target.si]=body;target.meta=meta;target.model=LAST_MODEL;target.truncated=!!r.truncated;applyMeta(w,meta,target.n);
+    const {body,meta}=parseState(r.text);target.swipes[target.si]=body;target.meta=meta;target.model=LAST_MODEL+(!BACKEND&&meta?.model?' · 自称 '+String(meta.model).slice(0,40):'');target.truncated=!!r.truncated;applyMeta(w,meta,target.n);
     if(r.truncated)toast('回复被截断了，点「续写」可以接着写');
-    setStatus(`本楼由 ${LAST_MODEL||AI.label()} 生成 · ${body.length} 字`,true);snapshot(`生成 #${target.n}`);
+    setStatus(`本楼由 ${target.model||AI.label()} 生成 · ${body.length} 字`,true);snapshot(`生成 #${target.n}`);
   }catch(e){
     if(e.code==='cancelled'){const {body}=parseState(e.text||'');if(body)target.swipes[target.si]=body;else{target.swipes.splice(target.si,1);target.si=Math.max(0,target.swipes.length-1);if(!target.swipes.length)w.floors.pop()}}
     else{target.swipes.splice(target.si,1);target.si=Math.max(0,target.swipes.length-1);if(!target.swipes.length)w.floors.pop();toast(({not_granted:'你拒绝了 AI 授权，本次页面无法生成',rate_limited:'请求太频繁，稍等再试',prompt_too_large:'提示词过大，请总结或隐藏楼层'})[e.code]||('生成失败：'+(e.message||e.code)),5000)}
