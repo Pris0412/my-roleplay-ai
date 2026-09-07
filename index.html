@@ -245,10 +245,28 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background:
-      radial-gradient(1200px 400px at 50% -200px, var(--accent-soft), transparent 70%),
-      var(--ground);
+    position: relative;
+    background: var(--ground);
+    --bubble-alpha: 100%;
   }
+  .stage-bg {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(1200px 400px at 50% -200px, var(--accent-soft), transparent 70%);
+    background-size: cover; background-position: center;
+  }
+  .stage-bg.img { background-size: cover; }
+  .stage-bg-dim { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: var(--ground); opacity: 0; }
+  .stage > *:not(.stage-bg):not(.stage-bg-dim) { position: relative; z-index: 1; }
+  .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .bg-tile {
+    height: 70px; border-radius: 10px; border: 2px solid var(--line); cursor: pointer; position: relative; overflow: hidden;
+    background-color: var(--ground); background-size: cover; background-position: center; padding: 0;
+  }
+  .bg-tile.on { border-color: var(--accent); }
+  .bg-tile span { position: absolute; left: 6px; bottom: 4px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  .slider { display: grid; grid-template-columns: 90px 1fr 44px; gap: 10px; align-items: center; font-size: 13px; }
+  .slider input[type=range] { width: 100%; }
+  .slider .v { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: right; }
   .stage-head {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 20px;
@@ -320,7 +338,7 @@
   .bubble {
     padding: 10px 14px;
     border-radius: 4px 14px 14px 14px;
-    background: var(--char-bubble);
+    background: color-mix(in srgb, var(--char-bubble) var(--bubble-alpha), transparent);
     border: 1px solid var(--line);
     overflow-wrap: anywhere;
     line-height: 1.7;
@@ -334,7 +352,7 @@
   .swipe .btn { padding: 2px 7px; font-size: 13px; line-height: 1; }
   .swipe .count { min-width: 34px; text-align: center; }
   .msg .actions.always { opacity: 1; }
-  .msg.user .bubble { background: var(--user-bubble); }
+  .msg.user .bubble { background: color-mix(in srgb, var(--user-bubble) var(--bubble-alpha), transparent); }
   .bubble em { color: var(--muted); font-style: italic; }
   .bubble strong { font-weight: 600; }
   .bubble q, .bubble .say { color: var(--text); }
@@ -363,7 +381,8 @@
   .composer {
     padding: 12px 20px 16px;
     border-top: 1px solid var(--line);
-    background: var(--surface);
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    backdrop-filter: blur(10px);
   }
   .composer-inner {
     max-width: 860px; margin: 0 auto;
@@ -611,7 +630,9 @@
   </aside>
 
   <!-- ========== Stage ========== -->
-  <main class="stage">
+  <main class="stage" id="stage">
+    <div class="stage-bg" id="stageBg"></div>
+    <div class="stage-bg-dim" id="stageDim"></div>
     <header class="stage-head">
       <button class="btn ghost icon toggle-rail" id="openRail" title="角色" aria-label="打开角色栏">☰</button>
       <div class="avatar sm" id="headAvatar"></div>
@@ -624,6 +645,7 @@
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
         <button class="btn ghost" id="openLib" title="世界书 · 预设 · 正则（对所有角色生效）">全局库</button>
+        <button class="btn ghost icon" id="bgBtn" title="聊天背景" aria-label="聊天背景">🖼</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
       </div>
@@ -1326,6 +1348,46 @@
   </div>
 </div>
 
+<div class="modal-back" id="bgBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bgTitle" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <span id="bgTitle">聊天背景</span>
+      <button class="btn ghost icon" id="bgClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>作用范围</label>
+        <div class="checks">
+          <label><input type="radio" name="bgScope" value="global" checked> 所有角色</label>
+          <label><input type="radio" name="bgScope" value="char"> 只给当前角色</label>
+        </div>
+        <div class="help" id="bgScopeHelp"></div>
+      </div>
+      <div class="field">
+        <label>内置背景</label>
+        <div class="bg-grid" id="bgPresets"></div>
+      </div>
+      <div class="field">
+        <label>自己的图片</label>
+        <div class="wi-toolbar">
+          <label class="btn" for="bgFile">上传图片</label>
+          <input type="file" id="bgFile" accept="image/*" hidden>
+          <button class="btn ghost" id="bgClearImg">去掉图片</button>
+          <span class="stat" id="bgImgStat"></span>
+        </div>
+        <div class="help">图片会缩到最长边 1920 像素后存进浏览器本地存储（大约 200–500 KB）。</div>
+      </div>
+      <div class="slider"><span>压暗</span><input type="range" id="bgDim" min="0" max="90" step="5"><span class="v" id="bgDimV"></span></div>
+      <div class="slider"><span>模糊</span><input type="range" id="bgBlur" min="0" max="20" step="1"><span class="v" id="bgBlurV"></span></div>
+      <div class="slider"><span>气泡不透明</span><input type="range" id="bgAlpha" min="30" max="100" step="5"><span class="v" id="bgAlphaV"></span></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="bgReset">恢复默认</button>
+      <div class="right"><button class="btn primary" id="bgDone">完成</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -1398,6 +1460,7 @@
       books: [],
       presets: [],
       activePreset: "",
+      bg: null,
       leftOpen: true,
     };
   }
@@ -1874,6 +1937,7 @@
   function renderHead() {
     const c = active();
     if (!c) return;
+    applyBg();
     renderAvatar($("headAvatar"), c, "sm");
     $("headName").textContent = c.name;
     $("headScene").textContent = sub(c.scenario || c.tag || "", c);
@@ -2627,6 +2691,90 @@
     const more = el("button", "idea more", "换一批");
     more.onclick = () => inspire();
     box.appendChild(more);
+  }
+
+  // ---------- Chat background ----------
+  const BG_PRESETS = [
+    { id: "lantern", name: "灯下", css: "radial-gradient(1200px 400px at 50% -200px, var(--accent-soft), transparent 70%)" },
+    { id: "plain", name: "素净", css: "none" },
+    { id: "dusk", name: "暮色", css: "linear-gradient(160deg, #2b1d33 0%, #16151b 45%, #0f1a22 100%)" },
+    { id: "deep", name: "深海", css: "linear-gradient(180deg, #0b1b2b 0%, #10283d 50%, #061019 100%)" },
+    { id: "ember", name: "余烬", css: "radial-gradient(900px 500px at 80% 110%, rgba(217,120,80,0.35), transparent 60%), linear-gradient(180deg, #1a1414 0%, #0e0c0c 100%)" },
+    { id: "forest", name: "林间", css: "radial-gradient(700px 500px at 20% 0%, rgba(90,140,90,0.28), transparent 60%), linear-gradient(180deg, #121a14 0%, #0b100c 100%)" },
+    { id: "stars", name: "星空", css: "radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 60% 70%, #fff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 80% 20%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 40% 80%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 90% 60%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 10% 90%, #fff 50%, transparent 51%), linear-gradient(180deg, #0a0d1a 0%, #141a2e 100%)" },
+    { id: "paper", name: "纸张", css: "repeating-linear-gradient(0deg, rgba(0,0,0,0.035) 0 1px, transparent 1px 28px), linear-gradient(180deg, #ece4d4 0%, #e3d9c4 100%)" },
+    { id: "rose", name: "薄暮玫瑰", css: "linear-gradient(135deg, #f3d9e2 0%, #e9d5f0 50%, #d6dff3 100%)" },
+    { id: "mist", name: "晨雾", css: "linear-gradient(180deg, #eef1f4 0%, #dfe6ec 100%)" },
+  ];
+  const BG_DEFAULT = { preset: "lantern", image: "", dim: 0, blur: 0, alpha: 100 };
+  function effectiveBg(c) {
+    const ch = c || active();
+    const base = { ...BG_DEFAULT, ...(state.bg || {}) };
+    return ch && ch.bg ? { ...base, ...ch.bg } : base;
+  }
+  function applyBg() {
+    const bg = effectiveBg();
+    const layer = $("stageBg"), dim = $("stageDim"), stage = $("stage");
+    if (bg.image) {
+      layer.style.background = `url("${bg.image}") center / cover no-repeat`;
+      layer.classList.add("img");
+    } else {
+      const pr = BG_PRESETS.find((x) => x.id === bg.preset) || BG_PRESETS[0];
+      layer.style.background = pr.css === "none" ? "transparent" : pr.css;
+      layer.classList.remove("img");
+    }
+    layer.style.filter = bg.blur ? `blur(${bg.blur}px)` : "";
+    layer.style.transform = bg.blur ? "scale(1.06)" : "";
+    dim.style.opacity = String((bg.dim || 0) / 100);
+    stage.style.setProperty("--bubble-alpha", (bg.alpha ?? 100) + "%");
+  }
+  let bgScope = "global";
+  function bgTarget() {
+    if (bgScope === "char") { const c = active(); if (!c.bg) c.bg = {}; return c.bg; }
+    if (!state.bg) state.bg = {}; return state.bg;
+  }
+  function openBg() {
+    const c = active();
+    bgScope = c && c.bg ? "char" : "global";
+    for (const r of document.querySelectorAll('input[name="bgScope"]')) r.checked = r.value === bgScope;
+    renderBgModal();
+    $("bgBack").hidden = false;
+  }
+  function renderBgModal() {
+    const c = active();
+    const bg = bgScope === "char" ? { ...BG_DEFAULT, ...(state.bg || {}), ...(c.bg || {}) } : { ...BG_DEFAULT, ...(state.bg || {}) };
+    $("bgScopeHelp").textContent = bgScope === "char" ? `只影响「${c.name}」，没设置的项沿用全局。` : "所有角色共用；单独设置过的角色不受影响。";
+    const grid = $("bgPresets");
+    grid.innerHTML = "";
+    for (const pr of BG_PRESETS) {
+      const t = el("button", "bg-tile" + (!bg.image && bg.preset === pr.id ? " on" : ""));
+      t.style.background = pr.css === "none" ? "var(--ground)" : pr.css;
+      t.appendChild(el("span", null, pr.name));
+      t.onclick = () => { const tg = bgTarget(); tg.preset = pr.id; tg.image = ""; save(); applyBg(); renderBgModal(); };
+      grid.appendChild(t);
+    }
+    $("bgImgStat").textContent = bg.image ? `已用图片 · ${(bg.image.length * 0.75 / 1024).toFixed(0)} KB` : "";
+    $("bgClearImg").hidden = !bg.image;
+    $("bgDim").value = bg.dim; $("bgDimV").textContent = bg.dim + "%";
+    $("bgBlur").value = bg.blur; $("bgBlurV").textContent = bg.blur + "px";
+    $("bgAlpha").value = bg.alpha; $("bgAlphaV").textContent = bg.alpha + "%";
+  }
+  function readBgImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const max = 1920;
+        const sc = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        resolve(cv.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+      img.src = url;
+    });
   }
 
   // ---------- Memory index: in-page full-text search (inverted index + BM25, CJK bigrams) ----------
@@ -4048,6 +4196,28 @@
     toast("设置已保存");
     if (window.matchMedia("(max-width: 1080px)").matches) closeOverlays();
   };
+  $("bgBtn").onclick = openBg;
+  $("bgClose").onclick = () => { $("bgBack").hidden = true; };
+  $("bgDone").onclick = () => { $("bgBack").hidden = true; };
+  $("bgBack").addEventListener("click", (e) => { if (e.target === $("bgBack")) $("bgBack").hidden = true; });
+  for (const r of document.querySelectorAll('input[name="bgScope"]')) r.addEventListener("change", () => { bgScope = r.value; renderBgModal(); });
+  $("bgFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      const data = await readBgImage(f);
+      const tg = bgTarget(); tg.image = data;
+      save(); applyBg(); renderBgModal();
+      toast(`背景已换，${(data.length * 0.75 / 1024).toFixed(0)} KB`);
+    } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+  });
+  $("bgClearImg").onclick = () => { const tg = bgTarget(); tg.image = ""; save(); applyBg(); renderBgModal(); };
+  $("bgDim").addEventListener("input", (e) => { const tg = bgTarget(); tg.dim = Number(e.target.value); $("bgDimV").textContent = tg.dim + "%"; applyBg(); });
+  $("bgBlur").addEventListener("input", (e) => { const tg = bgTarget(); tg.blur = Number(e.target.value); $("bgBlurV").textContent = tg.blur + "px"; applyBg(); });
+  $("bgAlpha").addEventListener("input", (e) => { const tg = bgTarget(); tg.alpha = Number(e.target.value); $("bgAlphaV").textContent = tg.alpha + "%"; applyBg(); });
+  for (const id of ["bgDim", "bgBlur", "bgAlpha"]) $(id).addEventListener("change", () => save());
+  $("bgReset").onclick = () => { if (bgScope === "char") { const c = active(); delete c.bg; } else state.bg = null; save(); applyBg(); renderBgModal(); toast("已恢复默认背景"); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("bgBack").hidden && !confirmResolve) { e.stopPropagation(); $("bgBack").hidden = true; } }, true);
   $("ctxBtn").onclick = openContext;
   $("ctxBtnHead").onclick = openContext;
   $("ctxClose").onclick = closeContext;
