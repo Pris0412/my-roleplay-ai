@@ -287,7 +287,17 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .stage-head .tools { display: flex; gap: 4px; }
-  .toggle-rail, .toggle-drawer, #closeRail, #closeDrawer { display: none; }
+  /* desktop: both side panels can be collapsed; the toggles live in the chat header */
+  @media (min-width: 761px) {
+    .app.hide-left { grid-template-columns: minmax(0, 1fr) 312px; }
+    .app.hide-left .rail { display: none; }
+  }
+  @media (min-width: 1081px) {
+    .app.hide-right { grid-template-columns: 264px minmax(0, 1fr); }
+    .app.hide-left.hide-right { grid-template-columns: minmax(0, 1fr); }
+    .app.hide-right .drawer { display: none; }
+  }
+  .toggle-rail, .toggle-drawer, #closeRail, #closeDrawer { display: inline-flex; }
 
   .status-strip {
     display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
@@ -628,7 +638,6 @@
       z-index: 40; box-shadow: var(--shadow);
     }
     .drawer.open { transform: none; }
-    .toggle-drawer, #closeDrawer { display: inline-flex; }
   }
   @media (max-width: 760px) {
     .app { grid-template-columns: minmax(0, 1fr); }
@@ -638,7 +647,6 @@
       z-index: 40; box-shadow: var(--shadow);
     }
     .rail.open { transform: none; }
-    .toggle-rail, #closeRail { display: inline-flex; }
     .stage-head { padding: 10px 12px; }
     .messages { padding: 14px 12px 8px; }
     .composer { padding: 10px 12px 12px; }
@@ -1585,6 +1593,7 @@
       snippets: null,
       snipShow: true,
       leftOpen: true,
+      rightOpen: true,
     };
   }
 
@@ -4743,10 +4752,19 @@
   $("memTo").addEventListener("change", memUpdateHint);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("memBack").hidden && !confirmResolve) { e.stopPropagation(); closeMemory(); } }, true);
 
-  $("openRail").onclick = () => openOverlay($("rail"));
-  $("closeRail").onclick = closeOverlays;
-  $("openDrawer").onclick = () => openOverlay($("drawer"));
-  $("closeDrawer").onclick = closeOverlays;
+  const railIsOverlay = () => window.matchMedia("(max-width: 760px)").matches;
+  const drawerIsOverlay = () => window.matchMedia("(max-width: 1080px)").matches;
+  function applyPanels() {
+    $("app").classList.toggle("hide-left", state.leftOpen === false);
+    $("app").classList.toggle("hide-right", state.rightOpen === false);
+    $("openRail").title = state.leftOpen === false ? "展开角色栏" : "收起角色栏";
+    $("openDrawer").title = state.rightOpen === false ? "展开设置" : "收起设置";
+  }
+  $("openRail").onclick = () => { if (railIsOverlay()) return openOverlay($("rail")); state.leftOpen = state.leftOpen === false; save(); applyPanels(); };
+  $("closeRail").onclick = () => { if (railIsOverlay()) return closeOverlays(); state.leftOpen = false; save(); applyPanels(); };
+  $("openDrawer").onclick = () => { if (drawerIsOverlay()) return openOverlay($("drawer")); state.rightOpen = state.rightOpen === false; save(); applyPanels(); };
+  $("closeDrawer").onclick = () => { if (drawerIsOverlay()) return closeOverlays(); state.rightOpen = false; save(); applyPanels(); };
+  applyPanels();
 
   // ============================================================
   // Boot
