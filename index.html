@@ -609,9 +609,11 @@
           <div class="field">
             <label for="sLen">回复长度</label>
             <select id="sLen">
-              <option value="short">短（1–2 段）</option>
-              <option value="medium">中（2–4 段）</option>
-              <option value="long">长（4 段以上）</option>
+              <option value="short">短 · 200–300 字</option>
+              <option value="medium">中 · 500–800 字</option>
+              <option value="mlong">中长 · 800–1200 字</option>
+              <option value="long">长 · 1200–2000 字</option>
+              <option value="custom">自定义…</option>
             </select>
           </div>
           <div class="field">
@@ -621,6 +623,16 @@
               <option value="zh">中文</option>
               <option value="en">English</option>
             </select>
+          </div>
+        </div>
+        <div class="row" id="sLenCustomRow" hidden>
+          <div class="field">
+            <label for="sLenMin">最少字数</label>
+            <input id="sLenMin" type="number" min="50" step="50" class="mono">
+          </div>
+          <div class="field">
+            <label for="sLenMax">最多字数</label>
+            <input id="sLenMax" type="number" min="100" step="50" class="mono">
           </div>
         </div>
         <div class="field">
@@ -974,7 +986,7 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
-      settings: { tier: "default", len: "medium", lang: "auto", mem: "40" },
+      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40" },
       regex: [],
       books: [],
       leftOpen: true,
@@ -1558,7 +1570,10 @@
     $("pName").value = state.persona.name || "";
     $("pDesc").value = state.persona.desc || "";
     $("sTier").value = state.settings.tier;
-    $("sLen").value = state.settings.len;
+    $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" ? state.settings.len : "medium";
+    $("sLenMin").value = state.settings.lenMin || 600;
+    $("sLenMax").value = state.settings.lenMax || 1000;
+    $("sLenCustomRow").hidden = state.settings.len !== "custom";
     $("sLang").value = state.settings.lang;
     $("sMem").value = state.settings.mem;
   }
@@ -1584,8 +1599,19 @@
   // ============================================================
   // Prompt construction
   // ============================================================
+  const LEN_PRESETS = { short: [200, 300], medium: [500, 800], mlong: [800, 1200], long: [1200, 2000] };
+  function lengthRange() {
+    const st = state.settings;
+    if (st.len === "custom") {
+      const lo = Math.max(50, parseInt(st.lenMin, 10) || 600), hi = Math.max(lo + 50, parseInt(st.lenMax, 10) || lo + 400);
+      return [lo, hi];
+    }
+    return LEN_PRESETS[st.len] || LEN_PRESETS.medium;
+  }
   function lengthHint() {
-    return { short: "每次回复 1 到 2 段，短而有力。", medium: "每次回复 2 到 4 段。", long: "每次回复 4 段以上，可以慢慢铺陈细节。" }[state.settings.len];
+    const [lo, hi] = lengthRange();
+    const tone = hi <= 300 ? "短而有力，不要铺陈。" : hi <= 800 ? "有细节但不拖沓。" : hi <= 1200 ? "可以慢慢铺陈场景、动作和心理描写。" : "充分展开：环境、动作、对白、神态和节奏都要写到，像小说的一节。";
+    return `每次回复控制在 ${lo} 到 ${hi} 字之间（中文按字数，英文按词数），${tone}写到该停的地方自然收住，不要为凑字数注水。`;
   }
   function langHint() {
     return { auto: "用和{{user}}最后一条消息相同的语言回复。", zh: "始终用中文回复。", en: "Always reply in English." }[state.settings.lang];
@@ -2693,7 +2719,9 @@
   $("pName").addEventListener("input", (e) => { state.persona.name = e.target.value; save(); renderMessages(); renderHead(); });
   $("pDesc").addEventListener("input", (e) => { state.persona.desc = e.target.value; save(); });
   $("sTier").addEventListener("change", (e) => { state.settings.tier = e.target.value; save(); });
-  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; save(); });
+  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); });
+  $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
+  $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
   $("sMem").addEventListener("change", (e) => { state.settings.mem = e.target.value; save(); });
 
