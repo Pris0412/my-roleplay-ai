@@ -794,9 +794,12 @@
             <option value="20">最近 20 条</option>
             <option value="40">最近 40 条</option>
             <option value="80">最近 80 条</option>
+            <option value="150">最近 150 条</option>
             <option value="1000">全部（可能超出上限）</option>
+            <option value="custom">自定义…</option>
           </select>
-          <div class="help">角色卡和你的人设永远会带上；超出的旧消息会被截掉。</div>
+          <input id="sMemCustom" type="number" min="1" max="1000" step="1" class="mono" placeholder="条数" hidden style="margin-top:6px">
+          <div class="help">角色卡和你的人设永远会带上；超出的旧消息会被截掉。上下文超过 64 KB 时会从最早的开始丢。</div>
         </div>
       </div>
 
@@ -1144,7 +1147,11 @@
               <option value="10">10 楼</option>
               <option value="20">20 楼</option>
               <option value="30">30 楼</option>
+              <option value="50">50 楼</option>
+              <option value="100">100 楼</option>
+              <option value="custom">自定义…</option>
             </select>
+            <input id="ragKCustom" type="number" min="1" max="100" step="1" class="mono" placeholder="1–100" hidden style="margin-top:6px">
           </div>
         </div>
         <div class="field">
@@ -1984,7 +1991,11 @@
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
     $("sLang").value = state.settings.lang;
-    $("sMem").value = state.settings.mem;
+    const memPresets = ["20", "40", "80", "150", "1000"];
+    const memVal = String(parseInt(state.settings.mem, 10) || 40);
+    $("sMem").value = memPresets.includes(memVal) ? memVal : "custom";
+    $("sMemCustom").hidden = memPresets.includes(memVal);
+    $("sMemCustom").value = memVal;
     $("sVoice").value = state.settings.voice || "strict";
     $("sMemTrim").checked = !!state.settings.memTrim;
   }
@@ -2279,7 +2290,7 @@
     if (state.settings.ragOn !== false && state.settings.ragOn !== "0") {
       const lastUser = [...kept].reverse().find((m) => m.role === "user");
       const q = lastUser ? sub(lastUser.content, c) : "";
-      if (q.trim()) retrieved = ragSearch(c, q, parseInt(state.settings.ragK, 10) || 10, (m) => !keptIds.has(m.id) && (upto == null || c.chat.indexOf(m) < upto));
+      if (q.trim()) retrieved = ragSearch(c, q, Math.max(1, Math.min(100, parseInt(state.settings.ragK, 10) || 10)), (m) => !keptIds.has(m.id) && (upto == null || c.chat.indexOf(m) < upto));
     }
     const ps = activePreset();
     let turns;
@@ -2713,7 +2724,11 @@
     const c = active();
     if (!c) return;
     $("ragOn").value = state.settings.ragOn === false || state.settings.ragOn === "0" ? "0" : "1";
-    $("ragK").value = String(parseInt(state.settings.ragK, 10) || 10);
+    const kPresets = ["5", "10", "20", "30", "50", "100"];
+    const kVal = String(Math.max(1, Math.min(100, parseInt(state.settings.ragK, 10) || 10)));
+    $("ragK").value = kPresets.includes(kVal) ? kVal : "custom";
+    $("ragKCustom").hidden = kPresets.includes(kVal);
+    $("ragKCustom").value = kVal;
     $("ragQuery").value = "";
     $("ragHits").innerHTML = "";
     $("hideUpto").value = Math.max(1, c.chat.length - 20);
@@ -3988,7 +4003,11 @@
   $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
   $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
-  $("sMem").addEventListener("change", (e) => { state.settings.mem = e.target.value; save(); refreshContextMeter(); });
+  $("sMem").addEventListener("change", (e) => {
+    if (e.target.value === "custom") { $("sMemCustom").hidden = false; $("sMemCustom").focus(); return; }
+    $("sMemCustom").hidden = true; state.settings.mem = e.target.value; save(); refreshContextMeter();
+  });
+  $("sMemCustom").addEventListener("change", (e) => { const v = Math.max(1, Math.min(1000, parseInt(e.target.value, 10) || 40)); e.target.value = v; state.settings.mem = String(v); save(); refreshContextMeter(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
   $("sMemTrim").addEventListener("change", (e) => { state.settings.memTrim = e.target.checked; save(); refreshContextMeter(); });
@@ -4025,7 +4044,11 @@
   $("ctxDone").onclick = closeContext;
   $("ctxBack").addEventListener("click", (e) => { if (e.target === $("ctxBack")) closeContext(); });
   $("ragOn").addEventListener("change", (e) => { state.settings.ragOn = e.target.value === "1"; save(); renderContextPanel(); });
-  $("ragK").addEventListener("change", (e) => { state.settings.ragK = parseInt(e.target.value, 10) || 10; save(); renderContextPanel(); });
+  $("ragK").addEventListener("change", (e) => {
+    if (e.target.value === "custom") { $("ragKCustom").hidden = false; $("ragKCustom").focus(); return; }
+    $("ragKCustom").hidden = true; state.settings.ragK = parseInt(e.target.value, 10) || 10; save(); renderContextPanel();
+  });
+  $("ragKCustom").addEventListener("change", (e) => { const v = Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 10)); e.target.value = v; state.settings.ragK = v; save(); renderContextPanel(); });
   $("ragQuery").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runRagSearch(); } });
   $("ragQuery").addEventListener("input", () => { if (!$("ragQuery").value.trim()) $("ragHits").innerHTML = ""; });
   $("hideApply").onclick = () => {
