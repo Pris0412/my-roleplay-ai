@@ -510,6 +510,8 @@
   .wi-entry .form .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .wi-entry .form .checks { padding-top: 2px; }
   .wi-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .msg .meta .floor { font-family: var(--font-mono); font-size: 10px; color: var(--faint); }
+  .mem-result { min-height: 160px; }
   .wi-toolbar .spacer { flex: 1; }
   @media (max-width: 760px) { .wi-entry .form .row3 { grid-template-columns: 1fr; } }
   .rx-row {
@@ -585,6 +587,7 @@
       </div>
       <div class="tools">
         <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
+        <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
       </div>
@@ -720,6 +723,11 @@
       <div class="section">
         <div class="section-title">当前对话</div>
         <div class="stat" id="chatStat"></div>
+        <button class="btn block" id="memBtn2">记忆总结</button>
+        <div class="checks">
+          <label><input type="checkbox" id="sMemTrim"> 带入上下文时跳过已总结的楼层（保留最近 4 条）</label>
+        </div>
+        <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
         <button class="btn danger block" id="deleteChar">删除这个角色</button>
       </div>
     </div>
@@ -966,6 +974,54 @@
   </div>
 </div>
 
+<div class="modal-back" id="memBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="memTitle" style="width:min(720px,100%)">
+    <div class="modal-head">
+      <span id="memTitle">记忆总结</span>
+      <button class="btn ghost icon" id="memClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="stat" id="memStat"></div>
+      <div class="row">
+        <div class="field">
+          <label for="memFrom">起始楼</label>
+          <input id="memFrom" type="number" min="1" class="mono">
+        </div>
+        <div class="field">
+          <label for="memTo">结束楼</label>
+          <input id="memTo" type="number" min="1" class="mono">
+        </div>
+      </div>
+      <details class="adv">
+        <summary>总结提示词（可自定义）</summary>
+        <div class="inner">
+          <div class="field">
+            <textarea id="memPrompt" style="min-height:180px" class="mono"></textarea>
+            <div class="help">可用占位符：{{char}} {{user}} {{range}}（如 1-20）{{messages}}（这段楼层的原文）{{previous}}（此前的记忆摘要）。改动会保存。</div>
+          </div>
+          <button class="btn ghost" id="memPromptReset">恢复默认提示词</button>
+        </div>
+      </details>
+      <div class="wi-toolbar">
+        <button class="btn primary" id="memGen">生成总结</button>
+        <button class="btn danger" id="memStop" hidden>停止</button>
+        <span class="stat" id="memHint"></span>
+      </div>
+      <div class="field">
+        <label for="memResult">总结（可以改）</label>
+        <textarea id="memResult" class="mem-result" placeholder="点「生成总结」，结果会出现在这里。也可以自己写。"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" id="memBook"></span>
+      <div class="right">
+        <button class="btn" id="memCancel">取消</button>
+        <button class="btn primary" id="memSave">存为记忆条目</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -1032,7 +1088,7 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
-      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict" },
+      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "" },
       regex: [],
       books: [],
       leftOpen: true,
@@ -1102,6 +1158,7 @@
       recursive_scanning: !!b.recursive_scanning,
       extensions: b.extensions && typeof b.extensions === "object" ? b.extensions : {},
       enabled: b.enabled !== false,
+      memory: !!b.memory,
       entries,
     };
   }
@@ -1160,6 +1217,7 @@
     c.books = Array.isArray(c.books) ? c.books.map(normalizeBook).filter(Boolean) : [];
     if (c.book) { const b = normalizeBook(c.book); if (b && b.entries.length) c.books.push(b); delete c.book; }
     for (const b of c.books) if (b.enabled === undefined) b.enabled = true;
+    c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.worldName = typeof c.worldName === "string" ? c.worldName : (c.extensions && typeof c.extensions.world === "string" ? c.extensions.world : "");
     c.extensions = c.extensions || {};
     c.chat = Array.isArray(c.chat) ? c.chat : [];
@@ -1533,6 +1591,7 @@
     const meta = el("div", "meta");
     meta.appendChild(el("span", "who", isUser ? (state.persona.name || "你") : c.name));
     meta.appendChild(el("span", "time", fmtTime(m.ts)));
+    meta.appendChild(el("span", "floor", "#" + (index + 1)));
     if (m.greeting) meta.appendChild(el("span", "tag", "开场白"));
     if (m.stopped) meta.appendChild(el("span", "tag", "已停止"));
     const bubble = el("div", "bubble");
@@ -1626,11 +1685,12 @@
     $("sLang").value = state.settings.lang;
     $("sMem").value = state.settings.mem;
     $("sVoice").value = state.settings.voice || "strict";
+    $("sMemTrim").checked = !!state.settings.memTrim;
   }
 
   function updateStats() {
     const c = active();
-    if (c) $("chatStat").textContent = `${c.chat.length} 条消息 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字`;
+    if (c) $("chatStat").textContent = `${c.chat.length} 条消息 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字` + (c.memory && c.memory.lastFloor ? ` · 记忆已总结到第 ${c.memory.lastFloor} 楼` : "");
     try {
       const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
       $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${(bytes / 1024).toFixed(0)} KB`;
@@ -1790,7 +1850,11 @@
 
   function buildTurns(c, upto) {
     const mem = parseInt(state.settings.mem, 10) || 40;
-    const history = c.chat.slice(0, upto == null ? c.chat.length : upto);
+    let history = c.chat.slice(0, upto == null ? c.chat.length : upto);
+    if (state.settings.memTrim && c.memory && c.memory.lastFloor > 0) {
+      const cut = Math.min(c.memory.lastFloor, Math.max(0, history.length - 4));
+      history = history.slice(cut);
+    }
     const kept = history.filter((m) => !m.error).slice(-mem);
     const turns = [{ role: "user", content: buildInstruction(c, kept) }];
     kept.forEach((m, i) => {
@@ -1993,6 +2057,125 @@
     box.appendChild(more);
   }
 
+  // ---------- Memory summaries → a character-bound "记忆" lorebook ----------
+  const DEFAULT_MEM_PROMPT = [
+    "你是这场角色扮演的记录员。下面是「{{char}}」和「{{user}}」之间第 {{range}} 楼的对话原文。请把这段剧情压缩成便于日后回忆的记忆摘要。",
+    "",
+    "要求：",
+    "- 按时间顺序写清发生了什么：地点变化、关键对话、做出的决定和约定。",
+    "- 记录两人关系和情绪的变化，以及新出现的人物、物品、设定。",
+    "- 保留具体的名字、数字、时间和承诺，去掉修辞和重复。",
+    "- 用第三人称的陈述句，直接写摘要本身，不要标题、不要评论，300 字以内。",
+    "",
+    "{{previous}}",
+    "=== 第 {{range}} 楼 ===",
+    "{{messages}}",
+  ].join("\n");
+  let memCtl = null;
+  function memoryBook(c, create) {
+    let b = c.books.find((x) => x.memory);
+    if (!b && create) {
+      b = newBook(`记忆 · ${c.name}`);
+      b.memory = true; b.enabled = true;
+      c.books.push(b);
+    }
+    return b;
+  }
+  function memPromptTemplate() { return state.settings.memPrompt && state.settings.memPrompt.trim() ? state.settings.memPrompt : DEFAULT_MEM_PROMPT; }
+  function memRange() {
+    const c = active();
+    const n = c ? c.chat.length : 0;
+    let from = parseInt($("memFrom").value, 10) || 1, to = parseInt($("memTo").value, 10) || n;
+    from = Math.max(1, Math.min(from, n)); to = Math.max(from, Math.min(to, n));
+    return { from, to, n };
+  }
+  function memUpdateHint() {
+    const c = active();
+    if (!c) return;
+    const { from, to, n } = memRange();
+    $("memFrom").value = from; $("memTo").value = to;
+    const chars = c.chat.slice(from - 1, to).reduce((s, m) => s + m.content.length, 0);
+    $("memHint").textContent = `第 ${from}–${to} 楼，${to - from + 1} 条，约 ${chars} 字`;
+    $("memStat").textContent = `共 ${n} 楼 · 已总结到第 ${c.memory.lastFloor || 0} 楼`;
+    const b = memoryBook(c, false);
+    $("memBook").textContent = b ? `记忆世界书：${b.name} · ${b.entries.length} 条` : "第一次保存时会自动创建「记忆 · " + c.name + "」世界书";
+  }
+  function openMemory() {
+    const c = active();
+    if (!c || busy) return;
+    const last = c.memory.lastFloor || 0;
+    $("memFrom").value = Math.min(last + 1, c.chat.length);
+    $("memTo").value = c.chat.length;
+    $("memPrompt").value = memPromptTemplate();
+    $("memResult").value = "";
+    $("memGen").disabled = !sample;
+    if (!sample) $("memHint").textContent = "离线模式：只能手写总结";
+    memUpdateHint();
+    $("memBack").hidden = false;
+  }
+  function closeMemory() { if (memCtl) memCtl.abort(); $("memBack").hidden = true; }
+  function buildMemPrompt(c) {
+    const { from, to } = memRange();
+    const u = state.persona.name || "用户";
+    const lines = c.chat.slice(from - 1, to).map((m, i) => `#${from + i} ${m.role === "user" ? u : c.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n\n");
+    const book = memoryBook(c, false);
+    const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
+    let prompt = $("memPrompt").value || DEFAULT_MEM_PROMPT;
+    prompt = prompt
+      .replace(/\{\{range\}\}/g, `${from}-${to}`)
+      .replace(/\{\{messages\}\}/g, () => lines)
+      .replace(/\{\{previous\}\}/g, () => (prev ? `此前的记忆摘要（用于衔接，不要重复其中内容）：\n${prev}\n` : ""));
+    prompt = sub(prompt, c);
+    // stay under the input cap
+    while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
+    return prompt;
+  }
+  async function memGenerate() {
+    const c = active();
+    if (!c || !sample) return;
+    if (memCtl) return;
+    memCtl = new AbortController();
+    const out = $("memResult");
+    $("memGen").hidden = true; $("memStop").hidden = false;
+    out.value = ""; out.placeholder = "思考中…";
+    try {
+      const res = await sample(buildMemPrompt(c), {
+        cache: false, modelTier: state.settings.tier, signal: memCtl.signal,
+        onText: ({ text }) => { out.value = text; },
+      });
+      out.value = res.text.trim();
+    } catch (e) {
+      if (e && e.text) out.value = e.text;
+      if (!e || e.code !== "cancelled") toast(copyFor(e && e.code), true);
+    } finally {
+      memCtl = null;
+      $("memGen").hidden = false; $("memStop").hidden = true;
+      out.placeholder = "点「生成总结」，结果会出现在这里。也可以自己写。";
+    }
+  }
+  function memSave() {
+    const c = active();
+    const text = $("memResult").value.trim();
+    if (!c) return;
+    if (!text) { $("memResult").focus(); toast("总结是空的，先生成或自己写一段。", true); return; }
+    const { from, to } = memRange();
+    const created = !memoryBook(c, false);
+    const book = memoryBook(c, true);
+    const e = newEntry(book);
+    e.comment = `${from}-${to}`;
+    e.content = text;
+    e.constant = true;
+    e.position = "after_char";
+    e.insertion_order = 100 + book.entries.length;
+    e.extensions = { ...(e.extensions || {}), memory_range: [from, to] };
+    book.entries.push(e);
+    c.memory.lastFloor = Math.max(c.memory.lastFloor || 0, to);
+    save();
+    closeMemory();
+    toast(created ? `已创建「${book.name}」并存入记忆 ${from}-${to}` : `已存入记忆 ${from}-${to}（共 ${book.entries.length} 条）`);
+    updateStats();
+  }
+
   function setBusy(on) {
     $("send").hidden = on;
     $("stop").hidden = !on;
@@ -2000,6 +2183,7 @@
     $("editChar").disabled = on;
     $("resetChat").disabled = on;
     $("inspire").disabled = on;
+    $("memBtn").disabled = on;
   }
 
   async function send() {
@@ -2861,6 +3045,20 @@
   $("sMem").addEventListener("change", (e) => { state.settings.mem = e.target.value; save(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
+  $("sMemTrim").addEventListener("change", (e) => { state.settings.memTrim = e.target.checked; save(); });
+  $("memBtn").onclick = openMemory;
+  $("memBtn2").onclick = openMemory;
+  $("memClose").onclick = closeMemory;
+  $("memCancel").onclick = closeMemory;
+  $("memBack").addEventListener("click", (e) => { if (e.target === $("memBack")) closeMemory(); });
+  $("memGen").onclick = memGenerate;
+  $("memStop").onclick = () => { if (memCtl) memCtl.abort(); };
+  $("memSave").onclick = memSave;
+  $("memPrompt").addEventListener("input", (e) => { state.settings.memPrompt = e.target.value === DEFAULT_MEM_PROMPT ? "" : e.target.value; save(); });
+  $("memPromptReset").onclick = () => { $("memPrompt").value = DEFAULT_MEM_PROMPT; state.settings.memPrompt = ""; save(); };
+  $("memFrom").addEventListener("change", memUpdateHint);
+  $("memTo").addEventListener("change", memUpdateHint);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("memBack").hidden && !confirmResolve) { e.stopPropagation(); closeMemory(); } }, true);
 
   $("openRail").onclick = () => openOverlay($("rail"));
   $("closeRail").onclick = closeOverlays;
