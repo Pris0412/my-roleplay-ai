@@ -67,6 +67,10 @@ function search(world, q, k, exclude) {
 }
 
 // ---------- Claude ----------
+function friendly(msg) {
+  if (/invalid api key|please run \/login|not logged in|authentication/i.test(msg)) return '后端还没登录 Claude：关掉后端窗口，删除 server/data/.logged-in，再双击 start 重新登录一次。';
+  return msg;
+}
 function toPrompt(messages) {
   // 第一条 user 消息是规则与设定，作为 system prompt；其余对话按角色拼成正文。
   const sys = messages[0]?.content || '';
@@ -101,12 +105,12 @@ async function streamChat({ model, messages }, res, signal) {
         const full = blocks.filter((b) => b.type === 'text').map((b) => b.text).join('');
         if (full && full.length > text.length) text = full;
       } else if (msg.type === 'result') {
-        if (msg.is_error) send({ error: msg.result || msg.subtype || '生成失败' });
+        if (msg.is_error) send({ error: friendly(msg.result || msg.subtype || '生成失败') });
       }
     }
     send({ done: true, text, model: usedModel, truncated });
   } catch (e) {
-    send({ error: String(e?.message || e) });
+    send({ error: friendly(String(e?.message || e)) });
   } finally { res.end(); }
 }
 
