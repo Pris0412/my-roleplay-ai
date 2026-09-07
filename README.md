@@ -24,5 +24,15 @@
 - 备用开场白：开场白消息上可以切换
 - 导出 V2 JSON，或导出 PNG（同时写入 `chara` v2 和 `ccv3` v3 块）；导出需要 Artifact 的 `downloads` 能力
 
+## v3 · 正则脚本、Markdown/HTML 渲染、左右滑动
+- 兼容 SillyTavern Regex 扩展的脚本格式（scriptName / findRegex / replaceString / trimStrings / placement /
+  markdownOnly / promptOnly / substituteRegex / minDepth / maxDepth）
+- 全局脚本在设置栏管理（导入 JSON、新建、编辑、启停、导出）；角色卡自带的 `extensions.regex_scripts` 随卡导入导出，在编辑角色的高级区管理
+- 编辑器里可以贴一段文本实时预览替换结果
+- 消息经过：占位符替换 → 正则（显示阶段）→ Markdown（marked）→ 消毒（DOMPurify，允许 style）→ 渲染到 Shadow DOM，卡片自带 CSS 不会污染页面
+- 提示词阶段单独跑一遍正则（markdownOnly 的不跑，promptOnly 的只在这里跑）
+- 回复支持多版本：‹ n/N ›，最后一条回复按 › 生成新版本；开场白在多个开场白之间循环切换
+- 库从 cdnjs 加载，加载不到时退回纯文本渲染
+
 ## 后续计划
 见对话记录，一步一步加。

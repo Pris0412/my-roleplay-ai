@@ -1,5 +1,7 @@
 <title>Lantern Tavern</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.7/purify.min.js"></script>
 <style>
   :root {
     /* dark-first: the tavern at night */
@@ -292,10 +294,18 @@
     border-radius: 4px 14px 14px 14px;
     background: var(--char-bubble);
     border: 1px solid var(--line);
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
     line-height: 1.7;
   }
+  .bubble .rendered { display: block; }
+  .swipe {
+    display: inline-flex; align-items: center; gap: 2px;
+    margin-right: 6px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+  }
+  .swipe .btn { padding: 2px 7px; font-size: 13px; line-height: 1; }
+  .swipe .count { min-width: 34px; text-align: center; }
+  .msg .actions.always { opacity: 1; }
   .msg.user .bubble { background: var(--user-bubble); }
   .bubble em { color: var(--muted); font-style: italic; }
   .bubble strong { font-weight: 600; }
@@ -422,6 +432,20 @@
     max-width: min(520px, 90vw);
   }
   .toast.bad { border-color: var(--danger); }
+  .rx-list { display: flex; flex-direction: column; gap: 4px; }
+  .rx-row {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+    padding: 6px 8px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .rx-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rx-row .nm small { color: var(--faint); font-family: var(--font-mono); font-size: 10px; margin-left: 6px; }
+  .rx-row.off .nm { color: var(--faint); text-decoration: line-through; }
+  .rx-row .btn { padding: 3px 7px; font-size: 12px; }
+  .rx-empty { font-size: 12px; color: var(--faint); padding: 4px 2px; }
+  .checks { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+  .checks label { display: inline-flex; gap: 6px; align-items: center; }
+  .field textarea.mono, .field input.mono { font-family: var(--font-mono); font-size: 13px; }
   .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
   .swatch.on { border-color: var(--text); }
 
@@ -566,6 +590,18 @@
       </div>
 
       <div class="section">
+        <div class="section-title">正则脚本 · 全局</div>
+        <div class="rx-list" id="rxGlobalList"></div>
+        <div class="row">
+          <button class="btn" id="rxGlobalImport">导入脚本</button>
+          <button class="btn" id="rxGlobalNew">＋ 新建</button>
+        </div>
+        <button class="btn block" id="rxGlobalExport">导出全部（JSON）</button>
+        <input type="file" id="rxFile" accept=".json,application/json" multiple hidden>
+        <div class="help">兼容 SillyTavern 的 Regex 扩展脚本。对所有角色生效；角色卡自带的脚本在「编辑角色 › 高级」里。</div>
+      </div>
+
+      <div class="section">
         <div class="section-title">当前对话</div>
         <div class="stat" id="chatStat"></div>
         <button class="btn danger block" id="deleteChar">删除这个角色</button>
@@ -655,6 +691,14 @@
             <textarea id="edPost" placeholder="放在整段对话之后的提醒，例如格式或长度要求。"></textarea>
           </div>
           <div class="book-note" id="edBook"></div>
+          <div class="field">
+            <label>角色自带正则脚本（extensions.regex_scripts）</label>
+            <div class="rx-list" id="rxCharList"></div>
+            <div class="row">
+              <button class="btn" id="rxCharImport">导入脚本</button>
+              <button class="btn" id="rxCharNew">＋ 新建</button>
+            </div>
+          </div>
         </div>
       </details>
     </div>
@@ -667,6 +711,82 @@
       <div class="right">
         <button class="btn" id="editorCancel">取消</button>
         <button class="btn primary" id="editorSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="rxBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rxTitle" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <span id="rxTitle">正则脚本</span>
+      <button class="btn ghost icon" id="rxClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="rxName">名称</label>
+        <input id="rxName" placeholder="例如：隐藏思考过程">
+      </div>
+      <div class="field">
+        <label for="rxFind">查找（正则）</label>
+        <input id="rxFind" class="mono" placeholder="/&lt;think&gt;[\s\S]*?&lt;\/think&gt;/g">
+        <div class="help">写成 /pattern/flags 的形式；不带斜杠也行。可以用 {{user}} / {{char}}。</div>
+      </div>
+      <div class="field">
+        <label for="rxReplace">替换为</label>
+        <textarea id="rxReplace" class="mono" placeholder="{{match}} 是整段匹配，$1 $2 是分组。可以写 HTML。"></textarea>
+      </div>
+      <div class="field">
+        <label for="rxTrim">从匹配里去掉的字符串（可选，一行一个）</label>
+        <textarea id="rxTrim" class="mono"></textarea>
+      </div>
+      <div class="field">
+        <label>作用于</label>
+        <div class="checks">
+          <label><input type="checkbox" id="rxP1"> 用户输入</label>
+          <label><input type="checkbox" id="rxP2" checked> AI 回复</label>
+          <label><input type="checkbox" id="rxP5"> 世界书</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="rxMode">范围</label>
+          <select id="rxMode">
+            <option value="both">显示和提示词</option>
+            <option value="display">仅显示（markdownOnly）</option>
+            <option value="prompt">仅提示词（promptOnly）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rxSub">查找里的宏</label>
+          <select id="rxSub">
+            <option value="0">不替换</option>
+            <option value="1">替换（原样）</option>
+            <option value="2">替换（转义）</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="rxMin">最小深度（-1 = 不限）</label>
+          <input id="rxMin" type="number" value="-1" class="mono">
+        </div>
+        <div class="field">
+          <label for="rxMax">最大深度（-1 = 不限）</label>
+          <input id="rxMax" type="number" value="-1" class="mono">
+        </div>
+      </div>
+      <div class="field">
+        <label>试一下</label>
+        <textarea id="rxSample" placeholder="贴一段回复看看效果"></textarea>
+        <div class="book-note" id="rxPreview">（这里显示替换结果）</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" id="rxStat"></span>
+      <div class="right">
+        <button class="btn" id="rxCancel">取消</button>
+        <button class="btn primary" id="rxSave">保存</button>
       </div>
     </div>
   </div>
@@ -727,6 +847,7 @@
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
       settings: { tier: "default", len: "medium", lang: "auto", mem: "40" },
+      regex: [],
       leftOpen: true,
     };
   }
@@ -737,7 +858,13 @@
   function greeting(c, index) {
     const list = greetings(c);
     const i = ((index || 0) % list.length + list.length) % list.length;
-    return { id: uid(), role: "assistant", content: list[i], ts: Date.now(), greeting: true, gi: i };
+    return { id: uid(), role: "assistant", content: list[i], swipes: list.slice(), si: i, ts: Date.now(), greeting: true };
+  }
+  function normalizeMsg(m) {
+    if (!Array.isArray(m.swipes) || !m.swipes.length) { m.swipes = [m.content]; m.si = 0; }
+    if (typeof m.si !== "number" || m.si < 0 || m.si >= m.swipes.length) m.si = m.swipes.length - 1;
+    delete m.gi;
+    return m;
   }
   function normalizeChar(c) {
     c.tags = Array.isArray(c.tags) ? c.tags : [];
@@ -750,6 +877,8 @@
     c.book = c.book || null;
     c.extensions = c.extensions || {};
     c.chat = Array.isArray(c.chat) ? c.chat : [];
+    c.chat.forEach(normalizeMsg);
+    c.regex = Array.isArray(c.regex) ? c.regex : [];
     return c;
   }
 
@@ -758,7 +887,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); return s; }
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -807,6 +936,99 @@
     h = h.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
     h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     return h;
+  }
+
+  // Regex scripts (SillyTavern Regex extension shape), placement: 1 user input, 2 AI output, 5 world info
+  const rxCache = new Map();
+  function compileRegex(script, c) {
+    let src = String(script.findRegex || "");
+    if (!src) return null;
+    if (script.substituteRegex) {
+      const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const uname = state.persona.name || "你", cname = c ? c.name : "角色";
+      src = src.replace(/\{\{user\}\}/gi, script.substituteRegex === 2 ? esc(uname) : uname)
+               .replace(/\{\{char\}\}/gi, script.substituteRegex === 2 ? esc(cname) : cname);
+    }
+    if (rxCache.has(src)) return rxCache.get(src);
+    let re = null;
+    try {
+      const m = src.match(/^\/([\s\S]+)\/([a-z]*)$/);
+      re = m ? new RegExp(m[1], m[2]) : new RegExp(src);
+    } catch (e) { re = null; }
+    rxCache.set(src, re);
+    return re;
+  }
+  function allScripts(c) { return [...(state.regex || []), ...((c && c.regex) || [])]; }
+  function applyRegex(text, opts) {
+    const { placement, stage, depth, c } = opts;
+    for (const sc of allScripts(c)) {
+      if (!sc || sc.disabled) continue;
+      if (!Array.isArray(sc.placement) || !sc.placement.includes(placement)) continue;
+      if (stage === "display" && sc.promptOnly) continue;
+      if (stage === "prompt" && sc.markdownOnly) continue;
+      if (typeof depth === "number") {
+        if (typeof sc.minDepth === "number" && sc.minDepth >= 0 && depth < sc.minDepth) continue;
+        if (typeof sc.maxDepth === "number" && sc.maxDepth >= 0 && depth > sc.maxDepth) continue;
+      }
+      const re = compileRegex(sc, c);
+      if (!re) continue;
+      try {
+        text = text.replace(re, (...args) => {
+          const match = args[0];
+          const gEnd = typeof args[args.length - 1] === "object" ? args.length - 3 : args.length - 2;
+          const groups = args.slice(1, gEnd);
+          let m = match;
+          for (const t of sc.trimStrings || []) if (t) m = m.split(sub(String(t), c)).join("");
+          let rep = sub(String(sc.replaceString || ""), c);
+          rep = rep.replace(/\{\{match\}\}/gi, () => m);
+          rep = rep.replace(/\$(\d+)/g, (_, n) => (n === "0" ? match : (groups[n - 1] ?? "")));
+          return rep;
+        });
+      } catch (e) { /* a bad script never breaks rendering */ }
+    }
+    return text;
+  }
+
+  const BUBBLE_CSS = `
+    :host { display: block; }
+    p { margin: 0 0 0.6em; } p:last-child { margin-bottom: 0; }
+    em { color: var(--muted); font-style: italic; }
+    strong { font-weight: 600; }
+    code { font-family: var(--font-mono); font-size: 0.9em; background: var(--raised); padding: 0 4px; border-radius: 4px; }
+    pre { background: var(--raised); padding: 8px 10px; border-radius: 8px; overflow-x: auto; }
+    pre code { background: none; padding: 0; }
+    a { color: var(--accent); }
+    img { max-width: 100%; height: auto; border-radius: 8px; }
+    table { border-collapse: collapse; max-width: 100%; display: block; overflow-x: auto; }
+    th, td { border: 1px solid var(--line); padding: 4px 8px; }
+    blockquote { margin: 0; padding-left: 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
+    h1, h2, h3, h4 { margin: 0.4em 0 0.2em; line-height: 1.3; }
+    ul, ol { margin: 0.2em 0; padding-left: 1.4em; }
+    hr { border: 0; border-top: 1px solid var(--line); }
+    details { border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+  `;
+  const canHtml = () => !!(window.marked && window.DOMPurify && window.DOMPurify.isSupported);
+  function messageHtml(text, ctx) {
+    let t = sub(text, ctx.c);
+    t = applyRegex(t, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
+    if (!canHtml()) return { html: renderRich(t), plain: true };
+    let html;
+    try { html = window.marked.parse(t, { breaks: true, gfm: true, mangle: false, headerIds: false }); }
+    catch (e) { return { html: renderRich(t), plain: true }; }
+    html = window.DOMPurify.sanitize(html, {
+      ADD_TAGS: ["style"],
+      FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
+      ADD_ATTR: ["target"],
+    });
+    return { html, plain: false };
+  }
+  function paintBubble(bubble, text, ctx) {
+    let host = bubble.querySelector(".rendered");
+    if (!host) { host = el("div", "rendered"); bubble.appendChild(host); }
+    const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+    const { html, plain } = messageHtml(text, ctx);
+    root.innerHTML = `<style>${BUBBLE_CSS}${plain ? ":host{white-space:pre-wrap}" : ""}</style>` + html;
+    for (const a of root.querySelectorAll("a[href]")) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   }
 
   function renderAvatar(node, c, size) {
@@ -874,12 +1096,13 @@
     const box = $("messages");
     box.innerHTML = "";
     if (!c) return;
-    for (const m of c.chat) box.appendChild(messageNode(m, c));
+    c.chat.forEach((m, i) => box.appendChild(messageNode(m, c, i)));
     box.scrollTop = box.scrollHeight;
   }
 
-  function messageNode(m, c) {
+  function messageNode(m, c, index) {
     const isUser = m.role === "user";
+    const depth = c.chat.length - 1 - index;
     const wrap = el("div", "msg " + (isUser ? "user" : "char") + (m.error ? " error" : ""));
     wrap.dataset.id = m.id;
     const av = isUser ? userAvatarNode() : (() => { const n = el("div"); renderAvatar(n, c); return n; })();
@@ -890,11 +1113,36 @@
     if (m.greeting) meta.appendChild(el("span", "tag", "开场白"));
     if (m.stopped) meta.appendChild(el("span", "tag", "已停止"));
     const bubble = el("div", "bubble");
-    bubble.innerHTML = renderRich(sub(m.content, c));
+    paintBubble(bubble, m.content, { c, role: m.role, depth });
     const actions = el("div", "actions");
 
     const last = c.chat[c.chat.length - 1];
     const isLast = last && last.id === m.id;
+
+    // swipes: ‹ n/N › on assistant messages; › on the last reply generates a new version
+    const canSwipeNew = !isUser && isLast && !m.greeting && !!sample;
+    if (!isUser && (m.swipes.length > 1 || canSwipeNew)) {
+      const sw = el("div", "swipe");
+      const left = el("button", "btn ghost", "‹");
+      const right = el("button", "btn ghost", "›");
+      const count = el("span", "count", `${m.si + 1} / ${m.swipes.length}`);
+      const go = (i) => {
+        if (busy) return;
+        if (m.greeting) i = (i + m.swipes.length) % m.swipes.length;
+        if (i < 0 || i >= m.swipes.length) return;
+        m.si = i; m.content = m.swipes[i]; save(); renderMessages(); renderCharList();
+      };
+      left.disabled = !m.greeting && m.si === 0;
+      left.onclick = () => go(m.si - 1);
+      right.onclick = () => {
+        if (m.si < m.swipes.length - 1 || m.greeting) return go(m.si + 1);
+        if (canSwipeNew) generate(c, m);
+      };
+      right.disabled = !(m.si < m.swipes.length - 1 || m.greeting || canSwipeNew);
+      sw.append(left, count, right);
+      actions.appendChild(sw);
+      actions.classList.add("always");
+    }
 
     const bEdit = el("button", "btn ghost", "编辑");
     bEdit.onclick = () => startEdit(wrap, m, c);
@@ -905,17 +1153,7 @@
       bRegen.onclick = () => regenerate();
       actions.appendChild(bRegen);
     }
-    if (!isUser && m.greeting && greetings(c).length > 1) {
-      const n = greetings(c).length;
-      const bAlt = el("button", "btn ghost", `换个开场白 ${((m.gi || 0) + 1)}/${n}`);
-      bAlt.onclick = () => {
-        if (busy) return;
-        const next = greeting(c, (m.gi || 0) + 1);
-        m.content = next.content; m.gi = next.gi; m.ts = Date.now();
-        save(); renderMessages(); renderCharList();
-      };
-      actions.appendChild(bAlt);
-    }
+
     const bCopy = el("button", "btn ghost", "复制");
     bCopy.onclick = async () => {
       try { await navigator.clipboard.writeText(sub(m.content, c)); bCopy.textContent = "已复制"; setTimeout(() => (bCopy.textContent = "复制"), 1200); } catch (e) { bCopy.textContent = "无法复制"; }
@@ -939,13 +1177,14 @@
     const bubble = wrap.querySelector(".bubble");
     const ta = document.createElement("textarea");
     ta.value = m.content;
-    bubble.innerHTML = "";
+    const host = bubble.querySelector(".rendered");
+    if (host) host.hidden = true;
     bubble.appendChild(ta);
     const actions = wrap.querySelector(".actions");
     actions.innerHTML = "";
     const ok = el("button", "btn primary", "保存");
     const cancel = el("button", "btn ghost", "取消");
-    ok.onclick = () => { m.content = ta.value.trim() || m.content; save(); renderMessages(); renderCharList(); };
+    ok.onclick = () => { m.content = ta.value.trim() || m.content; m.swipes[m.si] = m.content; save(); renderMessages(); renderCharList(); };
     cancel.onclick = () => renderMessages();
     ta.onkeydown = (e) => { if (e.key === "Escape") renderMessages(); if ((e.metaKey || e.ctrlKey) && e.key === "Enter") ok.click(); };
     actions.append(ok, cancel);
@@ -1022,8 +1261,8 @@
         }
       }
       if (!hit) continue;
-      const text = sub(e.content, c).trim();
-      if (text.length > budget) break;
+      const text = applyRegex(sub(e.content, c), { placement: 5, stage: "prompt", c }).trim();
+      if (!text || text.length > budget) continue;
       budget -= text.length;
       out.push({ order: e.insertion_order || 0, text });
     }
@@ -1064,7 +1303,11 @@
     const history = c.chat.slice(0, upto == null ? c.chat.length : upto);
     const kept = history.filter((m) => !m.error).slice(-mem);
     const turns = [{ role: "user", content: buildInstruction(c, kept) }];
-    for (const m of kept) turns.push({ role: m.role, content: sub(m.content, c) });
+    kept.forEach((m, i) => {
+      const depth = kept.length - 1 - i;
+      const txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
+      if (txt.trim()) turns.push({ role: m.role, content: txt });
+    });
     if (c.postHistory && c.postHistory.trim()) turns.push({ role: "user", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
     // keep total under the 64 KiB input cap (measured in UTF-8 bytes: CJK is 3 bytes a character)
     const bytes = (t) => utf8.enc.encode(t).length;
@@ -1116,16 +1359,25 @@
     }
   }
 
-  async function generate(c, upto) {
+  async function generate(c, target) {
     if (!sample || busy) return;
-    const turns = buildTurns(c, upto);
-    const msg = { id: uid(), role: "assistant", content: "", ts: Date.now(), pending: true };
-    if (upto != null) c.chat = c.chat.slice(0, upto);
-    c.chat.push(msg);
+    let msg = target;
+    if (msg) {
+      // a new swipe on an existing reply
+      msg.swipes.push(""); msg.si = msg.swipes.length - 1; msg.content = "";
+      delete msg.stopped; delete msg.error;
+    } else {
+      msg = { id: uid(), role: "assistant", content: "", swipes: [""], si: 0, ts: Date.now() };
+      c.chat.push(msg);
+    }
+    msg.pending = true;
+    const turns = buildTurns(c, c.chat.indexOf(msg));
     renderMessages();
     const node = $("messages").querySelector(`[data-id="${msg.id}"] .bubble`);
     node.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
     const box = $("messages");
+    const depth = 0;
+    const setText = (t) => { msg.content = t; msg.swipes[msg.si] = t; };
 
     const ctl = new AbortController();
     busy = { ctl, msgId: msg.id };
@@ -1136,23 +1388,29 @@
         modelTier: state.settings.tier,
         signal: ctl.signal,
         onText: ({ text }) => {
-          msg.content = text;
-          node.innerHTML = renderRich(sub(text, c));
+          setText(text);
+          if (node.querySelector(".dots")) node.innerHTML = "";
+          paintBubble(node, text, { c, role: "assistant", depth });
           const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
           if (nearBottom) box.scrollTop = box.scrollHeight;
         },
       });
-      msg.content = res.text;
-      if (res.truncated) msg.content += "\n\n*（回复被截断了）*";
+      setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
       $("hintRight").textContent = `档位：${res.modelTierApplied}`;
     } catch (e) {
+      const dropSwipe = () => {
+        if (target) { msg.swipes.pop(); msg.si = msg.swipes.length - 1; msg.content = msg.swipes[msg.si]; }
+        else c.chat = c.chat.filter((m) => m.id !== msg.id);
+      };
       if (e && e.code === "cancelled") {
-        if (e.text && e.text.trim()) { msg.content = e.text; msg.stopped = true; }
-        else { c.chat = c.chat.filter((m) => m.id !== msg.id); }
+        if (e.text && e.text.trim()) { setText(e.text); msg.stopped = true; }
+        else dropSwipe();
       } else {
-        msg.content = copyFor(e && e.code);
-        msg.error = true;
-        if (e && e.text) msg.content = e.text + "\n\n" + msg.content;
+        if (target) { dropSwipe(); toast(copyFor(e && e.code), true); }
+        else {
+          setText((e && e.text ? e.text + "\n\n" : "") + copyFor(e && e.code));
+          msg.error = true;
+        }
         if (e && e.code === "not_granted") { $("send").disabled = true; }
       }
     } finally {
@@ -1197,7 +1455,7 @@
     if (!c || busy) return;
     const last = c.chat[c.chat.length - 1];
     if (!last || last.role !== "assistant" || last.greeting) return;
-    generate(c, c.chat.length - 1);
+    generate(c, last);
   }
 
   // ============================================================
@@ -1224,6 +1482,7 @@
     $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || "";
     const bookN = d.book && Array.isArray(d.book.entries) ? d.book.entries.length : 0;
     $("edBook").textContent = bookN ? `世界书：${d.book.name || "未命名"} · ${bookN} 条。关键词出现在最近几条消息里时会自动带入，${d.book.entries.filter((e) => e && e.constant).length} 条为常驻。（编辑功能之后再加）` : "没有世界书。导入带 character_book 的卡会自动带上。";
+    refreshCharRx();
     $("exportJson").disabled = $("exportPng").disabled = !downloads;
     $("exportJson").title = $("exportPng").title = downloads ? "" : "只有在 Claude 里打开时才能保存文件";
     renderEditorAvatar();
@@ -1270,7 +1529,10 @@
       const prev = state.characters[idx];
       d.chat = prev.chat;
       // keep the greeting in sync if it is still the only message
-      if (d.chat.length && d.chat[0].greeting && d.chat.length === 1) d.chat[0].content = d.firstMessage || "……";
+      if (d.chat.length && d.chat[0].greeting && d.chat.length === 1) {
+        const g = greeting(d, d.chat[0].si);
+        d.chat[0].content = g.content; d.chat[0].swipes = g.swipes; d.chat[0].si = g.si;
+      }
       state.characters[idx] = d;
     } else {
       d.chat = [greeting(d)];
@@ -1455,6 +1717,7 @@
       postHistory: str(d.post_history_instructions),
       book: d.character_book && typeof d.character_book === "object" ? d.character_book : null,
       extensions: d.extensions && typeof d.extensions === "object" ? d.extensions : {},
+      regex: d.extensions && Array.isArray(d.extensions.regex_scripts) ? d.extensions.regex_scripts.map(normalizeScript).filter(Boolean) : [],
       chat: [],
       createdAt: Date.now(),
     });
@@ -1477,8 +1740,9 @@
       tags: c.tags || [],
       creator: c.creator || "",
       character_version: c.version || "",
-      extensions: c.extensions || {},
+      extensions: { ...(c.extensions || {}) },
     };
+    if (c.regex && c.regex.length) data.extensions.regex_scripts = c.regex; else delete data.extensions.regex_scripts;
     if (!data.character_book) delete data.character_book;
     const v2 = { spec: "chara_card_v2", spec_version: "2.0", data };
     const v3 = {
@@ -1570,6 +1834,109 @@
     }
   }
 
+  // ---------- Regex scripts UI ----------
+  function normalizeScript(s) {
+    if (!s || typeof s !== "object" || typeof s.findRegex !== "string") return null;
+    return {
+      id: s.id || uid(),
+      scriptName: s.scriptName || s.name || "未命名脚本",
+      findRegex: s.findRegex,
+      replaceString: typeof s.replaceString === "string" ? s.replaceString : "",
+      trimStrings: Array.isArray(s.trimStrings) ? s.trimStrings.map(String) : [],
+      placement: Array.isArray(s.placement) ? s.placement.map(Number) : [2],
+      disabled: !!s.disabled,
+      markdownOnly: !!s.markdownOnly,
+      promptOnly: !!s.promptOnly,
+      runOnEdit: s.runOnEdit !== false,
+      substituteRegex: Number(s.substituteRegex) || 0,
+      minDepth: typeof s.minDepth === "number" ? s.minDepth : -1,
+      maxDepth: typeof s.maxDepth === "number" ? s.maxDepth : -1,
+    };
+  }
+  function renderRxList(container, list, onChange, scope) {
+    container.innerHTML = "";
+    if (!list.length) { container.appendChild(el("div", "rx-empty", scope === "char" ? "这个角色没有自带脚本。" : "还没有全局脚本。")); return; }
+    list.forEach((sc, i) => {
+      const row = el("div", "rx-row" + (sc.disabled ? " off" : ""));
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !sc.disabled; cb.title = "启用";
+      cb.onchange = () => { sc.disabled = !cb.checked; rxCache.clear(); onChange(); };
+      const nm = el("div", "nm"); nm.textContent = sc.scriptName;
+      const where = [sc.placement.includes(1) ? "输入" : "", sc.placement.includes(2) ? "回复" : "", sc.placement.includes(5) ? "世界书" : ""].filter(Boolean).join("/");
+      const mode = sc.markdownOnly ? "仅显示" : sc.promptOnly ? "仅提示词" : "";
+      const small = document.createElement("small"); small.textContent = [where, mode].filter(Boolean).join(" · ");
+      nm.appendChild(small);
+      const bEd = el("button", "btn ghost", "编辑");
+      bEd.onclick = () => openRxEditor(sc, (updated) => { list[i] = updated; rxCache.clear(); onChange(); });
+      const bDel = el("button", "btn ghost danger", "删除");
+      bDel.onclick = () => { if (!confirm(`删除脚本「${sc.scriptName}」？`)) return; list.splice(i, 1); rxCache.clear(); onChange(); };
+      row.append(cb, nm, bEd, bDel);
+      container.appendChild(row);
+    });
+  }
+  function refreshCharRx() { if (!editing) return; renderRxList($("rxCharList"), editing.draft.regex, refreshCharRx, "char"); }
+  function refreshGlobalRx() { renderRxList($("rxGlobalList"), state.regex, () => { save(); refreshGlobalRx(); renderMessages(); }, "global"); }
+
+  let rxEditing = null; // { script, done }
+  function openRxEditor(script, done) {
+    rxEditing = { script: JSON.parse(JSON.stringify(script)), done };
+    const s = rxEditing.script;
+    $("rxTitle").textContent = script.scriptName ? `正则 · ${script.scriptName}` : "新建正则脚本";
+    $("rxName").value = s.scriptName || ""; $("rxFind").value = s.findRegex || ""; $("rxReplace").value = s.replaceString || "";
+    $("rxTrim").value = (s.trimStrings || []).join("\n");
+    $("rxP1").checked = s.placement.includes(1); $("rxP2").checked = s.placement.includes(2); $("rxP5").checked = s.placement.includes(5);
+    $("rxMode").value = s.markdownOnly ? "display" : s.promptOnly ? "prompt" : "both";
+    $("rxSub").value = String(s.substituteRegex || 0);
+    $("rxMin").value = s.minDepth; $("rxMax").value = s.maxDepth;
+    $("rxSample").value = $("rxSample").value || "";
+    rxPreview();
+    $("rxBack").hidden = false;
+    $("rxName").focus();
+  }
+  function readRxForm() {
+    const s = rxEditing.script;
+    s.scriptName = $("rxName").value.trim() || "未命名脚本";
+    s.findRegex = $("rxFind").value;
+    s.replaceString = $("rxReplace").value;
+    s.trimStrings = $("rxTrim").value.split("\n").filter((x) => x.length);
+    s.placement = [$("rxP1").checked ? 1 : 0, $("rxP2").checked ? 2 : 0, $("rxP5").checked ? 5 : 0].filter(Boolean);
+    const mode = $("rxMode").value;
+    s.markdownOnly = mode === "display"; s.promptOnly = mode === "prompt";
+    s.substituteRegex = Number($("rxSub").value) || 0;
+    s.minDepth = Number($("rxMin").value); s.maxDepth = Number($("rxMax").value);
+    return s;
+  }
+  function rxPreview() {
+    if (!rxEditing) return;
+    const s = readRxForm();
+    const re = compileRegex({ ...s }, active());
+    $("rxStat").textContent = re ? `正则 OK：${re}` : (s.findRegex ? "正则写法有误" : "");
+    const sample = $("rxSample").value;
+    if (!sample) { $("rxPreview").textContent = "（这里显示替换结果）"; return; }
+    const saved = state.regex; // preview with only this script
+    const out = (() => {
+      const tmp = { regex: [{ ...s, disabled: false, placement: [1, 2, 5] }] };
+      const c = { ...active(), regex: [] };
+      const savedGlobal = state.regex; state.regex = tmp.regex;
+      try { return applyRegex(sub(sample, c), { placement: 2, stage: "display", c }); } finally { state.regex = savedGlobal; rxCache.clear(); }
+    })();
+    $("rxPreview").textContent = out;
+    void saved;
+  }
+  function closeRxEditor() { $("rxBack").hidden = true; rxEditing = null; }
+
+  async function importRxFiles(files, list, onChange) {
+    let n = 0, bad = [];
+    for (const f of files) {
+      try {
+        const data = JSON.parse(await f.text());
+        const arr = Array.isArray(data) ? data : [data];
+        for (const x of arr) { const s = normalizeScript(x); if (s) { list.push(s); n++; } else bad.push(f.name); }
+      } catch (e) { bad.push(f.name); }
+    }
+    rxCache.clear(); onChange();
+    toast(n ? `导入了 ${n} 个脚本${bad.length ? "，跳过 " + bad.join("、") : ""}` : `没有可用的脚本：${bad.join("、")}`, !n);
+  }
+
   let toastTimer = null;
   function toast(text, bad) {
     let t = document.querySelector(".toast");
@@ -1624,6 +1991,36 @@
     if (files.length) await importFiles(files);
   });
   $("exportJson").onclick = () => exportCard("json");
+  // regex: global
+  let rxImportTarget = null;
+  $("rxGlobalImport").onclick = () => { rxImportTarget = { list: state.regex, onChange: () => { save(); refreshGlobalRx(); renderMessages(); } }; $("rxFile").click(); };
+  $("rxCharImport").onclick = () => { if (!editing) return; rxImportTarget = { list: editing.draft.regex, onChange: refreshCharRx }; $("rxFile").click(); };
+  $("rxFile").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []); e.target.value = "";
+    if (files.length && rxImportTarget) await importRxFiles(files, rxImportTarget.list, rxImportTarget.onChange);
+  });
+  $("rxGlobalNew").onclick = () => openRxEditor(normalizeScript({ findRegex: "", scriptName: "" }), (s) => { state.regex.push(s); save(); refreshGlobalRx(); renderMessages(); });
+  $("rxCharNew").onclick = () => { if (!editing) return; openRxEditor(normalizeScript({ findRegex: "", scriptName: "" }), (s) => { editing.draft.regex.push(s); refreshCharRx(); }); };
+  $("rxGlobalExport").onclick = async () => {
+    if (!downloads) return toast("只有在 Claude 里打开时才能保存文件", true);
+    if (!state.regex.length) return toast("没有全局脚本可导出", true);
+    try { await downloads.save({ filename: "regex-scripts.json", data: JSON.stringify(state.regex, null, 2) }); toast("已导出"); }
+    catch (e) { if (e && e.code !== "cancelled") toast("导出失败：" + (e.message || e.code), true); }
+  };
+  $("rxClose").onclick = closeRxEditor;
+  $("rxCancel").onclick = closeRxEditor;
+  $("rxBack").addEventListener("click", (e) => { if (e.target === $("rxBack")) closeRxEditor(); });
+  $("rxSave").onclick = () => {
+    if (!rxEditing) return;
+    const s = readRxForm();
+    if (!s.findRegex.trim()) { $("rxFind").focus(); return; }
+    if (!compileRegex({ ...s }, active())) { $("rxFind").focus(); toast("正则写法有误，改一下再保存", true); return; }
+    const done = rxEditing.done;
+    closeRxEditor();
+    done(s);
+  };
+  for (const id of ["rxFind", "rxReplace", "rxTrim", "rxSample", "rxSub", "rxP1", "rxP2", "rxP5"]) $(id).addEventListener("input", rxPreview);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && rxEditing) closeRxEditor(); });
   $("exportPng").onclick = () => exportCard("png");
   $("editChar").onclick = () => openEditor(active());
   $("resetChat").onclick = () => {
@@ -1647,7 +2044,7 @@
   $("editorCancel").onclick = closeEditor;
   $("editorSave").onclick = saveEditor;
   $("editorBack").addEventListener("click", (e) => { if (e.target === $("editorBack")) closeEditor(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && editing) closeEditor(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && editing && !rxEditing) closeEditor(); });
   for (const id of ["edName", "edDesc", "edPersonality", "edScenario", "edFirst", "edExamples"]) {
     $(id).addEventListener("input", () => { if (editing) renderEditorAvatar(); });
   }
@@ -1676,6 +2073,7 @@
   // Boot
   // ============================================================
   renderAll();
-  initSample();
+  refreshGlobalRx();
+  initSample().then(() => renderMessages());
 })();
 </script>
