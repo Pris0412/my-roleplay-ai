@@ -452,7 +452,9 @@ function charBlock(c,w){if(c.block)return c.block;return `■ ${c.name}
 说话方式：${c.speech||'—'}
 关系：${c.relation||'—'}${c.scenario?`\n场景：${fillVars(c.scenario,w)}`:''}${c.mesExample?`\n对话示例（仅供学习语气，不要照抄）：\n${fillVars(c.mesExample,w).replace(/<START>/gi,'—').slice(0,1500)}`:''}`}
 function triggeredLore(w,recentText){const out=[];const low=recentText.toLowerCase();const hit=(k,cs)=>k&&(cs?recentText.includes(k):low.includes(String(k).toLowerCase()));
-  for(const e of w.lorebook){if(!e.enabled)continue;if(e.charId&&!w.charIds.includes(e.charId))continue;if(e.always){out.push(e);continue}
+  for(const e of w.lorebook){if(!e.enabled)continue;if(e.charId&&!w.charIds.includes(e.charId))continue;
+    if(e.personId){const p=w.lorebook.find(x=>x.id===e.personId);if(!p||!p.enabled||(p.charId&&!w.charIds.includes(p.charId)))continue}
+    if(e.always){out.push(e);continue}
     const p=(e.keys||[]).some(k=>hit(k,e.caseSensitive));if(!p)continue;
     if(e.selective&&(e.secondaryKeys||[]).length&&!(e.secondaryKeys||[]).some(k=>hit(k,e.caseSensitive)))continue;
     out.push(e)}
@@ -822,14 +824,14 @@ function renderLore(b,compact=false){
   // 归属分类：世界设定 / 各角色专属 / 人物(NPC) / 总结
   const recent=w.floors.filter(f=>!f.hidden).slice(-4).map(floorText).join('\n')+'\n'+($('#msg')?.value||'');
   const active=new Set(triggeredLore(w,recent).map(e=>e.id));
-  const owner=e=>e.group==='总结'?'sum':e.person?'npc':e.charId?('c:'+e.charId):'world';
+  const owner=e=>e.group==='总结'?'sum':(e.person||e.personId)?'npc':e.charId?('c:'+e.charId):'world';
   // 本世界的每张角色卡都有自己的一栏（哪怕还没有条目）；不在本世界但已有条目的角色也列出来
   const charRows=S.characters.filter(c=>w.charIds.includes(c.id)||w.lorebook.some(e=>e.charId===c.id&&!e.person&&e.group!=='总结'));
   const cats=[['world','🌍 世界设定（对所有角色生效）'],...charRows.map(c=>['c:'+c.id,`👤 ${c.name} 专属（只在 ${c.name} 在场时生效${w.charIds.includes(c.id)?'':'，当前不在场'}）`]),['npc','🧑‍🤝‍🧑 人物 / NPC（小手机联系人）'],['sum','📚 总结（长期记忆）']];
   const others=S.characters.filter(c=>!charRows.includes(c));
   const newEntryFor=k=>({id:uid(),title:'',keys:[],content:'',enabled:true,always:k==='sum',group:k==='sum'?'总结':k==='npc'?'人物':'设定',person:k==='npc',charId:k.startsWith('c:')?k.slice(2):''});
   const filt=renderLore._filt||'all';
-  const item=e=>`<div class="lore ${e.enabled?'':'off'}" data-lore="${e.id}"><div class="h"><button class="sw ${e.enabled?'on':''}" data-lsw="${e.id}" title="启用/停用"></button><b>${esc(e.title)}</b>${active.has(e.id)?'<span class="chip acc" title="按当前最近楼层与输入，这条本轮会注入">本轮注入</span>':''}${e.person?'<span class="chip">人物</span>':''}${e.always?'<span class="chip gold">常驻</span>':''}${e.charId&&!e.person?`<span class="chip">${esc(S.characters.find(c=>c.id===e.charId)?.name||'?')}</span>`:''}<button class="btn sm ghost" data-ledit="${e.id}">编辑</button></div><div class="keys">${e.always?'每次注入':'关键词：'+((e.keys||[]).join('、')||'（无）')}${e.group&&e.group!=='设定'&&e.group!=='总结'&&e.group!=='人物'?' · 分组 '+esc(e.group):''}</div></div>`;
+  const item=e=>`<div class="lore ${e.enabled?'':'off'}" data-lore="${e.id}"><div class="h"><button class="sw ${e.enabled?'on':''}" data-lsw="${e.id}" title="启用/停用"></button><b>${esc(e.title)}</b>${active.has(e.id)?'<span class="chip acc" title="按当前最近楼层与输入，这条本轮会注入">本轮注入</span>':''}${e.person?'<span class="chip">人物</span>':''}${e.personId?`<span class="chip">${esc(w.lorebook.find(x=>x.id===e.personId)?.title||'?')} 相关</span>`:''}${e.always?'<span class="chip gold">常驻</span>':''}${e.charId&&!e.person&&!e.personId?`<span class="chip">${esc(S.characters.find(c=>c.id===e.charId)?.name||'?')}</span>`:''}<button class="btn sm ghost" data-ledit="${e.id}">编辑</button></div><div class="keys">${e.always?'每次注入':'关键词：'+((e.keys||[]).join('、')||'（无）')}${e.group&&e.group!=='设定'&&e.group!=='总结'&&e.group!=='人物'?' · 分组 '+esc(e.group):''}</div></div>`;
   b.innerHTML=`${compact?'':'<p class="muted">按「归属」分类：世界设定对所有角色生效；角色专属只在那位角色在场时生效；人物条目是 NPC，也会出现在小手机；总结是长期记忆。关键词出现在最近 4 楼或你的输入里时注入，「常驻」每次都注入。</p>'}
   <div class="row" style="margin-bottom:10px"><button class="btn p sm" id="newLore">＋ 新条目</button>${compact?'':'<button class="btn sm" id="impLore">导入 ST 世界书</button><button class="btn sm ghost" id="expLore">导出</button>'}<span class="tiny">${w.lorebook.length} 条 · ${w.lorebook.filter(e=>e.enabled).length} 启用 · 本轮注入 ${active.size}</span></div>
   <div class="tabs" style="margin:0 0 10px;padding:0"><button class="tab ${filt==='all'?'on':''}" data-lf="all">全部</button>${cats.map(([k,l])=>`<button class="tab ${filt===k?'on':''}" data-lf="${k}">${esc(l.split('（')[0].replace(/^\S+\s/,''))}<span class="tiny"> ${w.lorebook.filter(e=>owner(e)===k).length}</span></button>`).join('')}</div>
@@ -846,15 +848,18 @@ function renderLore(b,compact=false){
 }
 function editLore(w,e,isNew,after){
   modal(`<h3>${isNew?'新条目':'编辑条目'}</h3>
-  <div class="grid2"><div><label class="f">标题</label><input type="text" id="lT" value="${esc(e.title)}"></div><div><label class="f">分组</label><input type="text" id="lG" value="${esc(e.group||'设定')}"></div></div>
+  <div class="grid2"><div><label class="f">标题</label><input type="text" id="lT" value="${esc(e.title)}"></div><div class="hidden"><label class="f">分组</label><input type="text" id="lG" value="${esc(e.group||'设定')}"></div></div>
   <label class="f">关键词（用逗号/顿号分隔）</label><input type="text" id="lK" value="${esc((e.keys||[]).join('、'))}">
   <div class="grid2"><div><label class="f">次级关键词（可选，需同时命中）</label><input type="text" id="lK2" value="${esc((e.secondaryKeys||[]).join('、'))}"></div><div><label class="f">顺序（小的先注入）</label><input type="number" id="lO" value="${e.order??100}"></div></div>
   <label class="row" style="margin-top:10px;cursor:pointer"><input type="checkbox" id="lA" ${e.always?'checked':''}> 常驻（每次都注入，适合总结与核心设定）</label>
   <label class="row" style="margin-top:6px;cursor:pointer"><input type="checkbox" id="lP" ${e.person?'checked':''}> 这是一个人物（NPC）：会出现在小手机联系人里，可以私聊、拉群</label>
-  <label class="f">归属：属于整个世界，还是某位角色专属？</label><select id="lB"><option value="">🌍 整个世界（所有角色都生效）</option>${S.characters.map(c=>`<option value="${c.id}" ${e.charId===c.id?'selected':''}>👤 ${esc(c.name)} 专属（只在 TA 在场时生效）</option>`).join('')}</select>
+  <label class="f">归属：属于整个世界，还是某位角色 / 人物专属？</label><select id="lB"><option value="">🌍 整个世界（所有角色都生效）</option>${S.characters.map(c=>`<option value="${c.id}" ${e.charId===c.id&&!e.personId?'selected':''}>👤 ${esc(c.name)} 专属（只在 TA 在场时生效）</option>`).join('')}${w.lorebook.filter(p=>p.person&&p.id!==e.id).map(p=>`<option value="p:${p.id}" ${e.personId===p.id?'selected':''}>🧑 ${esc(p.title)} 相关（NPC，随该人物生效）</option>`).join('')}<option value="__newchar">➕ 新建一张角色卡…</option><option value="__newperson">➕ 新建一个人物（NPC）…</option></select>
+  <label class="f">分组标签（可选，自由填写，只用于整理）</label><input type="text" id="lG2" value="${esc(e.group&&!['设定','总结','人物'].includes(e.group)?e.group:'')}" placeholder="例如：地点 / 物品 / 前情">
   <label class="f">内容</label><textarea id="lC" style="min-height:200px">${esc(e.content)}</textarea>
   <div class="row" style="margin-top:14px"><button class="btn p" id="lSave">保存</button>${isNew?'':'<button class="btn danger ghost" id="lDel">删除</button>'}<button class="btn ghost" id="lCancel">取消</button></div>`,m=>{
-    $('#lSave',m).onclick=()=>{e.title=$('#lT',m).value||'未命名';e.group=$('#lG',m).value||'设定';e.keys=$('#lK',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.secondaryKeys=$('#lK2',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.selective=e.secondaryKeys.length>0;e.order=+$('#lO',m).value||100;e.always=$('#lA',m).checked;e.person=$('#lP',m).checked;e.charId=$('#lB',m).value||'';e.content=$('#lC',m).value;if(isNew)w.lorebook.push(e);markDirty(w.id);closeModal();(after||renderPanel)()};
+    $('#lB',m).onchange=()=>{const v=$('#lB',m).value;if(v==='__newchar'){const nm=prompt('新角色的名字');if(nm&&nm.trim()){const c={id:'c_'+uid(),name:nm.trim(),gender:'',age:'',color:COLORS[S.characters.length%COLORS.length],appearance:'',personality:'',background:'',speech:'',relation:'',firstMessage:''};S.characters.push(c);if(w.charIds.length<5)w.charIds.push(c.id);markDirty();markDirty(w.id);const o=document.createElement('option');o.value=c.id;o.textContent=`👤 ${c.name} 专属（只在 TA 在场时生效）`;$('#lB',m).insertBefore(o,$('#lB',m).querySelector('[value="__newchar"]'));$('#lB',m).value=c.id;toast(`已新建角色 ${c.name}${w.charIds.includes(c.id)?'，并加入本世界':''}；人设可以稍后去「角色」补`)}else $('#lB',m).value=''}
+      if(v==='__newperson'){const nm=prompt('人物（NPC）的名字');if(nm&&nm.trim()){const p={id:uid(),title:nm.trim(),keys:[nm.trim()],content:'',enabled:true,always:false,group:'人物',person:true,charId:''};w.lorebook.push(p);markDirty(w.id);const o=document.createElement('option');o.value='p:'+p.id;o.textContent=`🧑 ${p.title} 相关（NPC，随该人物生效）`;$('#lB',m).insertBefore(o,$('#lB',m).querySelector('[value="__newchar"]'));$('#lB',m).value='p:'+p.id;toast(`已新建人物 ${p.title}，记得回头补一下 TA 的描述`)}else $('#lB',m).value=''}};
+    $('#lSave',m).onclick=()=>{e.title=$('#lT',m).value||'未命名';const lb=$('#lB',m).value;e.personId=lb.startsWith('p:')?lb.slice(2):'';const g2=$('#lG2',m).value.trim();e.group=g2||($('#lP',m).checked?'人物':(e.group==='总结'?'总结':'设定'));e.keys=$('#lK',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.secondaryKeys=$('#lK2',m).value.split(/[,，、\n]/).map(s=>s.trim()).filter(Boolean);e.selective=e.secondaryKeys.length>0;e.order=+$('#lO',m).value||100;e.always=$('#lA',m).checked;e.person=$('#lP',m).checked;e.charId=(lb&&!lb.startsWith('p:')&&!lb.startsWith('__'))?lb:(e.personId?(w.lorebook.find(x=>x.id===e.personId)?.charId||''):'');e.content=$('#lC',m).value;if(isNew)w.lorebook.push(e);markDirty(w.id);closeModal();(after||renderPanel)()};
     const d=$('#lDel',m);if(d)d.onclick=()=>{w.lorebook=w.lorebook.filter(x=>x.id!==e.id);markDirty(w.id);closeModal();(after||renderPanel)()};
     $('#lCancel',m).onclick=closeModal;
   });
