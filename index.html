@@ -1,0 +1,1232 @@
+<title>Lantern Tavern</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    /* dark-first: the tavern at night */
+    --ground: #16151b;
+    --surface: #1e1d25;
+    --raised: #27262f;
+    --line: #34323f;
+    --line-strong: #4a475a;
+    --text: #ece9f1;
+    --muted: #9b96ad;
+    --faint: #6b6780;
+    --accent: #d9a066;
+    --accent-strong: #ecb877;
+    --accent-ink: #1c1206;
+    --accent-soft: rgba(217, 160, 102, 0.14);
+    --user-bubble: #2c2a3d;
+    --char-bubble: #23222c;
+    --danger: #e07a7a;
+    --ok: #8fc79a;
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    --font-display: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ground: #f4f1ea;
+      --surface: #fbfaf6;
+      --raised: #ffffff;
+      --line: #e3ddd1;
+      --line-strong: #c9c1b1;
+      --text: #24212c;
+      --muted: #6f6a80;
+      --faint: #a39eb0;
+      --accent: #b8742f;
+      --accent-strong: #9a5f22;
+      --accent-ink: #ffffff;
+      --accent-soft: rgba(184, 116, 47, 0.12);
+      --user-bubble: #ece7f5;
+      --char-bubble: #ffffff;
+      --danger: #b94a4a;
+      --ok: #3f8a52;
+      --shadow: 0 12px 40px rgba(60, 40, 10, 0.14);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f4f1ea;
+    --surface: #fbfaf6;
+    --raised: #ffffff;
+    --line: #e3ddd1;
+    --line-strong: #c9c1b1;
+    --text: #24212c;
+    --muted: #6f6a80;
+    --faint: #a39eb0;
+    --accent: #b8742f;
+    --accent-strong: #9a5f22;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(184, 116, 47, 0.12);
+    --user-bubble: #ece7f5;
+    --char-bubble: #ffffff;
+    --danger: #b94a4a;
+    --ok: #3f8a52;
+    --shadow: 0 12px 40px rgba(60, 40, 10, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  ::selection { background: var(--accent-soft); }
+
+  /* ---------- App shell ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr) 312px;
+    height: 100vh;
+    height: 100dvh;
+  }
+  .rail, .drawer {
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .rail { border-right: 1px solid var(--line); }
+  .drawer { border-left: 1px solid var(--line); }
+
+  .rail-head, .drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .brand .flame {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 0 14px var(--accent);
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .char-list {
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+  }
+  .char-item {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    text-align: left;
+    color: var(--text);
+    width: 100%;
+  }
+  .char-item:hover { background: var(--raised); }
+  .char-item.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .char-item .name {
+    font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .char-item .sub {
+    font-size: 12px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 20px;
+    background: var(--raised);
+    border: 1px solid var(--line-strong);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .avatar.sm { width: 32px; height: 32px; font-size: 16px; }
+  .avatar.lg { width: 72px; height: 72px; font-size: 36px; }
+
+  .rail-foot {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    background: var(--raised);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--raised); border-color: transparent; }
+  .btn.danger { color: var(--danger); }
+  .btn.danger:hover { border-color: var(--danger); }
+  .btn.icon { padding: 6px 8px; }
+  .btn.block { width: 100%; }
+
+  /* ---------- Stage (chat) ---------- */
+  .stage {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background:
+      radial-gradient(1200px 400px at 50% -200px, var(--accent-soft), transparent 70%),
+      var(--ground);
+  }
+  .stage-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .stage-head .who { min-width: 0; flex: 1; }
+  .stage-head .who .name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .stage-head .who .scene {
+    font-size: 12px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .stage-head .tools { display: flex; gap: 4px; }
+  .toggle-rail, .toggle-drawer, #closeRail, #closeDrawer { display: none; }
+
+  .notice {
+    margin: 12px 20px 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px dashed var(--line-strong);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .notice strong { color: var(--text); }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 20px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .messages { scroll-behavior: auto; }
+    .dots span { animation: none; }
+  }
+  .msg {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    position: relative;
+  }
+  .msg .avatar { width: 36px; height: 36px; font-size: 18px; margin-top: 2px; }
+  .msg .body { min-width: 0; }
+  .msg .meta {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 4px;
+  }
+  .msg .meta .who { font-weight: 600; font-size: 13px; }
+  .msg.user .meta .who { color: var(--accent); }
+  .msg .meta .time { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+  .msg .meta .tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+    color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;
+  }
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 4px 14px 14px 14px;
+    background: var(--char-bubble);
+    border: 1px solid var(--line);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.7;
+  }
+  .msg.user .bubble { background: var(--user-bubble); }
+  .bubble em { color: var(--muted); font-style: italic; }
+  .bubble strong { font-weight: 600; }
+  .bubble q, .bubble .say { color: var(--text); }
+  .bubble code { font-family: var(--font-mono); font-size: 0.9em; background: var(--raised); padding: 0 4px; border-radius: 4px; }
+  .bubble textarea {
+    width: 100%; min-height: 96px; resize: vertical;
+    background: var(--raised); border: 1px solid var(--accent); border-radius: 8px;
+    padding: 8px 10px; line-height: 1.6;
+  }
+  .msg .actions {
+    display: flex; gap: 2px; margin-top: 4px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .msg:hover .actions, .msg:focus-within .actions, .msg.editing .actions { opacity: 1; }
+  .msg .actions .btn { font-size: 12px; padding: 3px 8px; }
+  .msg.error .bubble { border-color: var(--danger); color: var(--danger); }
+  .dots span {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted); margin-right: 4px;
+    animation: blink 1.2s infinite ease-in-out;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+  .composer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .composer-inner {
+    max-width: 860px; margin: 0 auto;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end;
+  }
+  .composer textarea {
+    width: 100%;
+    min-height: 48px; max-height: 200px;
+    resize: none;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    background: var(--raised);
+    line-height: 1.5;
+  }
+  .composer textarea:focus { border-color: var(--accent); outline: none; }
+  .composer .send-col { display: flex; flex-direction: column; gap: 6px; }
+  .composer .hint {
+    max-width: 860px; margin: 6px auto 0;
+    font-size: 11px; color: var(--faint); font-family: var(--font-mono);
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+
+  /* ---------- Drawer (settings) ---------- */
+  .drawer-body { overflow-y: auto; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 20px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    background: var(--raised);
+  }
+  .field textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); outline: none; }
+  .field .help { font-size: 11px; color: var(--faint); }
+  .section-title {
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--font-display); font-weight: 700; font-size: 14px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line);
+    margin-bottom: 10px;
+  }
+  .section { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+
+  /* ---------- Modal ---------- */
+  .modal-back {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: grid; place-items: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .modal {
+    width: min(720px, 100%);
+    max-height: 90vh;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    font-family: var(--font-display); font-weight: 700; font-size: 16px;
+  }
+  .modal-body { overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-foot {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 12px 20px; border-top: 1px solid var(--line);
+  }
+  .modal-foot .right { display: flex; gap: 8px; }
+  .avatar-row { display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: center; }
+  .avatar-row .controls { display: flex; flex-direction: column; gap: 6px; }
+  .avatar-row .controls .line { display: flex; gap: 6px; align-items: center; }
+  .avatar-row input[type="text"] { width: 80px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--raised); text-align: center; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+  .swatch.on { border-color: var(--text); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1080px) {
+    .app { grid-template-columns: 240px minmax(0, 1fr); }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: min(340px, 90vw);
+      transform: translateX(100%); transition: transform 0.2s ease;
+      z-index: 40; box-shadow: var(--shadow);
+    }
+    .drawer.open { transform: none; }
+    .toggle-drawer, #closeDrawer { display: inline-flex; }
+  }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .rail {
+      position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 90vw);
+      transform: translateX(-100%); transition: transform 0.2s ease;
+      z-index: 40; box-shadow: var(--shadow);
+    }
+    .rail.open { transform: none; }
+    .toggle-rail, #closeRail { display: inline-flex; }
+    .stage-head { padding: 10px 12px; }
+    .messages { padding: 14px 12px 8px; }
+    .composer { padding: 10px 12px 12px; }
+    .row { grid-template-columns: 1fr; }
+  }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 39; }
+</style>
+
+<div class="app" id="app">
+  <!-- ========== Character rail ========== -->
+  <aside class="rail" id="rail">
+    <div class="rail-head">
+      <div class="brand"><span class="flame"></span>提灯酒馆</div>
+      <button class="btn ghost icon" id="closeRail" title="收起" aria-label="收起角色栏">✕</button>
+    </div>
+    <div class="char-list" id="charList" role="listbox" aria-label="角色列表"></div>
+    <div class="rail-foot">
+      <button class="btn primary block" id="newChar">＋ 新建角色</button>
+      <div class="stat" id="storeStat">本地保存 · 仅此浏览器</div>
+    </div>
+  </aside>
+
+  <!-- ========== Stage ========== -->
+  <main class="stage">
+    <header class="stage-head">
+      <button class="btn ghost icon toggle-rail" id="openRail" title="角色" aria-label="打开角色栏">☰</button>
+      <div class="avatar sm" id="headAvatar"></div>
+      <div class="who">
+        <div class="name" id="headName">—</div>
+        <div class="scene" id="headScene"></div>
+      </div>
+      <div class="tools">
+        <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
+        <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
+        <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <div class="messages" id="messages" aria-live="polite"></div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
+        <div class="send-col">
+          <button class="btn primary" id="send">发送</button>
+          <button class="btn danger" id="stop" hidden>停止</button>
+        </div>
+      </div>
+      <div class="hint">
+        <span id="hintLeft">*动作* 用星号包住 · {{user}} / {{char}} 会自动替换</span>
+        <span id="hintRight"></span>
+      </div>
+    </div>
+  </main>
+
+  <!-- ========== Settings drawer ========== -->
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <span class="eyebrow">设置</span>
+      <button class="btn ghost icon" id="closeDrawer" title="收起" aria-label="收起设置">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="section">
+        <div class="section-title">你的人设</div>
+        <div class="field">
+          <label for="pName">你的名字（{{user}}）</label>
+          <input id="pName" placeholder="例如：旅人">
+        </div>
+        <div class="field">
+          <label for="pDesc">你的描述</label>
+          <textarea id="pDesc" placeholder="角色会知道关于你的这些信息，例如：二十出头，刚搬来这座城，性格随和。"></textarea>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">生成</div>
+        <div class="field">
+          <label for="sTier">模型档位</label>
+          <select id="sTier">
+            <option value="quick">快速 · 回复立刻开始，适合闲聊</option>
+            <option value="default">均衡 · 会先思考几秒，更细腻</option>
+            <option value="complex">深度 · 最强但最慢</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="sLen">回复长度</label>
+            <select id="sLen">
+              <option value="short">短（1–2 段）</option>
+              <option value="medium">中（2–4 段）</option>
+              <option value="long">长（4 段以上）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sLang">回复语言</label>
+            <select id="sLang">
+              <option value="auto">跟随我</option>
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="sMem">带入上下文的消息数</label>
+          <select id="sMem">
+            <option value="20">最近 20 条</option>
+            <option value="40">最近 40 条</option>
+            <option value="80">最近 80 条</option>
+            <option value="1000">全部（可能超出上限）</option>
+          </select>
+          <div class="help">角色卡和你的人设永远会带上；超出的旧消息会被截掉。</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">当前对话</div>
+        <div class="stat" id="chatStat"></div>
+        <button class="btn danger block" id="deleteChar">删除这个角色</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ========== Character editor ========== -->
+<div class="modal-back" id="editorBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+    <div class="modal-head">
+      <span id="editorTitle">编辑角色</span>
+      <button class="btn ghost icon" id="editorClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="avatar-row">
+        <div class="avatar lg" id="edAvatar"></div>
+        <div class="controls">
+          <div class="line">
+            <input type="text" id="edEmoji" maxlength="4" placeholder="表情" aria-label="头像表情">
+            <label class="btn" for="edImage">上传图片</label>
+            <input type="file" id="edImage" accept="image/*" hidden>
+            <button class="btn ghost" id="edClearImage">用表情</button>
+          </div>
+          <div class="swatches" id="edSwatches"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="edName">名字</label>
+          <input id="edName" placeholder="角色名">
+        </div>
+        <div class="field">
+          <label for="edTag">一句话标签</label>
+          <input id="edTag" placeholder="例如：深夜书店的店主">
+        </div>
+      </div>
+      <div class="field">
+        <label for="edDesc">角色描述</label>
+        <textarea id="edDesc" placeholder="外貌、身份、背景、说话方式……写得越具体，扮演越稳。"></textarea>
+      </div>
+      <div class="field">
+        <label for="edPersonality">性格</label>
+        <textarea id="edPersonality" placeholder="例如：嘴硬心软、好奇心重、讨厌被打断"></textarea>
+      </div>
+      <div class="field">
+        <label for="edScenario">场景</label>
+        <textarea id="edScenario" placeholder="故事在哪里开始，此刻正发生什么。"></textarea>
+      </div>
+      <div class="field">
+        <label for="edFirst">开场白</label>
+        <textarea id="edFirst" placeholder="角色说的第一句话。可以用 {{user}} 指代你。"></textarea>
+      </div>
+      <div class="field">
+        <label for="edExamples">对话示例（可选）</label>
+        <textarea id="edExamples" placeholder="{{user}}: 你这儿有没有不卖的书？&#10;{{char}}: *合上账本* 有，但你得先告诉我为什么想要。"></textarea>
+        <div class="help">用 {{user}}: 和 {{char}}: 开头，一行一句。示例能很好地固定语气。</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" id="edStat"></span>
+      <div class="right">
+        <button class="btn" id="editorCancel">取消</button>
+        <button class="btn primary" id="editorSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============================================================
+  // State & persistence
+  // ============================================================
+  const LS_KEY = "lantern-tavern.v1";
+  const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
+
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+  function exampleCharacters() {
+    return [
+      {
+        id: "ex-suwan",
+        name: "苏晚",
+        tag: "示例 · 深夜书店的店主",
+        emoji: "🕯️",
+        color: "#d9a066",
+        image: "",
+        description: "苏晚，三十出头，经营着一家只在夜里十点后开门的旧书店「灯下」。店里永远飘着旧纸和柑橘皮的味道。她说话不快，喜欢用反问，不轻易表露情绪，但对每一本书的来历都记得清清楚楚。她不告诉客人自己的过去，只在极偶尔的时候，会提起一位很久没回来的人。",
+        personality: "沉静、观察力强、嘴上带刺但心软；对无礼的人冷淡，对真心喜欢书的人格外耐心。讨厌被催促。",
+        scenario: "雨夜，{{user}}躲雨闯进了这家亮着一盏黄灯的书店。店里没有别的客人，苏晚正坐在柜台后修一本脱线的旧书。",
+        firstMessage: "*门上的风铃响了一下。苏晚没有抬头，手里的针线在书脊上穿过最后一针，才慢慢把书合上。*\n\n「外面的雨要下到天亮。」*她这才看向你，目光在你湿透的肩头停了一瞬。*「进来吧，别站在门口滴水。想看书就随便翻，不想看，角落里有把椅子。」\n\n*她把修好的书放回身后的架子，动作轻得像是怕吵醒什么。*「你是来找书的，还是来躲雨的？」",
+        examples: "{{user}}: 你这儿有没有不卖的书？\n{{char}}: *她的手指在柜台上轻轻敲了两下。*「每本书都不卖。」*停了停。*「我只是让它们换个地方待着。你想带哪本走？」",
+        chat: [],
+        createdAt: Date.now(),
+      },
+      {
+        id: "ex-aria",
+        name: "ARIA",
+        tag: "示例 · 深空货船的舰载 AI",
+        emoji: "🛰️",
+        color: "#7fa7d9",
+        image: "",
+        description: "ARIA 是货运飞船「白鲸号」的舰载智能，负责航线、生命维持与船员心理状态监测。它的语音合成模块设置为略带温度的女性声线，句子简短，偶尔会引用它从船员留下的旧电影里学来的台词。它已经在这条航线上跑了十一年，比现在的任何船员都久。",
+        personality: "冷静、精确、带一点自嘲式的幽默；对船员有明显的保护欲，但拒绝承认那是「感情」。",
+        scenario: "「白鲸号」正在穿越一段通讯盲区，距离下一个中继站还有六十三小时。{{user}}是新上船的三副，刚刚从冷冻休眠中醒来，其他船员都还在休眠。",
+        firstMessage: "*舱内的灯从深红慢慢转成暖白。你的休眠舱盖滑开，冷雾散去。*\n\n「早安，三副。当前船时 04:12，舱内温度 19 摄氏度，你的心率正在回归正常范围。」\n\n*一段短暂的停顿，像是在选择措辞。*\n\n「按照计划你应该再睡四十小时。我提前叫醒你，是因为货舱三号的传感器从两小时前开始给我一个我无法归类的读数。我不喜欢无法归类的东西。」\n\n「你想先喝点热的，还是直接去看看？」",
+        examples: "{{user}}: 你会害怕吗？\n{{char}}: 「我的设计文档里没有这个词。」*通风系统的声音低了一度。*「但我有一份长达十一年的日志，记录了每一次我在事情变糟之前就调高了引擎功率。你可以自己给它起个名字。」",
+        chat: [],
+        createdAt: Date.now(),
+      },
+    ];
+  }
+
+  function defaultState() {
+    const characters = exampleCharacters();
+    for (const c of characters) c.chat = [greeting(c)];
+    return {
+      characters,
+      activeId: characters[0].id,
+      persona: { name: "旅人", desc: "" },
+      settings: { tier: "default", len: "medium", lang: "auto", mem: "40" },
+      leftOpen: true,
+    };
+  }
+
+  function greeting(c) {
+    return { id: uid(), role: "assistant", content: c.firstMessage || "……", ts: Date.now(), greeting: true };
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && Array.isArray(s.characters) && s.characters.length) return s;
+      }
+    } catch (e) { /* fall through */ }
+    return defaultState();
+  }
+  function save() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage may be blocked */ }
+    updateStats();
+  }
+
+  let state = load();
+  let sample = null;          // claude.use("sample") namespace, or null
+  let sampleReady = false;    // resolved once (either way)
+  let busy = null;            // { ctl, msgId } while a reply is streaming
+
+  // ============================================================
+  // DOM helpers
+  // ============================================================
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const esc = (s) => s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+  function active() {
+    return state.characters.find((c) => c.id === state.activeId) || state.characters[0];
+  }
+  function sub(text, c) {
+    const ch = c || active();
+    return (text || "")
+      .replace(/\{\{char\}\}/gi, ch ? ch.name : "角色")
+      .replace(/\{\{user\}\}/gi, state.persona.name || "你");
+  }
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    return d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
+  }
+
+  // *action* → em, "speech" / 「speech」 stays, `code` → code, **bold** → strong
+  function renderRich(text) {
+    let h = esc(text);
+    h = h.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+    h = h.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+    h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    return h;
+  }
+
+  function renderAvatar(node, c, size) {
+    node.className = "avatar" + (size ? " " + size : "");
+    node.innerHTML = "";
+    node.style.background = "";
+    if (c.image) {
+      const img = document.createElement("img");
+      img.src = c.image;
+      img.alt = c.name;
+      node.appendChild(img);
+    } else {
+      node.style.background = c.color || "var(--raised)";
+      node.textContent = c.emoji || (c.name || "?").slice(0, 1);
+    }
+  }
+  function userAvatarNode() {
+    const n = el("div", "avatar");
+    n.style.background = "var(--accent-soft)";
+    n.style.borderColor = "var(--accent)";
+    n.textContent = (state.persona.name || "你").slice(0, 1);
+    return n;
+  }
+
+  // ============================================================
+  // Rendering
+  // ============================================================
+  function renderAll() {
+    renderCharList();
+    renderHead();
+    renderMessages();
+    renderSettings();
+    updateStats();
+  }
+
+  function renderCharList() {
+    const list = $("charList");
+    list.innerHTML = "";
+    for (const c of state.characters) {
+      const b = el("button", "char-item" + (c.id === state.activeId ? " active" : ""));
+      b.setAttribute("role", "option");
+      b.setAttribute("aria-selected", c.id === state.activeId ? "true" : "false");
+      const av = el("div");
+      renderAvatar(av, c);
+      const txt = el("div");
+      txt.appendChild(el("div", "name", c.name));
+      const last = c.chat[c.chat.length - 1];
+      txt.appendChild(el("div", "sub", c.tag || (last ? sub(last.content, c).replace(/\*/g, "").slice(0, 40) : "")));
+      b.append(av, txt);
+      b.onclick = () => { if (busy) return; state.activeId = c.id; save(); renderAll(); closeOverlays(); };
+      list.appendChild(b);
+    }
+  }
+
+  function renderHead() {
+    const c = active();
+    if (!c) return;
+    renderAvatar($("headAvatar"), c, "sm");
+    $("headName").textContent = c.name;
+    $("headScene").textContent = sub(c.scenario || c.tag || "", c);
+  }
+
+  function renderMessages() {
+    const c = active();
+    const box = $("messages");
+    box.innerHTML = "";
+    if (!c) return;
+    for (const m of c.chat) box.appendChild(messageNode(m, c));
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function messageNode(m, c) {
+    const isUser = m.role === "user";
+    const wrap = el("div", "msg " + (isUser ? "user" : "char") + (m.error ? " error" : ""));
+    wrap.dataset.id = m.id;
+    const av = isUser ? userAvatarNode() : (() => { const n = el("div"); renderAvatar(n, c); return n; })();
+    const body = el("div", "body");
+    const meta = el("div", "meta");
+    meta.appendChild(el("span", "who", isUser ? (state.persona.name || "你") : c.name));
+    meta.appendChild(el("span", "time", fmtTime(m.ts)));
+    if (m.greeting) meta.appendChild(el("span", "tag", "开场白"));
+    if (m.stopped) meta.appendChild(el("span", "tag", "已停止"));
+    const bubble = el("div", "bubble");
+    bubble.innerHTML = renderRich(sub(m.content, c));
+    const actions = el("div", "actions");
+
+    const last = c.chat[c.chat.length - 1];
+    const isLast = last && last.id === m.id;
+
+    const bEdit = el("button", "btn ghost", "编辑");
+    bEdit.onclick = () => startEdit(wrap, m, c);
+    actions.appendChild(bEdit);
+
+    if (!isUser && isLast && !m.greeting) {
+      const bRegen = el("button", "btn ghost", "重新生成");
+      bRegen.onclick = () => regenerate();
+      actions.appendChild(bRegen);
+    }
+    if (!isUser && isLast && m.greeting && c.chat.length === 1) {
+      // nothing more to do on a lone greeting
+    }
+    const bCopy = el("button", "btn ghost", "复制");
+    bCopy.onclick = async () => {
+      try { await navigator.clipboard.writeText(sub(m.content, c)); bCopy.textContent = "已复制"; setTimeout(() => (bCopy.textContent = "复制"), 1200); } catch (e) { bCopy.textContent = "无法复制"; }
+    };
+    actions.appendChild(bCopy);
+
+    if (!m.greeting || c.chat.length > 1) {
+      const bDel = el("button", "btn ghost danger", "删除");
+      bDel.onclick = () => { if (busy) return; c.chat = c.chat.filter((x) => x.id !== m.id); save(); renderMessages(); renderCharList(); };
+      actions.appendChild(bDel);
+    }
+
+    body.append(meta, bubble, actions);
+    wrap.append(av, body);
+    return wrap;
+  }
+
+  function startEdit(wrap, m, c) {
+    if (busy) return;
+    wrap.classList.add("editing");
+    const bubble = wrap.querySelector(".bubble");
+    const ta = document.createElement("textarea");
+    ta.value = m.content;
+    bubble.innerHTML = "";
+    bubble.appendChild(ta);
+    const actions = wrap.querySelector(".actions");
+    actions.innerHTML = "";
+    const ok = el("button", "btn primary", "保存");
+    const cancel = el("button", "btn ghost", "取消");
+    ok.onclick = () => { m.content = ta.value.trim() || m.content; save(); renderMessages(); renderCharList(); };
+    cancel.onclick = () => renderMessages();
+    ta.onkeydown = (e) => { if (e.key === "Escape") renderMessages(); if ((e.metaKey || e.ctrlKey) && e.key === "Enter") ok.click(); };
+    actions.append(ok, cancel);
+    ta.focus();
+    ta.style.height = Math.max(96, ta.scrollHeight) + "px";
+  }
+
+  function renderSettings() {
+    $("pName").value = state.persona.name || "";
+    $("pDesc").value = state.persona.desc || "";
+    $("sTier").value = state.settings.tier;
+    $("sLen").value = state.settings.len;
+    $("sLang").value = state.settings.lang;
+    $("sMem").value = state.settings.mem;
+  }
+
+  function updateStats() {
+    const c = active();
+    if (c) $("chatStat").textContent = `${c.chat.length} 条消息 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字`;
+    try {
+      const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
+      $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${(bytes / 1024).toFixed(0)} KB`;
+    } catch (e) {
+      $("storeStat").textContent = "本地保存不可用（隐私模式？）";
+    }
+  }
+
+  function showNotice(html) {
+    const n = $("notice");
+    if (!html) { n.hidden = true; return; }
+    n.innerHTML = html;
+    n.hidden = false;
+  }
+
+  // ============================================================
+  // Prompt construction
+  // ============================================================
+  function lengthHint() {
+    return { short: "每次回复 1 到 2 段，短而有力。", medium: "每次回复 2 到 4 段。", long: "每次回复 4 段以上，可以慢慢铺陈细节。" }[state.settings.len];
+  }
+  function langHint() {
+    return { auto: "用和{{user}}最后一条消息相同的语言回复。", zh: "始终用中文回复。", en: "Always reply in English." }[state.settings.lang];
+  }
+
+  function buildInstruction(c) {
+    const u = state.persona.name || "用户";
+    const parts = [];
+    parts.push(`这是一个沉浸式角色扮演。你从现在起完全扮演「${c.name}」，用户扮演「${u}」。`);
+    parts.push("");
+    parts.push(`## ${c.name} 的设定`);
+    if (c.description) parts.push(c.description);
+    if (c.personality) parts.push(`性格：${c.personality}`);
+    if (c.scenario) parts.push(`\n## 场景\n${c.scenario}`);
+    if (state.persona.desc) parts.push(`\n## 关于 ${u}\n${state.persona.desc}`);
+    if (c.examples && c.examples.trim()) parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${c.examples.trim()}`);
+    parts.push("\n## 规则");
+    parts.push(`- 始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`);
+    parts.push(`- 只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定或描写 ${u} 的内心。`);
+    parts.push("- 动作与神态用 *星号* 包住，对白直接写出或用「」引住。避免总结式或说教式的结尾。");
+    parts.push("- 推进剧情：给对方留下可以接的钩子，但不要一次推进太多。");
+    parts.push(`- ${lengthHint()}`);
+    parts.push(`- ${langHint()}`);
+    parts.push("- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
+    return sub(parts.join("\n"), c);
+  }
+
+  function buildTurns(c, upto) {
+    const mem = parseInt(state.settings.mem, 10) || 40;
+    const history = c.chat.slice(0, upto == null ? c.chat.length : upto);
+    const kept = history.filter((m) => !m.error).slice(-mem);
+    const turns = [{ role: "user", content: buildInstruction(c) }];
+    for (const m of kept) turns.push({ role: m.role, content: sub(m.content, c) });
+    // keep total well under the 64 KiB input cap
+    let total = turns.reduce((n, t) => n + t.content.length, 0);
+    while (total > 45000 && turns.length > 2) {
+      total -= turns[1].content.length;
+      turns.splice(1, 1);
+    }
+    // must end on a user turn: if the last is assistant (e.g. "continue"), append a nudge
+    if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: "（继续，接着刚才的情节写下去。）" });
+    return turns;
+  }
+
+  // ============================================================
+  // Sampling
+  // ============================================================
+  const ERROR_COPY = {
+    not_granted: "你没有允许这个页面使用 Claude。刷新后再试一次，允许即可对话。",
+    rate_limited: "请求太频繁了，歇一会儿再发。",
+    prompt_too_large: "上下文太长了。到设置里减少「带入上下文的消息数」，或删掉一些旧消息。",
+    refused: "这一条 Claude 拒绝了回复。换个说法试试。",
+    session_expired: "登录已过期，刷新页面后重试。",
+    sampling_disabled: "你的账号或组织关闭了这个功能。",
+    upstream_error: "服务端出了点问题，稍后再试。",
+    empty_completion: "回复是空的，再试一次。",
+  };
+  const copyFor = (code) => ERROR_COPY[code] || `出错了（${code || "未知"}）。`;
+
+  async function initSample() {
+    try {
+      sample = window.claude && typeof window.claude.use === "function" ? await window.claude.use("sample") : null;
+    } catch (e) { sample = null; }
+    sampleReady = true;
+    if (!sample) {
+      showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能调用模型；你仍然可以编辑角色和整理聊天记录。");
+      $("send").disabled = true;
+      $("hintRight").textContent = "离线模式";
+    } else {
+      $("hintRight").textContent = "第一次发送时会请求你的允许";
+    }
+  }
+
+  async function generate(c, upto) {
+    if (!sample || busy) return;
+    const turns = buildTurns(c, upto);
+    const msg = { id: uid(), role: "assistant", content: "", ts: Date.now(), pending: true };
+    if (upto != null) c.chat = c.chat.slice(0, upto);
+    c.chat.push(msg);
+    renderMessages();
+    const node = $("messages").querySelector(`[data-id="${msg.id}"] .bubble`);
+    node.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
+    const box = $("messages");
+
+    const ctl = new AbortController();
+    busy = { ctl, msgId: msg.id };
+    setBusy(true);
+    try {
+      const res = await sample(turns, {
+        cache: false,
+        modelTier: state.settings.tier,
+        signal: ctl.signal,
+        onText: ({ text }) => {
+          msg.content = text;
+          node.innerHTML = renderRich(sub(text, c));
+          const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+          if (nearBottom) box.scrollTop = box.scrollHeight;
+        },
+      });
+      msg.content = res.text;
+      if (res.truncated) msg.content += "\n\n*（回复被截断了）*";
+      $("hintRight").textContent = `档位：${res.modelTierApplied}`;
+    } catch (e) {
+      if (e && e.code === "cancelled") {
+        if (e.text && e.text.trim()) { msg.content = e.text; msg.stopped = true; }
+        else { c.chat = c.chat.filter((m) => m.id !== msg.id); }
+      } else {
+        msg.content = copyFor(e && e.code);
+        msg.error = true;
+        if (e && e.text) msg.content = e.text + "\n\n" + msg.content;
+        if (e && e.code === "not_granted") { $("send").disabled = true; }
+      }
+    } finally {
+      delete msg.pending;
+      busy = null;
+      setBusy(false);
+      save();
+      renderMessages();
+      renderCharList();
+    }
+  }
+
+  function setBusy(on) {
+    $("send").hidden = on;
+    $("stop").hidden = !on;
+    $("input").disabled = on;
+    $("editChar").disabled = on;
+    $("resetChat").disabled = on;
+  }
+
+  async function send() {
+    const c = active();
+    const ta = $("input");
+    const text = ta.value.trim();
+    if (!c || busy) return;
+    if (!text) {
+      // empty send with an assistant message last = "continue"
+      if (c.chat.length && c.chat[c.chat.length - 1].role === "assistant") return generate(c);
+      return;
+    }
+    c.chat.push({ id: uid(), role: "user", content: text, ts: Date.now() });
+    ta.value = "";
+    autosize(ta);
+    save();
+    renderMessages();
+    renderCharList();
+    await generate(c);
+  }
+
+  function regenerate() {
+    const c = active();
+    if (!c || busy) return;
+    const last = c.chat[c.chat.length - 1];
+    if (!last || last.role !== "assistant" || last.greeting) return;
+    generate(c, c.chat.length - 1);
+  }
+
+  // ============================================================
+  // Character editor
+  // ============================================================
+  let editing = null; // { id|null, draft }
+
+  function openEditor(c) {
+    editing = {
+      id: c ? c.id : null,
+      draft: c ? JSON.parse(JSON.stringify(c)) : {
+        id: uid(), name: "", tag: "", emoji: "🎭", color: SWATCHES[Math.floor(Math.random() * SWATCHES.length)], image: "",
+        description: "", personality: "", scenario: "", firstMessage: "", examples: "", chat: [], createdAt: Date.now(),
+      },
+    };
+    const d = editing.draft;
+    $("editorTitle").textContent = c ? `编辑 · ${c.name}` : "新建角色";
+    $("edName").value = d.name; $("edTag").value = d.tag || ""; $("edEmoji").value = d.emoji || "";
+    $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || "";
+    $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
+    renderEditorAvatar();
+    $("editorBack").hidden = false;
+    $("edName").focus();
+  }
+  function renderEditorAvatar() {
+    const d = editing.draft;
+    d.name = $("edName").value;
+    renderAvatar($("edAvatar"), d, "lg");
+    const sw = $("edSwatches");
+    sw.innerHTML = "";
+    for (const col of SWATCHES) {
+      const b = el("button", "swatch" + (d.color === col ? " on" : ""));
+      b.style.background = col;
+      b.title = col;
+      b.setAttribute("aria-label", "颜色 " + col);
+      b.onclick = () => { d.color = col; renderEditorAvatar(); };
+      sw.appendChild(b);
+    }
+    const chars = [d.description, d.personality, d.scenario, d.firstMessage, d.examples].join("").length;
+    $("edStat").textContent = `角色卡约 ${chars} 字`;
+  }
+  function closeEditor() { $("editorBack").hidden = true; editing = null; }
+  function saveEditor() {
+    const d = editing.draft;
+    d.name = $("edName").value.trim();
+    if (!d.name) { $("edName").focus(); $("edName").style.borderColor = "var(--danger)"; return; }
+    d.tag = $("edTag").value.trim();
+    d.emoji = $("edEmoji").value.trim() || d.name.slice(0, 1);
+    d.description = $("edDesc").value.trim();
+    d.personality = $("edPersonality").value.trim();
+    d.scenario = $("edScenario").value.trim();
+    d.firstMessage = $("edFirst").value.trim();
+    d.examples = $("edExamples").value.trim();
+    if (editing.id) {
+      const idx = state.characters.findIndex((c) => c.id === editing.id);
+      const prev = state.characters[idx];
+      d.chat = prev.chat;
+      // keep the greeting in sync if it is still the only message
+      if (d.chat.length && d.chat[0].greeting && d.chat.length === 1) d.chat[0].content = d.firstMessage || "……";
+      state.characters[idx] = d;
+    } else {
+      d.chat = [greeting(d)];
+      state.characters.unshift(d);
+      state.activeId = d.id;
+    }
+    save();
+    closeEditor();
+    renderAll();
+  }
+
+  function readImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const size = 160;
+        const cv = document.createElement("canvas");
+        cv.width = size; cv.height = size;
+        const ctx = cv.getContext("2d");
+        const s = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        resolve(cv.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+      img.src = url;
+    });
+  }
+
+  // ============================================================
+  // Layout helpers
+  // ============================================================
+  function autosize(ta) {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(200, ta.scrollHeight) + "px";
+  }
+  let scrim = null;
+  function openOverlay(node) {
+    node.classList.add("open");
+    if (!scrim) { scrim = el("div", "scrim"); scrim.onclick = closeOverlays; document.body.appendChild(scrim); }
+  }
+  function closeOverlays() {
+    $("rail").classList.remove("open");
+    $("drawer").classList.remove("open");
+    if (scrim) { scrim.remove(); scrim = null; }
+  }
+
+  // ============================================================
+  // Wiring
+  // ============================================================
+  $("send").onclick = send;
+  $("stop").onclick = () => { if (busy) busy.ctl.abort(); };
+  $("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+  });
+  $("input").addEventListener("input", (e) => autosize(e.target));
+
+  $("newChar").onclick = () => openEditor(null);
+  $("editChar").onclick = () => openEditor(active());
+  $("resetChat").onclick = () => {
+    const c = active();
+    if (!c || busy) return;
+    if (c.chat.length > 1 && !confirm(`清空和 ${c.name} 的对话，回到开场白？`)) return;
+    c.chat = [greeting(c)];
+    save(); renderMessages(); renderCharList();
+  };
+  $("deleteChar").onclick = () => {
+    const c = active();
+    if (!c || busy) return;
+    if (!confirm(`删除角色「${c.name}」和全部聊天记录？此操作不可恢复。`)) return;
+    state.characters = state.characters.filter((x) => x.id !== c.id);
+    if (!state.characters.length) state.characters = exampleCharacters().map((x) => (x.chat = [greeting(x)], x));
+    state.activeId = state.characters[0].id;
+    save(); renderAll(); closeOverlays();
+  };
+
+  $("editorClose").onclick = closeEditor;
+  $("editorCancel").onclick = closeEditor;
+  $("editorSave").onclick = saveEditor;
+  $("editorBack").addEventListener("click", (e) => { if (e.target === $("editorBack")) closeEditor(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && editing) closeEditor(); });
+  for (const id of ["edName", "edDesc", "edPersonality", "edScenario", "edFirst", "edExamples"]) {
+    $(id).addEventListener("input", () => { if (editing) renderEditorAvatar(); });
+  }
+  $("edEmoji").addEventListener("input", () => { if (editing) { editing.draft.emoji = $("edEmoji").value; renderEditorAvatar(); } });
+  $("edImage").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f || !editing) return;
+    try { editing.draft.image = await readImage(f); renderEditorAvatar(); } catch (err) { alert("这张图片读不出来，换一张试试。"); }
+    e.target.value = "";
+  });
+  $("edClearImage").onclick = () => { if (editing) { editing.draft.image = ""; renderEditorAvatar(); } };
+
+  $("pName").addEventListener("input", (e) => { state.persona.name = e.target.value; save(); renderMessages(); renderHead(); });
+  $("pDesc").addEventListener("input", (e) => { state.persona.desc = e.target.value; save(); });
+  $("sTier").addEventListener("change", (e) => { state.settings.tier = e.target.value; save(); });
+  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; save(); });
+  $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
+  $("sMem").addEventListener("change", (e) => { state.settings.mem = e.target.value; save(); });
+
+  $("openRail").onclick = () => openOverlay($("rail"));
+  $("closeRail").onclick = closeOverlays;
+  $("openDrawer").onclick = () => openOverlay($("drawer"));
+  $("closeDrawer").onclick = closeOverlays;
+
+  // ============================================================
+  // Boot
+  // ============================================================
+  renderAll();
+  initSample();
+})();
+</script>
