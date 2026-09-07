@@ -515,12 +515,8 @@
   .msg.hidden-floor { opacity: 0.55; }
   .msg.hidden-floor .bubble { border-style: dashed; }
   .msg.hidden-floor .meta .tag { color: var(--accent); border-color: var(--accent); }
-  .ctx-btn {
-    border: 1px solid transparent; background: transparent; color: var(--faint);
-    font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; cursor: pointer;
-  }
-  .ctx-btn:hover { border-color: var(--line-strong); color: var(--text); }
-  .ctx-btn.warn { color: var(--danger); border-color: var(--danger); }
+  #ctxBtn { font-family: var(--font-mono); font-size: 12px; }
+  #ctxBtn.warn { color: var(--danger); border-color: var(--danger); }
   .meter { height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; border: 1px solid var(--line); }
   .meter > span { display: block; height: 100%; background: var(--accent); }
   .meter.warn > span { background: var(--danger); }
@@ -609,6 +605,7 @@
       <div class="tools">
         <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
+        <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
       </div>
@@ -630,6 +627,7 @@
           </select>
         </label>
         <span class="spacer"></span>
+        <button class="btn" id="ctxBtn" title="上下文用量 / 隐藏楼层 / 记忆索引">🧠 上下文 —</button>
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
       </div>
       <div class="ideas" id="ideas" hidden></div>
@@ -643,7 +641,6 @@
       <div class="hint">
         <span id="hintLeft">*动作* 用星号包住 · {{user}} / {{char}} 会自动替换 · 支持拖入 SillyTavern 角色卡</span>
         <span id="hintRight"></span>
-        <button class="ctx-btn" id="ctxBtn" title="上下文用量 / 记忆索引">上下文 —</button>
       </div>
     </div>
   </main>
@@ -2253,12 +2250,12 @@
   function refreshContextMeter() {
     const c = active();
     const btn = $("ctxBtn");
-    if (!c) { btn.textContent = "上下文 —"; return; }
+    if (!c) { btn.textContent = "🧠 上下文 —"; return; }
     try { buildTurns(c); } catch (e) { return; }
     const r = lastReport;
     if (!r) return;
     const pct = r.total / r.cap;
-    btn.textContent = `上下文 ${fmtKB(r.total)} · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}`;
+    btn.textContent = `🧠 上下文 ${fmtKB(r.total)} · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}`;
     btn.classList.toggle("warn", pct > 0.75 || r.dropped > 0);
   }
   function openContext() {
@@ -3310,6 +3307,7 @@
   $("inspire").onclick = inspire;
   $("sMemTrim").addEventListener("change", (e) => { state.settings.memTrim = e.target.checked; save(); refreshContextMeter(); });
   $("ctxBtn").onclick = openContext;
+  $("ctxBtnHead").onclick = openContext;
   $("ctxClose").onclick = closeContext;
   $("ctxDone").onclick = closeContext;
   $("ctxBack").addEventListener("click", (e) => { if (e.target === $("ctxBack")) closeContext(); });
