@@ -1393,7 +1393,7 @@
     </div>
     <div class="modal-body">
       <div class="rx-list" id="memOverview"></div>
-      <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
+      <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn ghost" id="memQuick" title="把还没总结的部分自动归位：主线进主角的记忆书、私聊进 NPC 的、群聊进群的；已总结的不动">⚡ 一键小总结</button><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
       <div class="field">
         <label for="memTarget">总结谁的记忆</label>
         <select id="memTarget"></select>
@@ -7723,6 +7723,62 @@
       if (!$("memBack").hidden) memUpdateHint();
     }
   }
+  // ⚡ 一键小总结: summarise only what no summary covers yet, each piece into the right book
+  function quickJobs(c) {
+    const len = Math.max(5, Math.min(200, state.settings.rebuildLen || 20));
+    const jobs = [];
+    for (const s of memSegments(c, len)) jobs.push({ kind: "char", from: s.from, to: s.to, scope: s.key === "public" || s.cast.length ? "public" : "char", label: `${c.name} 第 ${s.from}–${s.to} 楼` });
+    const npcs = [...c.npcs, ...c.groups.map((g) => groupAsNpc(c, g))];
+    for (const npc of npcs) {
+      const pending = npcUnsummarized(c, npc);
+      if (!pending.some((m) => m.kind !== "divider")) continue;
+      for (const chunk of chunkMsgs(pending, len)) jobs.push({ kind: "npc", npc, msgs: chunk, label: npc.isGroup ? `群「${npc.name}」` : `${npc.name} 的私聊` });
+    }
+    return jobs;
+  }
+  async function quickSummarize() {
+    const c = active(); if (!c || busy || rebuildCtl || !chatReady()) return;
+    const jobs = quickJobs(c);
+    if (!jobs.length) return toast("没有需要总结的新内容");
+    const lines = jobs.map((j) => "· " + j.label + (j.kind === "char" ? `（${j.scope === "public" ? "公开" : "只有主角知道"}）` : ""));
+    if (!(await askConfirm(`会总结 ${jobs.length} 段并各自存进记忆书（${jobs.length} 次调用）：\n${lines.slice(0, 8).join("\n")}${lines.length > 8 ? `\n… 等 ${lines.length} 段` : ""}`, "开始总结"))) return;
+    rebuildMode = "quick";
+    $("rebuildTitle").textContent = "⚡ 一键小总结"; $("rebuildHelp").textContent = "只总结还没总结过的部分，各自存进对应的记忆书；已有的总结和隐藏楼层都不动。";
+    $("rebuildLenRow").hidden = true; $("rebuildList").innerHTML = ""; $("rebuildEst").textContent = `共 ${jobs.length} 段，一段一次调用。`;
+    $("rebuildStart").hidden = true; $("rebuildStop").hidden = false; $("rebuildProg").textContent = "";
+    $("rebuildBack").hidden = false;
+    await runMemoryJobs(c, jobs);
+  }
+  async function runMemoryJobs(c, jobs) {
+    rebuildCtl = new AbortController();
+    let ok = 0, fail = 0;
+    try {
+      for (let i = 0; i < jobs.length; i++) {
+        const j = jobs[i];
+        $("rebuildProg").textContent = `第 ${i + 1} / ${jobs.length} 段 · ${j.label}…`;
+        try {
+          const prompt = j.kind === "char" ? buildMainMemPrompt(c, j.from, j.to, memPromptTemplate()) : buildNpcMemPrompt(c, j.npc, j.msgs, j.npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
+          const res = await complete(prompt, { signal: rebuildCtl.signal });
+          const text = stripReasoning(res.text).trim();
+          if (!text) { fail++; continue; }
+          if (j.kind === "char") saveMainMem(c, j.from, j.to, text, j.scope); else memSaveNpc(c, j.npc, text, j.msgs, null, true);
+          ok++;
+        } catch (e) {
+          if (e && (e.code === "cancelled" || e.name === "AbortError")) throw e;
+          fail++; console.error(e);
+        }
+      }
+      $("rebuildProg").textContent = `完成：存了 ${ok} 段${fail ? `，失败 ${fail} 段` : ""}。`;
+      toast(`总结完成：${ok} 段${fail ? `，失败 ${fail} 段` : ""}`);
+    } catch (e) {
+      $("rebuildProg").textContent = `已停止：存了 ${ok} 段，剩下的没做。`;
+    } finally {
+      rebuildCtl = null;
+      $("rebuildStart").hidden = rebuildMode === "quick"; $("rebuildStop").hidden = true;
+      save(); updateStats(); renderMessages();
+      if (!$("memBack").hidden) memUpdateHint();
+    }
+  }
   async function rebuildMemory() {
     const c = active(); if (!c || busy || rebuildCtl || !chatReady()) return;
     const keys = [...$("rebuildList").querySelectorAll("input:checked")].map((x) => x.dataset.key);
@@ -7750,39 +7806,13 @@
     }
     save(); renderMessages(); updateStats();
     if (!jobs.length) { toast("没有可以总结的内容", true); return; }
-    rebuildCtl = new AbortController();
     $("rebuildStart").hidden = true; $("rebuildStop").hidden = false;
     $("rebuildEst").textContent = `共 ${jobs.length} 段，一段一次调用。`;
-    let ok = 0, fail = 0;
-    try {
-      for (let i = 0; i < jobs.length; i++) {
-        const j = jobs[i];
-        $("rebuildProg").textContent = `第 ${i + 1} / ${jobs.length} 段 · ${j.label}…`;
-        try {
-          const prompt = j.kind === "char" ? buildMainMemPrompt(c, j.from, j.to, memPromptTemplate()) : buildNpcMemPrompt(c, j.npc, j.msgs, j.npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
-          const res = await complete(prompt, { signal: rebuildCtl.signal });
-          const text = stripReasoning(res.text).trim();
-          if (!text) { fail++; continue; }
-          if (j.kind === "char") saveMainMem(c, j.from, j.to, text, j.scope); else memSaveNpc(c, j.npc, text, j.msgs, null, true);
-          ok++;
-        } catch (e) {
-          if (e && (e.code === "cancelled" || e.name === "AbortError")) throw e;
-          fail++; console.error(e);
-        }
-      }
-      $("rebuildProg").textContent = `完成：存了 ${ok} 段${fail ? `，失败 ${fail} 段` : ""}。`;
-      toast(`记忆已重建：${ok} 段${fail ? `，失败 ${fail} 段` : ""}`);
-    } catch (e) {
-      $("rebuildProg").textContent = `已停止：存了 ${ok} 段，剩下的没做。`;
-    } finally {
-      rebuildCtl = null;
-      $("rebuildStart").hidden = false; $("rebuildStop").hidden = true;
-      save(); updateStats(); renderMessages();
-      if (!$("memBack").hidden) memUpdateHint();
-    }
+    await runMemoryJobs(c, jobs);
   }
   $("memRebuild").onclick = openRebuild;
   $("memMergeAll").onclick = openMergeAll;
+  $("memQuick").onclick = quickSummarize;
   $("rebuildStart").onclick = () => (rebuildMode === "merge" ? mergeAllMemory() : rebuildMemory());
   $("rebuildStop").onclick = () => { if (rebuildCtl) rebuildCtl.abort(); };
   $("rebuildClose").onclick = () => { if (rebuildCtl) { toast("正在重建，先点「停止」", true); return; } $("rebuildBack").hidden = true; };
