@@ -1954,6 +1954,7 @@
       extensions: b.extensions && typeof b.extensions === "object" ? b.extensions : {},
       enabled: b.enabled !== false,
       memory: !!b.memory,
+      memoryNpc: b.memoryNpc ? String(b.memoryNpc) : null,
       entries,
     };
   }
@@ -2125,6 +2126,16 @@
     c.books = Array.isArray(c.books) ? c.books.map(normalizeBook).filter(Boolean) : [];
     if (c.book) { const b = normalizeBook(c.book); if (b && b.entries.length) c.books.push(b); delete c.book; }
     for (const b of c.books) if (b.enabled === undefined) b.enabled = true;
+    // earlier versions kept NPC private summaries inside the character's memory book; give each NPC its own
+    const mainMem = c.books.find((b) => b.memory && !b.memoryNpc);
+    if (mainMem) for (const npc of c.npcs) {
+      const mine = mainMem.entries.filter((e) => entryScope(e) === "npc:" + npc.id);
+      if (!mine.length) continue;
+      let nb = c.books.find((b) => b.memory && b.memoryNpc === npc.id);
+      if (!nb) { nb = newBook(`记忆 · ${npc.name}`); nb.memory = true; nb.memoryNpc = npc.id; nb.enabled = true; c.books.push(nb); }
+      for (const e of mine) { e.extensions = { ...(e.extensions || {}) }; delete e.extensions.lantern_scope; nb.entries.push(e); }
+      mainMem.entries = mainMem.entries.filter((e) => !mine.includes(e));
+    }
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.status = normalizeStatus(c.status);
     c.phone = c.phone && typeof c.phone === "object" ? c.phone : { open: false };
@@ -2141,7 +2152,7 @@
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach(normalizeChar); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true }, s.api || {}); s.settings.backend = s.settings.backend || "claude"; return s; }
+        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach((c) => { try { normalizeChar(c); } catch (e) { console.error("normalizeChar failed", e); } }); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true }, s.api || {}); s.settings.backend = s.settings.backend || "claude"; return s; }
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -2902,9 +2913,10 @@
           const key = bi + ":" + e.id;
           if (seen.has(key) || !e.enabled || !e.content.trim()) continue;
           if (book.memory) {
-            // memory entries carry a visibility: the character, everyone, or one NPC
+            // the character's memory book: entries are for the character unless marked public or for one NPC;
+            // an NPC's memory book: entries are for that NPC unless marked public
             const sc = entryScope(e);
-            const ok = audience ? (sc === "public" || sc === "npc:" + audience) : (sc === "char" || sc === "public");
+            const ok = sc === "public" ? true : book.memoryNpc ? audience === book.memoryNpc : audience ? sc === "npc:" + audience : sc === "char";
             if (!ok) continue;
           }
           let hit = e.constant;
@@ -3745,6 +3757,7 @@
     if (!(await askConfirm(`删除联系人「${n.name}」？${floors ? `和 TA 的 ${floors} 条私聊也会一起删除。` : ""}`, "删除", true))) return;
     c.chat = c.chat.filter((m) => m.npc !== n.id);
     c.npcs = c.npcs.filter((x) => x.id !== n.id);
+    c.books = c.books.filter((b) => !(b.memory && b.memoryNpc === n.id));
     if (phoneWith === n.id) { phoneWith = null; phoneView = "contacts"; }
     save(); closeNpcEditor(); renderPhone(); renderMessages(); renderCharList();
   }
@@ -3842,10 +3855,11 @@
     toast(`已加入 ${added} 位联系人${updated ? `，更新 ${updated} 位` : ""}`);
   }
   // ---------- NPC memory: private-thread summaries, entry visibility, retelling to the character ----------
-  const entryScope = (e) => (e && e.extensions && typeof e.extensions.lantern_scope === "string" && e.extensions.lantern_scope) || "char";
-  function scopeLabel(c, e) {
+  function entryScope(e) { return (e && e.extensions && typeof e.extensions.lantern_scope === "string" && e.extensions.lantern_scope) || "char"; }
+  function scopeLabel(c, e, book) {
     const sc = entryScope(e);
     if (sc === "public") return "公开";
+    if (book && book.memoryNpc) return "";
     if (sc.startsWith("npc:")) return `仅 ${npcName(c, sc.slice(4))}`;
     return "";
   }
@@ -3887,8 +3901,8 @@
     const u = state.persona.name || "用户";
     const msgs = npcUnsummarized(c, npc);
     const lines = msgs.map((m) => `${m.role === "user" ? u : npc.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n");
-    const book = memoryBook(c, false);
-    const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim() && entryScope(e) === "npc:" + npc.id).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
+    const book = memoryBook(c, false, npc);
+    const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
     let prompt = $("memPrompt").value || DEFAULT_NPC_MEM_PROMPT;
     prompt = prompt
       .replace(/\{\{npc\}\}/g, npc.name)
@@ -3901,8 +3915,8 @@
   }
   function memSaveNpc(c, npc, text) {
     const msgs = npcUnsummarized(c, npc);
-    const created = !memoryBook(c, false);
-    const book = memoryBook(c, true);
+    const created = !memoryBook(c, false, npc);
+    const book = memoryBook(c, true, npc);
     const e = newEntry(book);
     const k = (npc.memCount || 0) + 1;
     e.comment = `${npc.name} · 私聊 ${k}`;
@@ -3910,13 +3924,13 @@
     e.constant = true;
     e.position = "after_char";
     e.insertion_order = 100 + book.entries.length;
-    e.extensions = { ...(e.extensions || {}), lantern_scope: "npc:" + npc.id, memory_npc: npc.id, memory_msgs: msgs.length ? [msgs[0].id, msgs[msgs.length - 1].id] : [] };
+    e.extensions = { ...(e.extensions || {}), memory_npc: npc.id, memory_msgs: msgs.length ? [msgs[0].id, msgs[msgs.length - 1].id] : [] };
     book.entries.push(e);
     npc.memCount = k;
     if (msgs.length) npc.memLastId = msgs[msgs.length - 1].id;
     save();
     closeMemory();
-    toast(created ? `已创建「${book.name}」并存入 ${npc.name} 的私聊记忆` : `已存入 ${npc.name} 的私聊记忆（仅 ${npc.name} 可见）`);
+    toast(created ? `已创建「${book.name}」并存入第 ${k} 段私聊记忆（只有 ${npc.name} 看得到）` : `已存入「${book.name}」（共 ${book.entries.length} 条）`);
     updateStats();
     if (!$("phoneBack").hidden) renderPhone();
   }
@@ -4537,11 +4551,12 @@
     "{{messages}}",
   ].join("\n");
   let memCtl = null;
-  function memoryBook(c, create) {
-    let b = c.books.find((x) => x.memory);
+  function memoryBook(c, create, npc) {
+    let b = c.books.find((x) => x.memory && (npc ? x.memoryNpc === npc.id : !x.memoryNpc));
     if (!b && create) {
-      b = newBook(`记忆 · ${c.name}`);
+      b = newBook(`记忆 · ${npc ? npc.name : c.name}`);
       b.memory = true; b.enabled = true;
+      if (npc) b.memoryNpc = npc.id;
       c.books.push(b);
     }
     return b;
@@ -4561,9 +4576,9 @@
       const pending = npcUnsummarized(c, memNpc);
       const chars = pending.reduce((s, m) => s + m.content.length, 0);
       $("memHint").textContent = `${memNpc.name} 私聊 · ${pending.length} 条未总结，约 ${chars} 字`;
-      $("memStat").textContent = `已为 ${memNpc.name} 存过 ${memNpc.memCount || 0} 段私聊记忆 · 这些条目只有 ${memNpc.name} 看得到`;
-      const b0 = memoryBook(c, false);
-      $("memBook").textContent = b0 ? `记忆世界书：${b0.name} · ${b0.entries.length} 条` : "第一次保存时会自动创建「记忆 · " + c.name + "」世界书";
+      $("memStat").textContent = `已为 ${memNpc.name} 存过 ${memNpc.memCount || 0} 段私聊记忆 · 只有 ${memNpc.name} 看得到`;
+      const b0 = memoryBook(c, false, memNpc);
+      $("memBook").textContent = b0 ? `记忆世界书：${b0.name} · ${b0.entries.length} 条` : "第一次保存时会自动创建「记忆 · " + memNpc.name + "」世界书";
       return;
     }
     const { from, to, n } = memRange();
@@ -5164,7 +5179,7 @@
       cb.onchange = () => { e.enabled = cb.checked; card.classList.toggle("off", !e.enabled); };
       const ttl = el("div", "ttl"); ttl.textContent = e.comment || e.keys[0] || `条目 ${i + 1}`;
       const small = document.createElement("small"); small.textContent = e.keys.slice(0, 4).join(", ") + (e.keys.length > 4 ? " …" : ""); ttl.appendChild(small);
-      const pill = el("span", "pill", (b.memory ? scopeLabel(active(), e) + " " : "") + (e.constant ? "常驻" : e.position === "before_char" ? "前置" : ""));
+      const pill = el("span", "pill", (b.memory ? scopeLabel(active(), e, b) + " " : "") + (e.constant ? "常驻" : e.position === "before_char" ? "前置" : ""));
       if (!pill.textContent) pill.style.visibility = "hidden";
       const bDel = el("button", "btn ghost danger", "删除");
       bDel.onclick = async (ev) => { ev.stopPropagation(); if (!(await askConfirm(`删除条目「${ttl.firstChild.textContent}」？`, "删除", true))) return; b.entries.splice(i, 1); wiEditing.open.delete(e.id); renderWiEntries(); };
@@ -5210,7 +5225,10 @@
     const row4 = el("div", "row3"); row4.append(field("扫描深度", iScan, "留空用世界书默认"));
     const isMem = !!(wiEditing && wiEditing.book && wiEditing.book.memory);
     const ac = active();
-    const sScope = isMem ? sel([["char", `只有 ${ac ? ac.name : "主角"} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"], ...((ac ? ac.npcs : []).map((n) => ["npc:" + n.id, `只有 ${n.name} 知道`]))], entryScope(e)) : null;
+    const ownerNpc = isMem && wiEditing.book.memoryNpc ? npcName(ac, wiEditing.book.memoryNpc) : null;
+    const sScope = !isMem ? null : ownerNpc
+      ? sel([["char", `只有 ${ownerNpc} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"]], entryScope(e) === "public" ? "public" : "char")
+      : sel([["char", `只有 ${ac ? ac.name : "主角"} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"], ...((ac ? ac.npcs : []).map((n) => ["npc:" + n.id, `只有 ${n.name} 知道`]))], entryScope(e));
     if (sScope) row4.append(field("谁知道", sScope, "决定这条记忆会带给谁"));
     form.append(row1, row2, field("内容", tContent), checks, row3, row4);
 
