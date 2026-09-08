@@ -501,28 +501,6 @@
   .pm.typing { align-self: flex-start; background: #e9e9eb; color: #8e8e93; padding: 10px 14px; }
   .phone.dark .pm.typing { background: #262629; }
   .pm .tm { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; text-align: right; }
-  .pm.xfer {
-    align-self: flex-start; padding: 0; background: transparent; width: 230px; max-width: 80%; cursor: default;
-    border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-  }
-  .pm.xfer.mine { align-self: flex-end; }
-  .pm.xfer .xf-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f5a623; color: #fff; }
-  .pm.xfer.done .xf-top { background: #f8cf8c; }
-  .phone.dark .pm.xfer.done .xf-top { background: #8a6a2f; }
-  .pm.xfer .xf-ic { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.85); display: grid; place-items: center; font-size: 16px; font-weight: 700; flex-shrink: 0; }
-  .pm.xfer .xf-amt { font-size: 18px; font-weight: 600; line-height: 1.2; }
-  .pm.xfer .xf-note { font-size: 12px; opacity: 0.92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pm.xfer .xf-bot { padding: 5px 12px; background: #fff; color: #8e8e93; font-size: 11px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .phone.dark .pm.xfer .xf-bot { background: #262629; }
-  .pm.xfer .xf-bot .sp { flex: 1; }
-  .pm.xfer .xf-bot button { border: 0; background: transparent; color: #0a84ff; font-size: 12px; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
-  .pm.xfer .xf-bot button:hover { background: rgba(10,132,255,0.12); }
-  .pm.xfer .xf-bot button.warn { color: #ff3b30; }
-  .pm.xfer .xf-ret { display: flex; gap: 6px; padding: 6px 10px 8px; background: #fff; }
-  .phone.dark .pm.xfer .xf-ret { background: #262629; }
-  .pm.xfer .xf-ret input { flex: 1; min-width: 0; padding: 5px 9px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.15); background: #f2f2f7; color: #111; font-size: 12px; }
-  .phone.dark .pm.xfer .xf-ret input { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.15); }
-  .pm.xfer .xf-ret button { border: 0; border-radius: 8px; background: #0a84ff; color: #fff; font-size: 12px; padding: 4px 10px; cursor: pointer; }
   .phone-tools { display: flex; gap: 6px; padding: 6px 12px; }
   .phone-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
   .phone-foot { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px 14px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.12); }
@@ -1687,19 +1665,6 @@
   </div>
 </div>
 
-<div class="modal-back" id="ledgerBack" hidden style="z-index:59">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ledgerTitle" style="width:min(460px,100%)">
-    <div class="modal-head">
-      <span id="ledgerTitle">账单</span>
-      <button class="btn ghost icon" id="ledgerClose" aria-label="关闭">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="rx-list" id="ledgerList"></div>
-      <div class="help" id="ledgerSum"></div>
-    </div>
-  </div>
-</div>
-
 <div class="phone-back" id="phoneBack" hidden>
   <div class="phone" id="phone" role="dialog" aria-modal="true" aria-label="手机">
     <div class="phone-head">
@@ -1714,12 +1679,11 @@
     <div class="phone-tools">
       <button class="btn" id="phoneNudge" title="根据当前剧情，让对方先发消息">让 TA 先开口</button>
       <button class="btn ghost" id="phoneWait" title="过一会儿再看：对方可能会继续发消息">过一会儿…</button>
-      <button class="btn ghost" id="phoneLedger" title="这段对话里的全部转账记录">账单</button>
       <span class="spacer" style="flex:1"></span>
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
     <div class="phone-foot">
-      <textarea id="phoneInput" rows="1" placeholder="iMessage · 打【转账：100 说明】就是转账"></textarea>
+      <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
       <button class="send" id="phoneSend" aria-label="发送">↑</button>
     </div>
   </div>
@@ -2526,7 +2490,7 @@
     const pc = el("div", "pc");
     const last = run[run.length - 1].m;
     const who = last.role === "user" ? (state.persona.name || "你") : c.name;
-    const preview = last.pending ? "正在输入…" : last.kind === "transfer" ? `${who}：[转账 ${fmtMoney(last.amount)}]` : `${who}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
+    const preview = last.pending ? "正在输入…" : `${who}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
     pc.append(el("span", "ic", "📱"), (() => { const d = el("div"); d.appendChild(el("div", "t", `手机聊天 · ${run.length} 条`)); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${floorOf(c, run[0].i)}–#${floorOf(c, run[run.length - 1].i)}`));
     pc.onclick = () => openPhone(false);
     wrap.append(av, pc);
@@ -2803,7 +2767,6 @@
     if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
     if (m.kind === "divider") return `（${sub(m.content, c)}）`;
     if (m.channel === "phone") {
-      if (m.kind === "transfer") return `[手机 ${fmtTime(m.ts)}] 转账：${transferText(m, c)}`;
       if (txt.trim() === "[不回复]") return `[手机 ${fmtTime(m.ts)}] ${c.name} 看到了消息，没有回复。`;
       return `[手机 ${fmtTime(m.ts)}] ${m.role === "user" ? (state.persona.name || "用户") : c.name}：${txt}`;
     }
@@ -2826,148 +2789,9 @@
       `- 不要替 ${u} 发消息或猜 ${u} 的回复。`,
       `- 如果 ${c.name} 此刻不想回、没空或故意晾着对方，只输出一行 [不回复]。`,
       "- 语气跟着角色此刻的心情、和对方的关系、以及刚才正文里发生的事走；可以用表情符号但别滥用。",
-      "",
-      "## 手机转账（货币：美元 $）",
-      `- 想给 ${u} 钱时，单独一行写 [转账 金额 说明]，例如 [转账 50 拿去吃饭]；说明可以省略，一次回复最多一笔。转账行之外照常发消息。`,
-      `- 给不给、给多少，完全按 ${c.name} 的人设来：财力（从设定推断）、花钱习惯、和 ${u} 的关系、好感度、此刻的心情、刚才发生的事。生气不等于不给：有的人一气之下反而甩更多钱，有的人一分不出；穷的人给得少但可能更真心；阔绰的人随手就是大数目。`,
-      `- 可以不等 ${u} 开口就主动转（对方说饿了、没钱、过生日、想哄人、想显摆……都行），也可以拒绝对方要钱。`,
-      `- ${u} 给 ${c.name} 转账时要表态：单独一行 [收款] 收下，或 [退回 一句话原因] 退回；也可以先晾着不处理（24 小时没收会自动退回）。收不收同样看人设：穷而傲的人、生气的人、不想欠人情的人会退回。`,
-      `- ${u} 也可能给 ${c.name} 转账、收下或退回 ${c.name} 的转账，这些都会以「转账：…」的记录出现在聊天记录里，按记录里的状态理解。`,
-      pendingTransfersLine(c, u),
     ].filter(Boolean).join("\n");
   }
 
-  // ---------- Phone transfers ----------
-  const XFER_TTL = 24 * 60 * 60 * 1000;
-  function fmtMoney(n) { n = Number(n) || 0; return "$" + (Number.isInteger(n) ? String(n) : n.toFixed(2)); }
-  function parseMoney(str) { const n = parseFloat(String(str || "").replace(/[^\d.]/g, "")); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0; }
-  function transferText(m, c) {
-    const u = state.persona.name || "用户";
-    const from = m.role === "user" ? u : c.name, to = m.role === "user" ? c.name : u;
-    const st = m.status === "accepted" ? `${to} 已收款` : m.status === "returned" ? `${to} 已退回${m.returnNote ? `（${m.returnNote}）` : ""}` : "待收款";
-    return `${from} 向 ${to} 转账 ${fmtMoney(m.amount)}${m.note ? `（说明：${m.note}）` : ""} · ${st}`;
-  }
-  function syncTransfer(m, c) { m.content = transferText(m, c); }
-  function makeTransfer(role, amount, note, extra) {
-    return { id: uid(), role, channel: "phone", kind: "transfer", amount, note: (note || "").trim().slice(0, 60), status: "pending", ts: Date.now(), content: "", ...(extra || {}) };
-  }
-  function pendingTransfers(c, role) { return c.chat.filter((m) => m.kind === "transfer" && m.status === "pending" && (!role || m.role === role)); }
-  function pendingTransfersLine(c, u) {
-    const list = pendingTransfers(c, "user");
-    if (!list.length) return "";
-    return `- 现在待 ${c.name} 处理的转账：${list.map((m) => `${fmtMoney(m.amount)}${m.note ? `（${m.note}）` : ""}`).join("、")}。`;
-  }
-  // transfers nobody touched for 24 hours go back to the sender
-  function expireTransfers(c) {
-    let changed = false;
-    const now = Date.now();
-    for (const m of c.chat) {
-      if (m.kind === "transfer" && m.status === "pending" && now - m.ts > XFER_TTL) {
-        m.status = "returned"; m.returnNote = "超过 24 小时未收款，自动退回"; m.resolvedTs = now; m.auto = true; syncTransfer(m, c); changed = true;
-      }
-    }
-    if (changed) save();
-    return changed;
-  }
-  function settleTransfer(m, c, status, note) {
-    m.status = status; m.resolvedTs = Date.now();
-    if (status === "returned") m.returnNote = (note || "").trim().slice(0, 80); else delete m.returnNote;
-    syncTransfer(m, c);
-  }
-  // markers the model may write; tolerant of full-width brackets, colons, currency words and inline placement
-  const XFER_RE = /[\[［【]\s*转[账帐](?:给\s*[^\s\]］】:：\d$＄]{0,12})?\s*[:：]?\s*(?:USD|usd)?\s*[$＄]?\s*([\d,]+(?:\.\d+)?)\s*(?:元|美元|美金|刀|块|USD|usd)?\s*[:：,，]?\s*([^\]］】\n]*?)\s*[\]］】]/g;
-  const ACCEPT_RE = /[\[［【]\s*(?:已)?(?:收款|收下|接收|收了|收钱|收到)\s*[\]］】]/g;
-  const RETURN_RE = /[\[［【]\s*(?:退回|退款|退还|拒收)\s*[:：]?\s*([^\]］】\n]*?)\s*[\]］】]/g;
-  // split a reply into its plain text and the transfer actions it carries
-  function extractXferMarkers(text) {
-    const out = { xfers: [], accept: false, ret: null };
-    let t = String(text || "");
-    t = t.replace(XFER_RE, (_, amt, note) => { const a = parseMoney(amt); if (a > 0) out.xfers.push({ amount: a, note: (note || "").trim() }); return ""; });
-    t = t.replace(ACCEPT_RE, () => { out.accept = true; return ""; });
-    t = t.replace(RETURN_RE, (_, note) => { out.ret = { note: (note || "").trim() }; return ""; });
-    out.text = t.split("\n").map((l) => l.replace(/ {2,}/g, " ").trim()).join("\n").replace(/\n{2,}/g, "\n").trim();
-    return out;
-  }
-  const stripXferMarkers = (text) => extractXferMarkers(text).text;
-  // pull [转账 …] / [收款] / [退回 …] out of a finished phone reply and turn them into transfer state
-  function applyPhoneActions(c, msg) {
-    // a regenerated reply replaces whatever transfers the previous take created
-    c.chat = c.chat.filter((m) => !(m.kind === "transfer" && m.fromMsg === msg.id));
-    const got = extractXferMarkers(msg.content);
-    let made = null;
-    if (got.xfers.length) { const x = got.xfers[0]; made = makeTransfer("assistant", x.amount, x.note, { fromMsg: msg.id }); syncTransfer(made, c); }
-    if (got.accept) { const t = pendingTransfers(c, "user").pop(); if (t) settleTransfer(t, c, "accepted"); }
-    if (got.ret) { const t = pendingTransfers(c, "user").pop(); if (t) settleTransfer(t, c, "returned", got.ret.note); }
-    const text = got.text;
-    msg.content = text; if (msg.swipes) msg.swipes[msg.si] = text;
-    if (made) { const at = c.chat.indexOf(msg); c.chat.splice(at + 1, 0, made); }
-    if (!text && (made || got.accept || got.ret) && (!msg.swipes || msg.swipes.length <= 1)) c.chat = c.chat.filter((m) => m !== msg);
-    return made;
-  }
-  function transferNode(m, c) {
-    const u = state.persona.name || "你";
-    const mine = m.role === "user";
-    const card = el("div", "pm xfer" + (mine ? " mine" : "") + (m.status !== "pending" ? " done" : ""));
-    const top = el("div", "xf-top");
-    const ic = el("div", "xf-ic", m.status === "returned" ? "↩" : "💲");
-    const txt = el("div");
-    txt.appendChild(el("div", "xf-amt", fmtMoney(m.amount)));
-    txt.appendChild(el("div", "xf-note", m.note || (mine ? `转账给 ${c.name}` : `${c.name} 转账给你`)));
-    top.append(ic, txt);
-    const bot = el("div", "xf-bot");
-    const when = m.resolvedTs ? fmtTime(m.resolvedTs) : fmtTime(m.ts);
-    if (m.status === "accepted") bot.appendChild(el("span", null, `${mine ? c.name + " 已收款" : "已收款"} · ${when}`));
-    else if (m.status === "returned") bot.appendChild(el("span", null, `已退回${m.returnNote ? "：" + m.returnNote : ""} · ${when}`));
-    else if (mine) bot.appendChild(el("span", null, `等待 ${c.name} 收款`));
-    else {
-      bot.appendChild(el("span", null, "待收款"));
-      bot.appendChild(el("span", "sp"));
-      const acc = el("button", null, "收下"); const ret = el("button", "warn", "退回");
-      acc.onclick = () => { if (busy) return; settleTransfer(m, c, "accepted"); save(); renderPhone(); renderMessages(); };
-      ret.onclick = () => { if (busy) return; row.hidden = !row.hidden; if (!row.hidden) row.querySelector("input").focus(); };
-      bot.append(acc, ret);
-    }
-    card.append(top, bot);
-    const row = el("div", "xf-ret"); row.hidden = true;
-    if (!mine && m.status === "pending") {
-      const inp = document.createElement("input"); inp.placeholder = "退回原因（可不填）"; inp.maxLength = 80;
-      const go = el("button", null, "确认退回");
-      const doReturn = async () => {
-        if (busy) return;
-        settleTransfer(m, c, "returned", inp.value);
-        save(); renderPhone(); renderMessages();
-        if (chatReady()) await generate(c, null, { channel: "phone", nudge: `（${u} 把 ${c.name} 转的 ${fmtMoney(m.amount)} 退回来了${m.returnNote ? `，留言：${m.returnNote}` : ""}。${c.name} 看到后按自己的性格反应。）` });
-      };
-      go.onclick = doReturn; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doReturn(); } });
-      row.append(inp, go); card.appendChild(row);
-    }
-    return card;
-  }
-  function openLedger() {
-    const c = active();
-    if (!c) return;
-    expireTransfers(c);
-    const u = state.persona.name || "你";
-    const list = $("ledgerList"); list.innerHTML = "";
-    const all = c.chat.filter((m) => m.kind === "transfer");
-    let inSum = 0, outSum = 0;
-    for (const m of all) {
-      const row = el("div", "rx-row" + (m.status === "returned" ? " off" : ""));
-      const mine = m.role === "user";
-      const st = m.status === "accepted" ? "已收款" : m.status === "returned" ? `已退回${m.returnNote ? "：" + m.returnNote : ""}` : "待收款";
-      row.appendChild(el("span", null, mine ? "→" : "←"));
-      const nm = el("span", "nm", `${mine ? `${u} → ${c.name}` : `${c.name} → ${u}`} ${fmtMoney(m.amount)}${m.note ? ` · ${m.note}` : ""}`);
-      nm.appendChild(el("small", null, `${fmtTime(m.ts)} · ${st}`));
-      row.appendChild(nm);
-      row.appendChild(el("span", "stat", `#${floorOf(c, c.chat.indexOf(m))}`));
-      row.appendChild(el("span"));
-      list.appendChild(row);
-      if (m.status === "accepted") { if (mine) outSum += m.amount; else inSum += m.amount; }
-    }
-    if (!all.length) list.appendChild(el("div", "rx-empty", "这段对话里还没有转账。在输入框里打【转账：100 说明】就能转给 TA，或者等 TA 主动转。"));
-    $("ledgerSum").textContent = all.length ? `共 ${all.length} 笔 · 你实收 ${fmtMoney(inSum)} · 你实付 ${fmtMoney(outSum)}（只算已收款的）` : "";
-    $("ledgerBack").hidden = false;
-  }
   let lastReport = null;
   function buildInstruction(c, history, retrieved) {
     const u = state.persona.name || "用户";
@@ -3127,7 +2951,6 @@
   let pendingNudge = ""; // one-off user-role instruction appended for the next generation only
   function buildTurns(c, upto) {
     segments = [];
-    expireTransfers(c);
     const mem = parseInt(state.settings.mem, 10) || 40;
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto);
     if (state.settings.memTrim && c.memory && c.memory.lastFloor > 0) {
@@ -3393,7 +3216,6 @@
       setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
       if (applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); }
-      if (msg.channel === "phone") applyPhoneActions(c, msg);
     } catch (e) {
       const dropSwipe = () => {
         if (target) { msg.swipes.pop(); msg.si = msg.swipes.length - 1; msg.content = msg.swipes[msg.si]; }
@@ -3580,18 +3402,12 @@
     const body = $("phoneBody");
     const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
     body.innerHTML = "";
-    expireTransfers(c);
     for (const { m } of phoneMsgs(c)) {
       if (m.kind === "divider") { body.appendChild(el("div", "pm sys", sub(m.content, c).replace(/^📱\s*/, ""))); continue; }
-      if (m.kind === "transfer") {
-        try { body.appendChild(transferNode(m, c)); }
-        catch (e) { console.error(e); body.appendChild(el("div", "pm sys", `转账卡片渲染出错：${e && e.message ? e.message : e}（${sub(m.content, c)}）`)); }
-        continue;
-      }
       const txt = stripStatus(stripReasoning(sub(m.content, c)));
       if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
       if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
-      const lines = stripXferMarkers(txt).split(/\n+/).map((x) => x.trim()).filter(Boolean);
+      const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
       lines.forEach((line, li) => {
         if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { body.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
         const b = el("div", "pm " + (m.role === "user" ? "me" : "them"));
@@ -3607,25 +3423,13 @@
   async function phoneSend() {
     const c = active();
     const ta = $("phoneInput");
-    const raw = ta.value.trim();
-    if (!c || busy || !raw || !chatReady()) return;
+    const text = ta.value.trim();
+    if (!c || busy || !text || !chatReady()) return;
     if (!(c.phone && c.phone.open)) { c.phone = { ...(c.phone || {}), open: true }; }
-    const u = state.persona.name || "用户";
-    // 【转账：100 说明】 / [收款] / [退回 原因] typed by you become real transfer actions
-    const got = extractXferMarkers(raw);
-    const notes = [];
-    if (got.accept) { const t = pendingTransfers(c, "assistant").pop(); if (t) { settleTransfer(t, c, "accepted"); notes.push(`${u} 收下了 ${c.name} 转的 ${fmtMoney(t.amount)}`); } }
-    if (got.ret) { const t = pendingTransfers(c, "assistant").pop(); if (t) { settleTransfer(t, c, "returned", got.ret.note); notes.push(`${u} 把 ${c.name} 转的 ${fmtMoney(t.amount)} 退回来了${t.returnNote ? `，留言：${t.returnNote}` : ""}`); } }
-    if (got.text) c.chat.push({ id: uid(), role: "user", channel: "phone", content: got.text, ts: Date.now() });
-    for (const x of got.xfers) {
-      const t = makeTransfer("user", x.amount, x.note); syncTransfer(t, c);
-      c.chat.push(t);
-      notes.push(`${u} 刚给 ${c.name} 转了 ${fmtMoney(x.amount)}${x.note ? `，说明：${x.note}` : ""}。${c.name} 按自己的人设和此刻心情决定：单独一行 [收款] 收下，或 [退回 原因] 退回，或先不处理`);
-    }
-    if (!got.text && !got.xfers.length && !notes.length) { toast("没有内容可以发送", true); return; }
+    c.chat.push({ id: uid(), role: "user", channel: "phone", content: text, ts: Date.now() });
     ta.value = ""; ta.style.height = "auto";
     save(); renderMessages(); renderPhone(true);
-    await generate(c, null, { channel: "phone", nudge: notes.length ? `（${notes.join("；")}。然后照常回消息或不回。）` : "" });
+    await generate(c, null, { channel: "phone" });
   }
   async function phoneNudge(kind) {
     const c = active();
@@ -5346,9 +5150,6 @@
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
   $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneNudge").onclick = () => phoneNudge("first");
-  $("phoneLedger").onclick = openLedger;
-  $("ledgerClose").onclick = () => { $("ledgerBack").hidden = true; };
-  $("ledgerBack").addEventListener("click", (e) => { if (e.target === $("ledgerBack")) $("ledgerBack").hidden = true; });
   $("phoneWait").onclick = () => phoneNudge("wait");
   $("phoneTheme").onclick = () => { state.settings.phoneDark = !(state.settings.phoneDark === true); save(); $("phone").classList.toggle("dark", state.settings.phoneDark === true); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("phoneBack").hidden && !confirmResolve) { e.stopPropagation(); closePhoneView(); } }, true);
