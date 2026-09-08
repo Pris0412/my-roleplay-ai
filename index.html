@@ -2907,6 +2907,12 @@
     bHide.title = m.hidden ? "重新带入上下文" : "不再带入上下文（仍可被记忆索引检索）";
     bHide.onclick = () => { if (busy) return; m.hidden = !m.hidden; save(); renderMessages(); };
     actions.appendChild(bHide);
+    if (!isUser && !m.npc) {
+      const bWho = el("button", "btn ghost", "认人");
+      bWho.title = "把最近几楼里新出现的人加为联系人（会成为长期 NPC，出现在关系图里）";
+      bWho.onclick = () => { if (busy || scanning) return; scanNpcs({ recentOnly: 8 }); };
+      actions.appendChild(bWho);
+    }
     const bCopy = el("button", "btn ghost", "复制");
     bCopy.onclick = async () => {
       try { await navigator.clipboard.writeText(stripStatus(sub(m.content, c))); bCopy.textContent = "已复制"; setTimeout(() => (bCopy.textContent = "复制"), 1200); } catch (e) { bCopy.textContent = "无法复制"; }
@@ -4198,9 +4204,10 @@
   // ----- scan: ask the model who the people are -----
   let scanning = null;
   let scanFound = [];
-  async function scanNpcs() {
+  async function scanNpcs(opts) {
     const c = active();
     if (!c || scanning || !chatReady()) return;
+    const focus = opts && opts.recentOnly ? Math.max(1, opts.recentOnly) : 0;
     const u = state.persona.name || "用户";
     const entries = [];
     for (const b of booksFor(c)) for (const e of b.entries) {
@@ -4209,10 +4216,12 @@
     }
     const mem = memoryBook(c, false);
     const memLines = mem ? mem.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim().slice(0, 400)}`) : [];
-    const recent = c.chat.filter((m) => !m.npc && m.kind !== "divider" && !m.error).slice(-40)
+    const recent = c.chat.filter((m) => !m.npc && m.kind !== "divider" && !m.error).slice(-(focus || 40))
       .map((m) => `${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, 300)}`);
     const prompt = [
-      `下面是一场角色扮演的资料。主角色是「${c.name}」，用户扮演「${u}」。请找出资料里出现的所有**其他人物**（有名字或固定称呼的人，不包括 ${c.name} 和 ${u} 本人，也不包括泛指的路人）。`,
+      focus
+        ? `下面是一场角色扮演的资料。主角色是「${c.name}」，用户扮演「${u}」。请只找出**最近的聊天**里出现的其他人物（有名字或固定称呼的人，不包括 ${c.name} 和 ${u} 本人，也不包括泛指的路人）；世界书和记忆只用来补充这些人的身份。已经在联系人里的人不用列。`
+        : `下面是一场角色扮演的资料。主角色是「${c.name}」，用户扮演「${u}」。请找出资料里出现的所有**其他人物**（有名字或固定称呼的人，不包括 ${c.name} 和 ${u} 本人，也不包括泛指的路人）。`,
       "",
       "## 世界书条目",
       entries.length ? entries.map((x) => `#${x.n} 标题：${x.title}｜关键词：${x.keys}\n${x.text}`).join("\n\n") : "（无）",
@@ -4244,7 +4253,8 @@
         const withChar = p.withChar && typeof p.withChar === "object" && (p.withChar.rel || p.withChar.aff != null) ? { rel: String(p.withChar.rel || ""), aff: Number(p.withChar.aff), note: String(p.withChar.note || "") } : null;
         return { name, aliases, brief: String(p.brief || "").slice(0, 60), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
       }).filter(Boolean);
-      if (!scanFound.length) toast("没有找到别的人物");
+      if (focus) scanFound = scanFound.filter((x) => !x.existing);
+      if (!scanFound.length) toast(focus ? "最近这几楼没有新人物" : "没有找到别的人物");
       else openScanResults();
     } catch (e) {
       if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) toast("扫描失败：" + (e && e.message ? e.message : e), true);
