@@ -944,6 +944,7 @@
             <option value="none">无 · 不管，交给角色卡</option>
           </select>
         </label>
+        <button class="btn" id="castChip" title="现在在场的通讯录人物" hidden>👥 在场</button>
         <span class="spacer"></span>
         <button class="btn" id="ctxBtn" title="上下文用量 / 隐藏楼层 / 记忆索引">🧠 上下文 —</button>
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
@@ -2010,6 +2011,22 @@
   </div>
 </div>
 
+<div class="modal-back" id="castBack" hidden style="z-index:62">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="castTitle" style="width:min(440px,100%)">
+    <div class="modal-head">
+      <span id="castTitle">👥 谁在场</span>
+      <button class="btn ghost icon" id="castClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help" id="castHint"></div>
+      <div class="row" style="gap:6px"><button class="btn ghost" id="castAll" style="font-size:12px;padding:3px 8px">全选</button><button class="btn ghost" id="castNone" style="font-size:12px;padding:3px 8px">全不选</button></div>
+      <div class="rx-list" id="castList"></div>
+      <div class="help">只管通讯录里的人；路人、群众不用标，模型可以随便写。</div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end"><div class="right"><button class="btn primary" id="castGo">确定</button></div></div>
+  </div>
+</div>
+
 <div class="modal-back" id="stoBack" hidden style="z-index:62">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stoTitle" style="width:min(640px,100%)">
     <div class="modal-head">
@@ -2319,7 +2336,9 @@
   }
   const STATUS_RE = /<status>\s*([\s\S]*?)\s*<\/status>/gi;
   const STATUS_OPEN_RE = /<status>[\s\S]*$/i;
-  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").trim(); }
+  const CAST_RE = /<cast>\s*([\s\S]*?)\s*<\/cast>/gi;
+  const CAST_OPEN_RE = /<cast>[\s\S]*$/i;
+  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").trim(); }
   function statusInstruction(c) {
     const st = c.status;
     if (!st || !st.enabled) return "";
@@ -2843,8 +2862,8 @@
   const REASON_RE = /<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi;
   const REASON_OPEN_RE = /<(think|thinking|reasoning)>([\s\S]*)$/i;
   function foldReasoning(t, streaming) {
-    t = t.replace(STATUS_RE, "");
-    if (streaming) t = t.replace(STATUS_OPEN_RE, "");
+    t = t.replace(STATUS_RE, "").replace(CAST_RE, "");
+    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "");
     t = t.replace(REASON_RE, (_, __, body) => `<details class="reasoning"><summary>思考过程</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     if (streaming) t = t.replace(REASON_OPEN_RE, (_, __, body) => `<details class="reasoning" open><summary>思考中…</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     return t;
@@ -3117,6 +3136,7 @@
     $("bannerOpenPhone").hidden = !!sc;
     $("bannerPeople").hidden = !sc;
     $("bannerExitPhone").textContent = sc ? "结束独处" : "放下手机";
+    try { renderCastChip(); } catch (e) { /* before wiring */ }
     if (sc) $("modeBannerText").textContent = `🚶 现在和 ${namesOf(scl)} 单独在一起，${c.name} 不在场。这里写的剧情算 ${namesOf(scl)} 的，${c.name} 不会知道。`;
     else if (c.phone && c.phone.open) $("modeBannerText").textContent = phoneBannerText(c);
     if (!busy) refreshContextMeter();
@@ -3553,8 +3573,8 @@
       const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
       parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`); seg("char", "对话示例", ex);
     }
-    const castIns = recentCastInstruction(c, history);
-    if (castIns) { parts.push("\n" + castIns); seg("char", "出场过的人物", castIns); }
+    const castIns = castInstruction(c, history);
+    if (castIns) { parts.push("\n" + castIns); seg("char", "在场的人物", castIns); }
     const relIns = relationsInstruction(c, null);
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
     const stIns = statusInstruction(c);
@@ -3972,6 +3992,7 @@
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
       if (!msg.npc && applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); c.status.manualTs = 0; renderStatusStrip(); }
       if (msg.npc) applyNpcStatusFromText(c, msgNpcs(msg), res.text);
+      if (!msg.npc && !(c.phone && c.phone.open)) { try { applyCastFromText(c, res.text, msg); } catch (e) { console.error(e); } }
       if (!msg.npc && !msg.error) setTimeout(() => maybeAutoRelRefresh(c), 0);
     } catch (e) {
       const dropSwipe = () => {
@@ -6144,19 +6165,19 @@
     const start = ranges.length ? 0 : ((c.memory && c.memory.lastFloor) || 0);
     const covered = (f) => f <= start || ranges.some((r) => f >= Number(r[0]) && f <= Number(r[1]));
     const rows = [];
-    let fl = 0;
+    let fl = 0, marked = null; // marked: the explicit present list once a cast divider has been seen
     for (const m of c.chat) {
-      if (m.kind === "divider") continue;
+      if (m.kind === "divider") { if (m.cast) marked = (m.present || []).filter((id) => npcById(c, id)); continue; }
       fl++;
       if (covered(fl) || m.error || m.npc || m.group) continue;
-      rows.push({ floor: fl, bytes: utf8.enc.encode(m.content || "").length, moments: isMoment(m), cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : floorCast(c, m) });
+      rows.push({ floor: fl, bytes: utf8.enc.encode(m.content || "").length, moments: isMoment(m), explicit: !!marked, cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : marked ? marked.slice() : floorCast(c, m) });
     }
     if (!rows.length) return [];
     // an NPC stays "present" for two more floors after the last mention, so a floor without the name doesn't split the scene
     const segs = [];
     for (let i = 0; i < rows.length; i++) {
       const cast = new Set(rows[i].cast);
-      for (let k = 1; k <= 2 && i - k >= 0; k++) for (const id of rows[i - k].cast) cast.add(id);
+      if (!rows[i].explicit) for (let k = 1; k <= 2 && i - k >= 0; k++) for (const id of rows[i - k].cast) cast.add(id);
       const key = rows[i].moments ? "public" : [...cast].sort().join(",");
       const last = segs[segs.length - 1];
       if (last && last.key === key) { last.to = rows[i].floor; last.n++; last.moments += rows[i].moments ? 1 : 0; last.floors.push(rows[i].floor); last.sizes.push(rows[i].bytes); }
@@ -8072,6 +8093,121 @@
   $("stoClose").onclick = () => { $("stoBack").hidden = true; };
   $("stoCleanGo").onclick = runCleanup;
   $("stoWipeGo").onclick = wipeAll;
+  // ============================================================
+  // 在场 (who is around): explicit cast dividers set the list; the model reports arrivals / departures with <cast>…</cast>
+  // ============================================================
+  function presentAt(c, index) {
+    for (let i = Math.min(index, c.chat.length - 1); i >= 0; i--) {
+      const m = c.chat[i];
+      if (m.kind === "divider" && m.cast) return { ids: (m.present || []).filter((id) => npcById(c, id)), explicit: true };
+    }
+    return null;
+  }
+  const presentNow = (c) => presentAt(c, c.chat.length - 1);
+  function castLine(c, came, left) {
+    const parts = [];
+    if (came.length) parts.push(`${came.map((id) => npcName(c, id)).join("、")} 来了`);
+    if (left.length) parts.push(`${left.map((id) => npcName(c, id)).join("、")} 走了`);
+    return "👥 " + (parts.length ? parts.join("；") : `现在只有 ${c.name} 和 {{user}} 在场`);
+  }
+  // set the present list; writes one divider describing the change. Returns the divider, or null when nothing changed.
+  function setPresent(c, ids, fromMsg) {
+    ids = [...new Set(ids.filter((id) => npcById(c, id)))];
+    const cur = presentNow(c);
+    const before = cur ? cur.ids : [];
+    const came = ids.filter((x) => !before.includes(x)), left = before.filter((x) => !ids.includes(x));
+    if (cur && !came.length && !left.length) return null;
+    const d = { id: uid(), role: "system", kind: "divider", cast: true, present: ids, content: castLine(c, came, left), ts: Date.now() };
+    if (fromMsg) d.fromMsg = fromMsg;
+    c.chat.push(d);
+    save(); renderMessages(); renderCharList();
+    return d;
+  }
+  function castNameMap(c) {
+    const map = new Map();
+    for (const n of c.npcs) { map.set(n.name, n.id); for (const a of n.aliases || []) if (a) map.set(a, n.id); }
+    return map;
+  }
+  // the model's <cast>阿桥 来了；司晨阳 走了</cast> → update the list (undoable)
+  function applyCastFromText(c, text, msg) {
+    if (!c.npcs.length) return false;
+    const blocks = [...String(text || "").matchAll(CAST_RE)];
+    if (!blocks.length) return false;
+    const names = castNameMap(c);
+    const came = new Set(), left = new Set();
+    for (const b of blocks) for (const raw of b[1].split(/[;；\n,，]/)) {
+      const t = raw.trim(); if (!t) continue;
+      const mt = t.match(/^(.+?)\s*(来了|到了|进来了?|出现了?|回来了|加入|走了|离开了?|离场|退场|离去|出去了)$/);
+      if (!mt) continue;
+      const id = names.get(mt[1].trim());
+      if (!id) continue;
+      if (/走|离|退|出去/.test(mt[2])) { left.add(id); came.delete(id); } else { came.add(id); left.delete(id); }
+    }
+    if (!came.size && !left.size) return false;
+    // a re-roll replaces what the previous swipe reported
+    if (msg) c.chat = c.chat.filter((d) => !(d.kind === "divider" && d.cast && d.fromMsg === msg.id));
+    const cur = presentNow(c);
+    const ids = [...new Set([...(cur ? cur.ids : []), ...came])].filter((id) => !left.has(id));
+    const d = setPresent(c, ids, msg ? msg.id : null);
+    if (!d) return false;
+    toastUndo(d.content.replace(/^👥 /, "在场：") , () => { c.chat = c.chat.filter((x) => x.id !== d.id); save(); renderMessages(); renderCharList(); renderCastChip(); });
+    return true;
+  }
+  function toastUndo(text, onUndo) {
+    toast(text, false, 8000);
+    const t = document.querySelector(".toast"); if (!t) return;
+    const b = el("button", "btn ghost", "撤销"); b.style.cssText = "margin-left:10px;padding:2px 8px;font-size:12px;color:#fff;border-color:rgba(255,255,255,.4)";
+    b.onclick = () => { onUndo(); t.remove(); };
+    t.appendChild(b);
+  }
+  // prompt: who is here now, plus the reporting rule
+  function castInstruction(c, history) {
+    if (!c.npcs || !c.npcs.length) return "";
+    const u = state.persona.name || "用户";
+    const p = presentNow(c);
+    const line = (n) => `- ${n.name}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}`;
+    const rule = `如果通讯录里的人在这段里来了或走了，在回复最末尾另起一行输出 <cast>名字 来了；名字 走了</cast>（只写变化，一行写完，名字必须是 ${c.npcs.map((n) => n.name).join(" / ")} 之一；路人不用写；没变化就不输出）。不在名单上的这些人不要出现，除非剧情合理地让 TA 进场并如实标出；路人和群众可以自由出现。`;
+    if (p) {
+      const here = p.ids.map((id) => npcById(c, id)).filter(Boolean);
+      return `## 现在在场\n除了 ${c.name} 和 ${u}，此刻在场的通讯录人物：${here.length ? "\n" + here.map(line).join("\n") : "没有"}\n（在场的人由你代为演出，按各自的性格和说话方式来。）\n${rule}`;
+    }
+    const fallback = recentCastInstruction(c, history);
+    return (fallback ? fallback + "\n" : "") + `## 在场标记\n${rule}`;
+  }
+  // composer chip
+  function renderCastChip() {
+    const c = active(); const chip = $("castChip");
+    if (!c || !c.npcs.length || sceneNpcs(c).length || (c.phone && c.phone.open)) { chip.hidden = true; return; }
+    chip.hidden = false;
+    const p = presentNow(c);
+    chip.textContent = p ? (p.ids.length ? `👥 在场：${p.ids.map((id) => npcName(c, id)).join("、")}` : `👥 只有 ${c.name}`) : "👥 在场：未标记";
+    chip.title = p ? "点一下改在场名单（通讯录里的人；路人不用标）" : "还没标过谁在场，模型会按最近出现的名字猜；点一下明确标出";
+  }
+  function openCast() {
+    const c = active(); if (!c || busy) return;
+    const p = presentNow(c); const cur = new Set(p ? p.ids : []);
+    const box = $("castList"); box.innerHTML = "";
+    for (const n of c.npcs) {
+      const row = el("label", "rebuild-row");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = cur.has(n.id); cb.dataset.id = n.id;
+      row.append(cb, el("span", null, n.name), el("small", null, n.brief || ""));
+      box.appendChild(row);
+    }
+    $("castHint").textContent = p ? "勾选此刻在场的人。页面会自动算出谁来了、谁走了，写成一条分隔线。" : "还没标过。勾选此刻在场的人；之后模型写到有人来了或走了会自动更新，你随时能改。";
+    $("castBack").hidden = false;
+  }
+  $("castChip").onclick = openCast;
+  $("castClose").onclick = () => { $("castBack").hidden = true; };
+  $("castAll").onclick = () => { $("castList").querySelectorAll("input").forEach((x) => { x.checked = true; }); };
+  $("castNone").onclick = () => { $("castList").querySelectorAll("input").forEach((x) => { x.checked = false; }); };
+  $("castGo").onclick = () => {
+    const c = active(); if (!c) return;
+    const ids = [...$("castList").querySelectorAll("input:checked")].map((x) => x.dataset.id);
+    $("castBack").hidden = true;
+    const d = setPresent(c, ids, null);
+    renderCastChip();
+    toast(d ? d.content.replace(/^👥 /, "") : "在场名单没有变化");
+  };
   $("memRebuild").onclick = openRebuild;
   $("memMergeAll").onclick = openMergeAll;
   $("memQuick").onclick = quickSummarize;
