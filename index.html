@@ -2891,33 +2891,34 @@
     if (status === "returned") m.returnNote = (note || "").trim().slice(0, 80); else delete m.returnNote;
     syncTransfer(m, c);
   }
-  const XFER_LINE = /^\[\s*转账\s*[$＄]?\s*([\d,]+(?:\.\d+)?)\s*(?:元|美元|刀|块)?\s*(.*?)\s*\]$/;
-  const ACCEPT_LINE = /^\[\s*收款\s*\]$/;
-  const RETURN_LINE = /^\[\s*退回\s*(.*?)\s*\]$/;
-  const isXferMarker = (line) => XFER_LINE.test(line) || ACCEPT_LINE.test(line) || RETURN_LINE.test(line);
+  // markers the model may write; tolerant of full-width brackets, colons, currency words and inline placement
+  const XFER_RE = /[\[［【]\s*转[账帐](?:给\s*[^\s\]］】:：\d$＄]{0,12})?\s*[:：]?\s*(?:USD|usd)?\s*[$＄]?\s*([\d,]+(?:\.\d+)?)\s*(?:元|美元|美金|刀|块|USD|usd)?\s*[:：,，]?\s*([^\]］】\n]*?)\s*[\]］】]/g;
+  const ACCEPT_RE = /[\[［【]\s*(?:已)?(?:收款|收下|接收|收了|收钱|收到)\s*[\]］】]/g;
+  const RETURN_RE = /[\[［【]\s*(?:退回|退款|退还|拒收)\s*[:：]?\s*([^\]］】\n]*?)\s*[\]］】]/g;
+  // split a reply into its plain text and the transfer actions it carries
+  function extractXferMarkers(text) {
+    const out = { xfers: [], accept: false, ret: null };
+    let t = String(text || "");
+    t = t.replace(XFER_RE, (_, amt, note) => { const a = parseMoney(amt); if (a > 0) out.xfers.push({ amount: a, note: (note || "").trim() }); return ""; });
+    t = t.replace(ACCEPT_RE, () => { out.accept = true; return ""; });
+    t = t.replace(RETURN_RE, (_, note) => { out.ret = { note: (note || "").trim() }; return ""; });
+    out.text = t.split("\n").map((l) => l.replace(/ {2,}/g, " ").trim()).join("\n").replace(/\n{2,}/g, "\n").trim();
+    return out;
+  }
+  const stripXferMarkers = (text) => extractXferMarkers(text).text;
   // pull [转账 …] / [收款] / [退回 …] out of a finished phone reply and turn them into transfer state
   function applyPhoneActions(c, msg) {
     // a regenerated reply replaces whatever transfers the previous take created
     c.chat = c.chat.filter((m) => !(m.kind === "transfer" && m.fromMsg === msg.id));
-    const lines = String(msg.content || "").split("\n");
-    const keep = [];
+    const got = extractXferMarkers(msg.content);
     let made = null;
-    for (const raw of lines) {
-      const line = raw.trim();
-      let mt;
-      if ((mt = line.match(XFER_LINE))) {
-        const amount = parseMoney(mt[1]);
-        if (amount > 0 && !made) { made = makeTransfer("assistant", amount, mt[2], { fromMsg: msg.id }); syncTransfer(made, c); }
-        continue;
-      }
-      if (ACCEPT_LINE.test(line)) { const t = pendingTransfers(c, "user").pop(); if (t) settleTransfer(t, c, "accepted"); continue; }
-      if ((mt = line.match(RETURN_LINE))) { const t = pendingTransfers(c, "user").pop(); if (t) settleTransfer(t, c, "returned", mt[1]); continue; }
-      keep.push(raw);
-    }
-    const text = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (got.xfers.length) { const x = got.xfers[0]; made = makeTransfer("assistant", x.amount, x.note, { fromMsg: msg.id }); syncTransfer(made, c); }
+    if (got.accept) { const t = pendingTransfers(c, "user").pop(); if (t) settleTransfer(t, c, "accepted"); }
+    if (got.ret) { const t = pendingTransfers(c, "user").pop(); if (t) settleTransfer(t, c, "returned", got.ret.note); }
+    const text = got.text;
     msg.content = text; if (msg.swipes) msg.swipes[msg.si] = text;
     if (made) { const at = c.chat.indexOf(msg); c.chat.splice(at + 1, 0, made); }
-    if (!text && made && (!msg.swipes || msg.swipes.length <= 1)) c.chat = c.chat.filter((m) => m !== msg);
+    if (!text && (made || got.accept || got.ret) && (!msg.swipes || msg.swipes.length <= 1)) c.chat = c.chat.filter((m) => m !== msg);
     return made;
   }
   function transferNode(m, c) {
@@ -3603,7 +3604,7 @@
       const txt = stripStatus(stripReasoning(sub(m.content, c)));
       if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
       if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
-      const lines = txt.split(/\n+/).map((x) => x.trim()).filter((x) => x && !(m.role === "assistant" && isXferMarker(x)));
+      const lines = (m.role === "assistant" ? stripXferMarkers(txt) : txt).split(/\n+/).map((x) => x.trim()).filter(Boolean);
       lines.forEach((line, li) => {
         if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { body.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
         const b = el("div", "pm " + (m.role === "user" ? "me" : "them"));
