@@ -487,6 +487,17 @@
   .pm.me + .pm.them, .pm.them + .pm.me { margin-top: 8px; }
   .pm.sys { align-self: center; background: transparent; color: #8e8e93; font-size: 11px; padding: 6px 0; max-width: 100%; text-align: center; }
   .pm.read { align-self: flex-end; background: transparent; color: #8e8e93; font-size: 11px; padding: 0 6px; }
+  .pm.act { align-self: center; background: transparent; color: #8e8e93; font-size: 12px; font-style: italic; padding: 4px 0; max-width: 100%; text-align: center; }
+  .scene-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .scene-opt {
+    text-align: left; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--raised); color: var(--text);
+    display: flex; flex-direction: column; gap: 4px; cursor: pointer; font-size: 14px; font-weight: 500; line-height: 1.4;
+  }
+  .scene-opt small { font-weight: 400; color: var(--muted); font-size: 12px; }
+  .scene-opt .ic { font-size: 22px; }
+  .scene-opt:hover { border-color: var(--line-strong); }
+  .scene-opt.on { border-color: var(--accent); background: var(--accent-soft); }
+  @media (max-width: 520px) { .scene-opts { grid-template-columns: 1fr; } }
   .pm.typing { align-self: flex-start; background: #e9e9eb; color: #8e8e93; padding: 10px 14px; }
   .phone.dark .pm.typing { background: #262629; }
   .pm .tm { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; text-align: right; }
@@ -811,7 +822,7 @@
       <div class="ideas" id="ideas" hidden></div>
       <div class="snips" id="snips"></div>
       <div class="mode-banner" id="modeBanner" hidden>
-        <span>📱 现在在手机上和对方聊天。这里发出的内容会当作放下手机后的正文。</span>
+        <span id="modeBannerText">📱 现在在手机上和对方聊天。这里发出的内容会当作放下手机后的正文。</span>
         <span class="spacer"></span>
         <button class="btn" id="bannerOpenPhone">打开手机</button>
         <button class="btn ghost" id="bannerExitPhone">放下手机</button>
@@ -1628,6 +1639,32 @@
   </div>
 </div>
 
+<div class="modal-back" id="phoneSceneBack" hidden style="z-index:57">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="phoneSceneTitle" style="width:min(520px,100%)">
+    <div class="modal-head">
+      <span id="phoneSceneTitle">📱 拿出手机</span>
+      <button class="btn ghost icon" id="phoneSceneClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="scene-opts" id="phoneSceneOpts">
+        <button class="scene-opt on" data-mode="apart"><span class="ic">🚶</span>不在一处<small>两人分隔两地，只能靠手机联系</small></button>
+        <button class="scene-opt" data-mode="together"><span class="ic">🤫</span>同一场合，悄悄发<small>两人就在同一个地方，但不方便开口，桌下偷偷发消息</small></button>
+      </div>
+      <div class="field">
+        <label for="phoneSceneNote">情境补充（可选）</label>
+        <input id="phoneSceneNote" placeholder="例如：在聚会上，想找机会一起溜出去">
+        <div class="help">会写进场景分隔线，也会告诉模型。留空就只用上面的选项。</div>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right">
+        <button class="btn" id="phoneSceneCancel">取消</button>
+        <button class="btn primary" id="phoneSceneGo">拿出手机</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="phone-back" id="phoneBack" hidden>
   <div class="phone" id="phone" role="dialog" aria-modal="true" aria-label="手机">
     <div class="phone-head">
@@ -2436,6 +2473,7 @@
     flush();
     box.scrollTop = box.scrollHeight;
     $("modeBanner").hidden = !(c.phone && c.phone.open);
+    if (c.phone && c.phone.open) $("modeBannerText").textContent = phoneBannerText(c);
     if (!busy) refreshContextMeter();
   }
 
@@ -2734,16 +2772,24 @@
     }
     return txt;
   }
+  function phoneMode(c) { return c.phone && c.phone.mode === "together" ? "together" : "apart"; }
   function phoneRules(c, u) {
+    const together = phoneMode(c) === "together";
+    const note = c.phone && c.phone.note ? `情境：${c.phone.note}` : "";
     return [
       "## 手机聊天模式",
-      `现在 ${c.name} 和 ${u} 不在同一个地方，正在用手机发消息。你只输出 ${c.name} 发出的手机消息本身：`,
+      together
+        ? `现在 ${c.name} 和 ${u} 在同一个地方，但不方便直接开口（旁边可能有别人），正在偷偷用手机发消息。你只输出 ${c.name} 发出的手机消息本身：`
+        : `现在 ${c.name} 和 ${u} 不在同一个地方，正在用手机发消息。你只输出 ${c.name} 发出的手机消息本身：`,
+      note,
       "- 像真人发短信：短句、口语、可以有错别字式的随意，不写 *动作*、不写环境和心理描写，不用引号，不加名字前缀。",
       "- 可以连发几条，每条消息单独一行；一条通常不超过 40 字。",
+      together ? `- 两人看得见彼此：可以提到现场的人和事、${u} 此刻的表情动作；消息更短、更急、更像偷偷发，注意别被旁人发现。` : "",
+      together ? `- 如果 ${c.name} 有值得注意的现场小动作（抬头看你一眼、把手机扣在桌上、憋笑），可以单独一行用全角括号写，整段最多一条，例如：（抬头朝你这边瞥了一眼）` : "",
       `- 不要替 ${u} 发消息或猜 ${u} 的回复。`,
       `- 如果 ${c.name} 此刻不想回、没空或故意晾着对方，只输出一行 [不回复]。`,
       "- 语气跟着角色此刻的心情、和对方的关系、以及刚才正文里发生的事走；可以用表情符号但别滥用。",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   }
 
   let lastReport = null;
@@ -3278,7 +3324,7 @@
 
   // ---------- ➕ menu ----------
   const PLUS_ITEMS = [
-    { id: "phone", icon: "📱", label: "手机", hint: "两人不在一处时，用手机聊天", run: () => openPhone(true) },
+    { id: "phone", icon: "📱", label: "手机", hint: "分隔两地，或同一场合悄悄发消息", run: () => askPhoneScene() },
   ];
   function renderPlusMenu() {
     const m = $("plusMenu");
@@ -3296,12 +3342,38 @@
 
   // ---------- Phone ----------
   function phoneMsgs(c) { return c.chat.map((m, i) => ({ m, i })).filter((x) => x.m.channel === "phone" || (x.m.kind === "divider" && x.m.phone)); }
-  function openPhone(enter) {
+  function askPhoneScene() {
+    const c = active();
+    if (!c || busy) return;
+    if (c.phone && c.phone.open) { openPhone(false); return; }
+    const mode = (c.phone && c.phone.mode) || "apart";
+    $("phoneSceneOpts").querySelectorAll(".scene-opt").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    $("phoneSceneNote").value = "";
+    $("phoneSceneBack").hidden = false;
+    $("phoneSceneNote").focus();
+  }
+  function closePhoneScene() { $("phoneSceneBack").hidden = true; }
+  function phoneSceneGo() {
+    const on = $("phoneSceneOpts").querySelector(".scene-opt.on");
+    const mode = on ? on.dataset.mode : "apart";
+    const note = $("phoneSceneNote").value.trim();
+    closePhoneScene();
+    openPhone(true, { mode, note });
+  }
+  function phoneBannerText(c) {
+    return phoneMode(c) === "together"
+      ? "📱 两人在同一个场合，正悄悄用手机聊。这里发出的内容会当作收起手机后的正文。"
+      : "📱 现在在手机上和对方聊天。这里发出的内容会当作放下手机后的正文。";
+  }
+  function openPhone(enter, scene) {
     const c = active();
     if (!c || busy) return;
     if (enter && !(c.phone && c.phone.open)) {
-      c.phone = { open: true };
-      c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: `📱 ${c.name} 和 {{user}} 不在同一个地方，改用手机联系`, ts: Date.now() });
+      const mode = scene && scene.mode === "together" ? "together" : "apart";
+      const note = scene && scene.note ? scene.note.slice(0, 200) : "";
+      c.phone = { open: true, mode, note };
+      const base = mode === "together" ? `📱 ${c.name} 和 {{user}} 在同一个场合，不方便开口，悄悄用手机聊` : `📱 ${c.name} 和 {{user}} 不在同一个地方，改用手机联系`;
+      c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: base + (note ? `（${note}）` : ""), ts: Date.now() });
       save(); renderMessages(); renderCharList();
     }
     $("phone").classList.toggle("dark", state.settings.phoneDark === true);
@@ -3313,8 +3385,9 @@
   function exitPhone(rerender) {
     const c = active();
     if (!c || !(c.phone && c.phone.open)) { closePhoneView(); return; }
+    const together = phoneMode(c) === "together";
     c.phone.open = false;
-    c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: "📱 放下手机，回到当面的场景", ts: Date.now() });
+    c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: together ? "📱 收起手机，回到现场" : "📱 放下手机，回到当面的场景", ts: Date.now() });
     save();
     closePhoneView();
     if (rerender !== false) { renderMessages(); renderCharList(); }
@@ -3324,7 +3397,8 @@
     if (!c) return;
     $("phoneName").textContent = c.name;
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
-    $("phoneStatus").textContent = busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone") ? "正在输入…" : (st && st.value ? `在 ${st.value}` : "在线");
+    const typing = busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone");
+    $("phoneStatus").textContent = typing ? "正在输入…" : phoneMode(c) === "together" ? "就在附近 · 悄悄聊" : (st && st.value ? `在 ${st.value}` : "在线");
     const body = $("phoneBody");
     const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
     body.innerHTML = "";
@@ -3335,6 +3409,7 @@
       if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
       const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
       lines.forEach((line, li) => {
+        if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { body.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
         const b = el("div", "pm " + (m.role === "user" ? "me" : "them"));
         b.textContent = line.replace(/^\[?撤回\]?$/, "撤回了一条消息");
         if (li === lines.length - 1) b.appendChild(el("span", "tm", fmtTime(m.ts)));
@@ -3350,7 +3425,7 @@
     const ta = $("phoneInput");
     const text = ta.value.trim();
     if (!c || busy || !text || !chatReady()) return;
-    if (!(c.phone && c.phone.open)) { c.phone = { open: true }; }
+    if (!(c.phone && c.phone.open)) { c.phone = { ...(c.phone || {}), open: true }; }
     c.chat.push({ id: uid(), role: "user", channel: "phone", content: text, ts: Date.now() });
     ta.value = ""; ta.style.height = "auto";
     save(); renderMessages(); renderPhone(true);
@@ -5063,6 +5138,12 @@
   $("bannerOpenPhone").onclick = () => openPhone(false);
   $("bannerExitPhone").onclick = () => exitPhone(true);
   $("phoneClose").onclick = closePhoneView;
+  $("phoneSceneClose").onclick = closePhoneScene;
+  $("phoneSceneCancel").onclick = closePhoneScene;
+  $("phoneSceneGo").onclick = phoneSceneGo;
+  $("phoneSceneBack").addEventListener("click", (e) => { if (e.target === $("phoneSceneBack")) closePhoneScene(); });
+  $("phoneSceneOpts").addEventListener("click", (e) => { const b = e.target.closest(".scene-opt"); if (!b) return; $("phoneSceneOpts").querySelectorAll(".scene-opt").forEach((x) => x.classList.toggle("on", x === b)); });
+  $("phoneSceneNote").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); phoneSceneGo(); } });
   $("phoneExit").onclick = () => exitPhone(true);
   $("phoneBack").addEventListener("click", (e) => { if (e.target === $("phoneBack")) closePhoneView(); });
   $("phoneSend").onclick = phoneSend;
