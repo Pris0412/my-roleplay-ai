@@ -3202,7 +3202,18 @@
 
   function updateStats() {
     const c = active();
-    if (c) $("chatStat").textContent = `${floorCount(c)} 楼 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字` + (c.memory && c.memory.lastFloor ? ` · 记忆已总结到第 ${c.memory.lastFloor} 楼` : "");
+    if (c) {
+      const total = floorCount(c), chars = c.chat.reduce((n, m) => n + m.content.length, 0);
+      const last = (c.memory && c.memory.lastFloor) || 0;
+      const pend = c.chat.slice(idxAfterFloor(c, last)).filter((m) => m.kind !== "divider" && !m.error && !m.npc && !m.group);
+      const pendChars = pend.reduce((n, m) => n + m.content.length, 0), pendTok = pend.reduce((n, m) => n + estTokens(m.content), 0);
+      const r = lastReport && lastReport.charId === c.id ? lastReport : null;
+      const parts = [`${total} 楼 · 共 ${chars} 字`];
+      parts.push(last ? `已总结到第 ${last} 楼` : "还没总结过");
+      parts.push(pend.length ? `未总结 ${pend.length} 楼 ≈${pendChars} 字 / ≈${fmtTok(pendTok)} tok` : "没有未总结的楼层");
+      if (r && r.floors) parts.push(`这次带入第 ${r.firstFloor}–${r.lastFloor} 楼 ≈${fmtTok(r.tokens)} tok`);
+      $("chatStat").textContent = parts.join(" · ");
+    }
     try {
       const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
       const d = daysSinceBackup();
@@ -3625,7 +3636,7 @@
     if (!ps && c.postHistory && c.postHistory.trim()) seg("fixed", "对话后指令", c.postHistory);
     for (let i = 0; i < turns.length; i++) turns[i] = { role: turns[i].role, content: turns[i].content };
     lastReport = {
-      cap: CAP, total, instruction: bytes(turns[0].content), history: total - bytes(turns[0].content),
+      charId: c.id, cap: CAP, total, instruction: bytes(turns[0].content), history: total - bytes(turns[0].content),
       floors: inContext.length, firstFloor: inContext.length ? floorOf(c, c.chat.indexOf(inContext.find((m) => m.kind !== "divider") || inContext[0])) : 0, lastFloor: inContext.length ? floorOf(c, c.chat.indexOf(inContext[inContext.length - 1])) : 0,
       hidden: c.chat.filter((m) => m.hidden).length, retrieved: retrieved.length, dropped, trimmedByMem: Math.max(0, history.filter((m) => !m.error && !m.hidden).length - mem),
       tokens: turns.reduce((n, t) => n + estTokens(t.content), 0),
@@ -5820,6 +5831,7 @@
     if (!r) return;
     btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}${r.dropped ? ` · 丢了 ${r.dropped} 楼` : ""}`;
     btn.classList.toggle("warn", r.dropped > 0);
+    updateStats();
   }
   function openContext() {
     const c = active();
