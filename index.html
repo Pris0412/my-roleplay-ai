@@ -2017,7 +2017,7 @@
       <button class="btn ghost icon" id="stoClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
-      <div class="help">按大小从大到小排。每一行都能单独删；删对话记录会先自动留一份存档。</div>
+      <div class="help">按角色分组，占得多的排前面。不玩的角色直接「删除整个角色」；展开后可以单独删对话、存档、头像、记忆书。删对话记录会先自动留一份存档。</div>
       <div class="rx-list" id="stoList"></div>
       <div class="section">
         <div class="section-title">一键清理</div>
@@ -7941,18 +7941,21 @@
   const bytesOf = (x) => new Blob([JSON.stringify(x)]).size;
   function storageItems() {
     const items = [];
-    const add = (label, sub, bytes, del, danger) => { if (bytes > 0) items.push({ label, sub, bytes, del, danger }); };
+    let owner = null;
+    const add = (label, sub, bytes, del, danger) => { if (bytes > 0) items.push({ label, sub, bytes, del, danger, owner }); };
     let counted = 0;
     for (const c of state.characters) {
+      owner = c;
       const chatB = bytesOf(c.chat); counted += chatB;
-      add(`对话记录 · ${c.name}`, `${floorCount(c)} 楼`, chatB, c.chat.length > 1 ? async () => { if (!(await askConfirm(`清空和 ${c.name} 的全部对话记录（回到开场白）？记忆书、状态、关系保留。会先自动留一份存档。`, "清空对话", true))) return false; makeSave(c, `自动 · 清空对话前（第 ${floorCount(c)} 楼）`, "wipe"); c.chat = [greeting(c)]; c.memory.lastFloor = 0; c.phone = { open: false }; c.scene = null; c.phoneLast = null; return true; } : null);
-      for (const sv of c.saves || []) { const b = bytesOf(sv); counted += b; add(`存档 · ${c.name} · ${sv.name}`, `第 ${sv.floors} 楼`, b, () => { c.saves = c.saves.filter((x) => x !== sv); return true; }); }
-      if (c.image) { const b = c.image.length; counted += b; add(`头像 · ${c.name}`, "图片", b, async () => { if (!(await askConfirm(`删掉 ${c.name} 的头像图片？`, "删除", true))) return false; c.image = ""; return true; }); }
-      if (c.bg && c.bg.image) { const b = c.bg.image.length; counted += b; add(`聊天背景图 · ${c.name}`, "图片", b, () => { c.bg.image = ""; return true; }); }
-      for (const bk of c.books) { const b = bytesOf(bk); counted += b; add(`${bk.memory ? "记忆书" : "角色世界书"} · ${bk.name} · ${c.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉「${bk.name}」整本（${bk.entries.length} 条）？`, "删除", true))) return false; c.books = c.books.filter((x) => x !== bk); return true; }); }
+      add("对话记录", `${floorCount(c)} 楼`, chatB, c.chat.length > 1 ? async () => { if (!(await askConfirm(`清空和 ${c.name} 的全部对话记录（回到开场白）？记忆书、状态、关系保留。会先自动留一份存档。`, "清空对话", true))) return false; makeSave(c, `自动 · 清空对话前（第 ${floorCount(c)} 楼）`, "wipe"); c.chat = [greeting(c)]; c.memory.lastFloor = 0; c.phone = { open: false }; c.scene = null; c.phoneLast = null; return true; } : null);
+      for (const sv of c.saves || []) { const b = bytesOf(sv); counted += b; add(`存档 · ${sv.name}`, `第 ${sv.floors} 楼`, b, () => { c.saves = c.saves.filter((x) => x !== sv); return true; }); }
+      if (c.image) { const b = c.image.length; counted += b; add("头像", "图片", b, async () => { if (!(await askConfirm(`删掉 ${c.name} 的头像图片？`, "删除", true))) return false; c.image = ""; return true; }); }
+      if (c.bg && c.bg.image) { const b = c.bg.image.length; counted += b; add("聊天背景图", "图片", b, () => { c.bg.image = ""; return true; }); }
+      for (const bk of c.books) { const b = bytesOf(bk); counted += b; add(`${bk.memory ? "记忆书" : "角色世界书"} · ${bk.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉「${bk.name}」整本（${bk.entries.length} 条）？`, "删除", true))) return false; c.books = c.books.filter((x) => x !== bk); return true; }); }
       const misc = bytesOf({ n: c.npcs, r: c.rels, g: c.groups, s: c.status }); counted += misc;
-      add(`NPC、群、关系、状态 · ${c.name}`, `${c.npcs.length} 位联系人 · ${c.groups.length} 个群`, misc, null);
+      add("NPC、群、关系、状态", `${c.npcs.length} 位联系人 · ${c.groups.length} 个群`, misc, null);
     }
+    owner = null;
     if (state.bg && state.bg.image) { const b = state.bg.image.length; counted += b; add("聊天背景图 · 全局", "图片", b, () => { state.bg.image = ""; return true; }); }
     for (const bk of state.books) { const b = bytesOf(bk); counted += b; add(`全局世界书 · ${bk.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉全局世界书「${bk.name}」（${bk.entries.length} 条）？`, "删除", true))) return false; state.books = state.books.filter((x) => x !== bk); return true; }); }
     for (const ps of state.presets) { const b = bytesOf(ps); counted += b; add(`预设 · ${ps.name}`, "", b, () => { state.presets = state.presets.filter((x) => x !== ps); if (state.activePreset === ps.id) state.activePreset = ""; return true; }); }
@@ -7997,16 +8000,43 @@
     $("stoStat").textContent = `本页数据 ${fmtMB(total)}${q ? ` / 浏览器可用 ${fmtMB(q)}（${pct < 0.1 ? "<0.1" : pct.toFixed(1)}%）` : ""} · ${where}${!lsOk && idbOk ? " · 已超过小抽屉的 5 MB，只靠大抽屉保存" : ""}${idbError ? " · ⚠ 大抽屉写入失败" : ""}`;
     $("stoSafari").hidden = !isSafari();
   }
+  const stoOpen = new Set();
   function renderStorageList() {
     const box = $("stoList"); box.innerHTML = "";
     const { items, total } = storageItems();
-    for (const it of items.slice(0, 60)) {
+    const after = () => { save(); renderAll(); renderGlobalBooks(); renderPresetSelect(); renderStorageList(); renderStorageStat(); };
+    const rowNode = (it) => {
       const row = el("div", "rx-row"); row.style.gridTemplateColumns = "minmax(0,1fr) auto auto";
       const nm = el("span", "nm", it.label); nm.title = it.label; if (it.sub) nm.appendChild(el("small", null, it.sub)); row.appendChild(nm);
       row.appendChild(el("span", "stat", `${fmtMB(it.bytes)} · ${((it.bytes / Math.max(1, total)) * 100).toFixed(0)}%`));
-      if (it.del) { const b = el("button", "btn ghost", "删除"); b.style.cssText = "padding:3px 8px;font-size:12px;color:var(--danger)"; b.onclick = async () => { const ok = await it.del(); if (ok === false) return; save(); renderAll(); renderGlobalBooks(); renderPresetSelect(); renderStorageList(); renderStorageStat(); toast("已删除"); }; row.appendChild(b); }
+      if (it.del) { const b = el("button", "btn ghost", "删除"); b.style.cssText = "padding:3px 8px;font-size:12px;color:var(--danger)"; b.onclick = async () => { const ok = await it.del(); if (ok === false) return; after(); toast("已删除"); }; row.appendChild(b); }
       else row.appendChild(el("span", "stat", ""));
-      box.appendChild(row);
+      return row;
+    };
+    const groups = [];
+    for (const c of state.characters) { const list = items.filter((it) => it.owner === c); groups.push({ key: c.id, c, list, bytes: list.reduce((n, x) => n + x.bytes, 0) }); }
+    const glob = items.filter((it) => !it.owner);
+    groups.sort((a, b) => b.bytes - a.bytes);
+    groups.push({ key: "global", c: null, list: glob, bytes: glob.reduce((n, x) => n + x.bytes, 0) });
+    for (const g of groups) {
+      const d = document.createElement("details"); d.className = "adv"; d.open = stoOpen.has(g.key);
+      d.addEventListener("toggle", () => { if (d.open) stoOpen.add(g.key); else stoOpen.delete(g.key); });
+      const sm = document.createElement("summary");
+      sm.append(el("span", null, g.c ? g.c.name : "全局（背景图、全局世界书、预设、设置）"), el("span", "stat", `${fmtMB(g.bytes)} · ${((g.bytes / Math.max(1, total)) * 100).toFixed(0)}% · ${g.list.length} 项`));
+      d.appendChild(sm);
+      const inner = el("div", "inner"); inner.style.gap = "6px";
+      if (g.c) {
+        const top = el("div", "row"); top.style.justifyContent = "space-between";
+        top.appendChild(el("span", "help", `${floorCount(g.c)} 楼 · ${(g.c.saves || []).length} 个存档 · ${g.c.books.length} 本书`));
+        const delAll = el("button", "btn danger", "删除整个角色"); delAll.style.cssText = "padding:4px 10px;font-size:12px";
+        delAll.title = "连角色卡、对话、存档、记忆书一起删";
+        delAll.onclick = async () => { await deleteCharacter(g.c); renderStorageList(); renderStorageStat(); };
+        top.appendChild(delAll);
+        inner.appendChild(top);
+      }
+      for (const it of g.list) inner.appendChild(rowNode(it));
+      d.appendChild(inner);
+      box.appendChild(d);
     }
     const plan = cleanupPlan();
     $("stoCleanAuto").nextSibling.textContent = ` 删掉所有「自动 ·」存档（${plan.autoSaves.length} 个，${fmtMB(plan.autoSaves.reduce((n, x) => n + x.bytes, 0))}）`;
