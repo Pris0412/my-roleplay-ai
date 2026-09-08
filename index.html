@@ -86,6 +86,7 @@
     --fontScale: 1;
     --blurStrength: 10px;
     --shadowWidth: 2px;
+    --read-w: 860px;
     --avatar-base-height: 50px;
     --avatar-base-width: 50px;
   }
@@ -359,7 +360,7 @@
     display: grid;
     grid-template-columns: 36px minmax(0, 1fr);
     gap: 12px;
-    max-width: 860px;
+    max-width: var(--read-w, 860px);
     width: 100%;
     margin: 0 auto;
     position: relative;
@@ -428,7 +429,7 @@
     backdrop-filter: blur(10px);
   }
   .composer-inner {
-    max-width: 860px; margin: 0 auto;
+    max-width: var(--read-w, 860px); margin: 0 auto;
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: end;
   }
   .plus-wrap { position: relative; }
@@ -448,7 +449,7 @@
   .plus-item small { display: block; color: var(--faint); font-size: 11px; }
   .plus-item:disabled { opacity: 0.5; cursor: default; }
   .mode-banner {
-    max-width: 860px; margin: 0 auto 8px;
+    max-width: var(--read-w, 860px); margin: 0 auto 8px;
     display: flex; align-items: center; gap: 10px;
     padding: 6px 12px; border-radius: 10px; border: 1px dashed var(--accent); background: var(--accent-soft); font-size: 13px;
   }
@@ -456,10 +457,10 @@
   .msg.scene .bubble { border-left: 3px solid var(--accent); }
   .msg.scene .meta .tag.priv { color: var(--accent); border-color: var(--accent); }
   /* folded phone card + dividers in the main chat */
-  .divider-msg { max-width: 860px; width: 100%; margin: 0 auto; text-align: center; }
+  .divider-msg { max-width: var(--read-w, 860px); width: 100%; margin: 0 auto; text-align: center; }
   .divider-msg span { display: inline-block; font-size: 12px; color: var(--muted); padding: 3px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
   .phone-card {
-    max-width: 860px; width: 100%; margin: 0 auto;
+    max-width: var(--read-w, 860px); width: 100%; margin: 0 auto;
     display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px;
   }
   .phone-card .pc {
@@ -614,7 +615,7 @@
   .composer textarea:focus { border-color: var(--accent); outline: none; }
   .composer .send-col { display: flex; flex-direction: column; gap: 6px; }
   .composer-bar {
-    max-width: 860px; margin: 0 auto 8px;
+    max-width: var(--read-w, 860px); margin: 0 auto 8px;
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   }
   .composer-bar .spacer { flex: 1; }
@@ -633,7 +634,7 @@
   }
   .pill-select select:focus { border-color: var(--accent); outline: none; }
   .snips {
-    max-width: 860px; margin: 0 auto 6px;
+    max-width: var(--read-w, 860px); margin: 0 auto 6px;
     display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
   }
   .snip {
@@ -646,7 +647,7 @@
   .snip.edit { color: var(--muted); border-style: dashed; }
   .snip kbd { font-family: var(--font-mono); font-size: 9px; color: var(--faint); margin-left: 5px; }
   .ideas {
-    max-width: 860px; margin: 0 auto 8px;
+    max-width: var(--read-w, 860px); margin: 0 auto 8px;
     display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;
   }
   .idea {
@@ -660,7 +661,7 @@
   .idea .txt { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .ideas .idea.more { align-items: center; justify-content: center; color: var(--muted); border-style: dashed; }
   .composer .hint {
-    max-width: 860px; margin: 6px auto 0;
+    max-width: var(--read-w, 860px); margin: 6px auto 0;
     font-size: 11px; color: var(--faint); font-family: var(--font-mono);
     display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap;
   }
@@ -1111,6 +1112,17 @@
               <option value="en">English</option>
             </select>
           </div>
+        </div>
+        <div class="field">
+          <label for="sReadW">阅读宽度</label>
+          <select id="sReadW">
+            <option value="760">窄 · 760</option>
+            <option value="860">中 · 860（默认）</option>
+            <option value="1100">宽 · 1100</option>
+            <option value="1400">更宽 · 1400</option>
+            <option value="full">满 · 铺满聊天区</option>
+          </select>
+          <div class="help">只管聊天区的最大宽度：大屏全屏时选宽一点，手机上本来就不到这个宽度，不受影响。</div>
         </div>
         <div class="row" id="sLenCustomRow" hidden>
           <div class="field">
@@ -3336,6 +3348,8 @@
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
     $("sLang").value = state.settings.lang;
+    $("sReadW").value = state.settings.readW || "860";
+    applyReadWidth();
     const memPresets = ["20", "40", "80", "150", "1000"];
     const memVal = String(parseInt(state.settings.mem, 10) || 40);
     $("sMem").value = memPresets.includes(memVal) ? memVal : "custom";
@@ -7575,6 +7589,8 @@
   $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
   $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
+  function applyReadWidth() { const v = state.settings.readW || "860"; document.documentElement.style.setProperty("--read-w", v === "full" ? "100%" : v + "px"); }
+  $("sReadW").addEventListener("change", (e) => { state.settings.readW = e.target.value; save(); applyReadWidth(); toast("阅读宽度：" + e.target.options[e.target.selectedIndex].textContent); });
   $("sMem").addEventListener("change", (e) => {
     if (e.target.value === "custom") { $("sMemCustom").hidden = false; $("sMemCustom").focus(); return; }
     $("sMemCustom").hidden = true; state.settings.mem = e.target.value; save(); refreshContextMeter();
