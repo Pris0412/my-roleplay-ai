@@ -888,6 +888,7 @@
             <option value="describe">不抢话 · 可以写我的表情动作</option>
             <option value="restate">可以复述我的话</option>
             <option value="expand">复述 + 扩展我的动作表情</option>
+            <option value="steal">可以抢话 · 替我说几句、做点动作</option>
             <option value="none">无 · 不管，交给角色卡</option>
           </select>
         </label>
@@ -3085,6 +3086,7 @@
       case "describe": return `回复里要从 ${c.name} 的视角观察并写出 ${u} 此刻的表情、动作和神态（每次至少带一两处），作为 ${c.name} 反应的依据；但绝不替 ${u} 说新的话、做决定或推进 ${u} 没提到的行动。`;
       case "restate": return `回复开头先引用或复述一遍 ${u} 刚才说的话（可以用 ${c.name} 的口吻转述），再接着回应；只复述 ${u} 说过的原话，绝不替 ${u} 说没说过的话或做决定，也不描写 ${u} 的动作和表情。`;
       case "expand": return `每次回复开头，先用一两句话从 ${c.name} 的视角把 ${u} 刚才说的话和做的事重新描一遍，并补上合理的表情、动作和语气细节（不改变原意），然后才轮到 ${c.name} 回应；不要替 ${u} 说新的话、做重大决定或推进 ${u} 没提到的行动。`;
+      case "steal": return `可以替 ${u} 说话和行动：在回复里按 ${u} 的人设和当前情境，替 ${u} 补一两句合理的对白或小动作，让剧情往前走，${c.name} 也可以直接接着这些话反应；但改变剧情走向的大事（答应或拒绝关键请求、表白、离开、动手等）留给 ${u} 自己决定，不要替 ${u} 做。`;
       case "none": return "";
       default: return `只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定，也不描写 ${u} 的动作、表情或内心。`;
     }
