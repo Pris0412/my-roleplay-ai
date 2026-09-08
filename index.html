@@ -1838,6 +1838,14 @@
     return b;
   }
   function newBook(name) { return normalizeBook({ name: name || "新世界书", entries: [] }); }
+
+  // ---------- Floors: scene dividers live in the timeline but are not numbered ----------
+  function floorOf(c, i) { let f = 0; for (let k = 0; k <= i && k < c.chat.length; k++) if (c.chat[k].kind !== "divider") f++; return f; }
+  function floorCount(c) { return c.chat.reduce((n, m) => n + (m.kind === "divider" ? 0 : 1), 0); }
+  // number of timeline items up to and including floor f (a slice end); dividers right after floor f are left out
+  function idxAfterFloor(c, f) { if (f <= 0) return 0; let n = 0; for (let k = 0; k < c.chat.length; k++) { if (c.chat[k].kind !== "divider" && ++n === f) return k + 1; } return c.chat.length; }
+  // chat items from floor `from` to floor `to` inclusive, with the dividers that sit between them
+  function chatRange(c, from, to) { return c.chat.slice(idxAfterFloor(c, from - 1), idxAfterFloor(c, to)); }
   function newEntry(book) {
     const id = book.entries.reduce((m, e) => Math.max(m, typeof e.id === "number" ? e.id : 0), -1) + 1;
     return normalizeEntry({ id, keys: [], content: "", comment: "新条目", enabled: true }, id);
@@ -1898,7 +1906,7 @@
       if (f.type === "number") { const n = Number(String(v).replace(/[^\d.-]/g, "")); if (!Number.isNaN(n)) { f.value = Math.max(0, Math.min(100, Math.round(n))); changed = true; } }
       else { f.value = String(v ?? "").trim(); changed = true; }
     }
-    if (changed) st.updatedFloor = floor || c.chat.length;
+    if (changed) st.updatedFloor = floor || floorCount(c);
     return changed;
   }
   function statusSnapshot(c) { return JSON.parse(JSON.stringify({ fields: c.status.fields, voice: c.status.voice })); }
@@ -2445,7 +2453,7 @@
     const last = run[run.length - 1].m;
     const who = last.role === "user" ? (state.persona.name || "你") : c.name;
     const preview = last.pending ? "正在输入…" : `${who}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
-    pc.append(el("span", "ic", "📱"), (() => { const d = el("div"); d.appendChild(el("div", "t", `手机聊天 · ${run.length} 条`)); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${run[0].i + 1}–#${run[run.length - 1].i + 1}`));
+    pc.append(el("span", "ic", "📱"), (() => { const d = el("div"); d.appendChild(el("div", "t", `手机聊天 · ${run.length} 条`)); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${floorOf(c, run[0].i)}–#${floorOf(c, run[run.length - 1].i)}`));
     pc.onclick = () => openPhone(false);
     wrap.append(av, pc);
     return wrap;
@@ -2460,7 +2468,7 @@
     const meta = el("div", "meta");
     meta.appendChild(el("span", "who", isUser ? (state.persona.name || "你") : c.name));
     meta.appendChild(el("span", "time", fmtTime(m.ts)));
-    meta.appendChild(el("span", "floor", "#" + (index + 1)));
+    meta.appendChild(el("span", "floor", "#" + floorOf(c, index)));
     if (m.greeting) meta.appendChild(el("span", "tag", "开场白"));
     if (m.stopped) meta.appendChild(el("span", "tag", "已停止"));
     if (m.hidden) meta.appendChild(el("span", "tag", "已隐藏 · 不进上下文"));
@@ -2483,7 +2491,7 @@
         if (m.greeting) i = (i + m.swipes.length) % m.swipes.length;
         if (i < 0 || i >= m.swipes.length) return;
         m.si = i; m.content = m.swipes[i];
-        if (c.status && c.status.enabled && applyStatusFromText(c, m.content, c.chat.indexOf(m) + 1)) renderStatusStrip();
+        if (c.status && c.status.enabled && applyStatusFromText(c, m.content, floorOf(c, c.chat.indexOf(m)))) renderStatusStrip();
         save(); renderMessages(); renderCharList();
       };
       left.disabled = !m.greeting && m.si === 0;
@@ -2571,7 +2579,7 @@
 
   function updateStats() {
     const c = active();
-    if (c) $("chatStat").textContent = `${c.chat.length} 条消息 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字` + (c.memory && c.memory.lastFloor ? ` · 记忆已总结到第 ${c.memory.lastFloor} 楼` : "");
+    if (c) $("chatStat").textContent = `${floorCount(c)} 楼 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字` + (c.memory && c.memory.lastFloor ? ` · 记忆已总结到第 ${c.memory.lastFloor} 楼` : "");
     try {
       const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
       $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${(bytes / 1024).toFixed(0)} KB`;
@@ -2900,7 +2908,7 @@
     const mem = parseInt(state.settings.mem, 10) || 40;
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto);
     if (state.settings.memTrim && c.memory && c.memory.lastFloor > 0) {
-      const cut = Math.min(c.memory.lastFloor, Math.max(0, history.length - 4));
+      const cut = Math.min(idxAfterFloor(c, c.memory.lastFloor), Math.max(0, history.length - 4));
       history = history.slice(cut);
     }
     const kept = history.filter((m) => !m.error && !m.hidden).slice(-mem);
@@ -2947,12 +2955,12 @@
     }
     const inContext = kept.slice(dropped);
     const u = state.persona.name || "你";
-    for (const m of inContext) seg("history", `#${c.chat.indexOf(m) + 1} ${m.kind === "divider" ? "场景" : (m.channel === "phone" ? "📱 " : "") + (m.role === "user" ? u : c.name)}`, promptText(m, c));
+    for (const m of inContext) seg("history", `${m.kind === "divider" ? "场景" : "#" + floorOf(c, c.chat.indexOf(m)) + " "}${m.kind === "divider" ? "" : (m.channel === "phone" ? "📱 " : "") + (m.role === "user" ? u : c.name)}`, promptText(m, c));
     if (!ps && c.postHistory && c.postHistory.trim()) seg("fixed", "对话后指令", c.postHistory);
     for (let i = 0; i < turns.length; i++) turns[i] = { role: turns[i].role, content: turns[i].content };
     lastReport = {
       cap: CAP, total, instruction: bytes(turns[0].content), history: total - bytes(turns[0].content),
-      floors: inContext.length, firstFloor: inContext.length ? c.chat.indexOf(inContext[0]) + 1 : 0, lastFloor: inContext.length ? c.chat.indexOf(inContext[inContext.length - 1]) + 1 : 0,
+      floors: inContext.length, firstFloor: inContext.length ? floorOf(c, c.chat.indexOf(inContext.find((m) => m.kind !== "divider") || inContext[0])) : 0, lastFloor: inContext.length ? floorOf(c, c.chat.indexOf(inContext[inContext.length - 1])) : 0,
       hidden: c.chat.filter((m) => m.hidden).length, retrieved: retrieved.length, dropped, trimmedByMem: Math.max(0, history.filter((m) => !m.error && !m.hidden).length - mem),
       tokens: turns.reduce((n, t) => n + estTokens(t.content), 0),
       capTokens: isCustom() ? Math.max(1000, (state.api.maxContext || 32000) - (samplerParams().max_tokens || state.api.maxTokens || 2048)) : Math.round(CAP / 3),
@@ -3161,7 +3169,7 @@
       });
       setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
-      if (applyStatusFromText(c, res.text, c.chat.indexOf(msg) + 1)) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); }
+      if (applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); }
     } catch (e) {
       const dropSwipe = () => {
         if (target) { msg.swipes.pop(); msg.si = msg.swipes.length - 1; msg.content = msg.swipes[msg.si]; }
@@ -3583,13 +3591,16 @@
     const sig = c.chat.length + ":" + c.chat.reduce((n, m) => n + m.content.length, 0) + ":" + (state.persona.name || "");
     if (ragCache && ragCache.charId === c.id && ragCache.sig === sig) return ragCache;
     const docs = [], postings = new Map();
-    c.chat.forEach((m, i) => {
+    let fl = 0;
+    c.chat.forEach((m) => {
+      if (m.kind === "divider") return;
+      fl++;
       if (m.error) return;
       const text = plainText(m, c);
       if (!text) return;
       const toks = tokenize(text);
       const idx = docs.length;
-      docs.push({ m, floor: i + 1, len: toks.length, text });
+      docs.push({ m, floor: fl, len: toks.length, text });
       for (const t of toks) {
         let pl = postings.get(t);
         if (!pl) { pl = new Map(); postings.set(t, pl); }
@@ -3672,7 +3683,7 @@
     $("ragKCustom").value = kVal;
     $("ragQuery").value = "";
     $("ragHits").innerHTML = "";
-    $("hideUpto").value = Math.max(1, c.chat.length - 20);
+    $("hideUpto").value = Math.max(1, floorCount(c) - 20);
     renderContextPanel();
     $("ctxBack").hidden = false;
   }
@@ -3743,7 +3754,7 @@
     else if (pct > 0.75) adv.textContent = "上下文快满了。建议对早期楼层做「记忆总结」，然后隐藏它们；隐藏后仍能被下面的索引检索到。";
     else adv.textContent = "上下文余量充足。";
     const ix = ragIndex(c);
-    $("ragStat").textContent = `已索引 ${ix.docs.length} 楼 / 共 ${c.chat.length} 楼 · ${ix.postings.size} 个词项 · 其中隐藏 ${r.hidden} 楼仍可检索`;
+    $("ragStat").textContent = `已索引 ${ix.docs.length} 楼 / 共 ${floorCount(c)} 楼 · ${ix.postings.size} 个词项 · 其中隐藏 ${r.hidden} 楼仍可检索`;
   }
   function closeContext() { $("ctxBack").hidden = true; refreshContextMeter(); }
   function runRagSearch() {
@@ -3794,7 +3805,7 @@
   function memPromptTemplate() { return state.settings.memPrompt && state.settings.memPrompt.trim() ? state.settings.memPrompt : DEFAULT_MEM_PROMPT; }
   function memRange() {
     const c = active();
-    const n = c ? c.chat.length : 0;
+    const n = c ? floorCount(c) : 0;
     let from = parseInt($("memFrom").value, 10) || 1, to = parseInt($("memTo").value, 10) || n;
     from = Math.max(1, Math.min(from, n)); to = Math.max(from, Math.min(to, n));
     return { from, to, n };
@@ -3804,7 +3815,7 @@
     if (!c) return;
     const { from, to, n } = memRange();
     $("memFrom").value = from; $("memTo").value = to;
-    const chars = c.chat.slice(from - 1, to).reduce((s, m) => s + m.content.length, 0);
+    const chars = chatRange(c, from, to).reduce((s, m) => s + m.content.length, 0);
     $("memHint").textContent = `第 ${from}–${to} 楼，${to - from + 1} 条，约 ${chars} 字`;
     $("memStat").textContent = `共 ${n} 楼 · 已总结到第 ${c.memory.lastFloor || 0} 楼`;
     const b = memoryBook(c, false);
@@ -3814,8 +3825,8 @@
     const c = active();
     if (!c || busy) return;
     const last = c.memory.lastFloor || 0;
-    $("memFrom").value = Math.min(last + 1, c.chat.length);
-    $("memTo").value = c.chat.length;
+    $("memFrom").value = Math.max(1, Math.min(last + 1, floorCount(c)));
+    $("memTo").value = floorCount(c);
     $("memPrompt").value = memPromptTemplate();
     $("memResult").value = "";
     $("memGen").disabled = !chatReady();
@@ -3827,7 +3838,8 @@
   function buildMemPrompt(c) {
     const { from, to } = memRange();
     const u = state.persona.name || "用户";
-    const lines = c.chat.slice(from - 1, to).map((m, i) => m.kind === "divider" ? `#${from + i} （${sub(m.content, c)}）` : `#${from + i} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`).join("\n\n");
+    let fl = from - 1;
+    const lines = chatRange(c, from, to).map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `#${++fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`).join("\n\n");
     const book = memoryBook(c, false);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
     let prompt = $("memPrompt").value || DEFAULT_MEM_PROMPT;
@@ -5119,8 +5131,9 @@
   $("ragQuery").addEventListener("input", () => { if (!$("ragQuery").value.trim()) $("ragHits").innerHTML = ""; });
   $("hideApply").onclick = () => {
     const c = active(); if (!c) return;
-    const upto = Math.max(0, Math.min(c.chat.length, parseInt($("hideUpto").value, 10) || 0));
-    c.chat.forEach((m, i) => { if (i < upto) m.hidden = true; });
+    const upto = Math.max(0, Math.min(floorCount(c), parseInt($("hideUpto").value, 10) || 0));
+    const end = idxAfterFloor(c, upto);
+    c.chat.forEach((m, i) => { if (i < end && m.kind !== "divider") m.hidden = true; });
     save(); renderMessages(); renderContextPanel();
     toast(`已隐藏第 1–${upto} 楼`);
   };
