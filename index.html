@@ -2019,7 +2019,7 @@
     </div>
     <div class="modal-body">
       <div class="help" id="castHint"></div>
-      <div class="row" style="gap:6px"><button class="btn ghost" id="castAll" style="font-size:12px;padding:3px 8px">全选</button><button class="btn ghost" id="castNone" style="font-size:12px;padding:3px 8px">全不选</button></div>
+      <div class="row" style="gap:6px"><button class="btn" id="castAsk" style="font-size:12px;padding:3px 10px">🤖 让模型判断</button><span class="spacer"></span><button class="btn ghost" id="castAll" style="font-size:12px;padding:3px 8px">全选</button><button class="btn ghost" id="castNone" style="font-size:12px;padding:3px 8px">全不选</button></div>
       <div class="rx-list" id="castList"></div>
       <div class="help">只管通讯录里的人；路人、群众不用标，模型可以随便写。</div>
     </div>
@@ -8135,22 +8135,26 @@
     if (!blocks.length) return false;
     const names = castNameMap(c);
     const came = new Set(), left = new Set();
-    for (const b of blocks) for (const raw of b[1].split(/[;；\n,，]/)) {
+    let full = null; // "在场：阿桥、司晨阳" → a complete list
+    for (const b of blocks) for (const raw of b[1].split(/[;；\n]/)) {
       const t = raw.trim(); if (!t) continue;
+      const fm = t.match(/^(?:在场|现在在场|此刻在场)\s*[:：]\s*(.*)$/);
+      if (fm) { full = new Set(); for (const nm of fm[1].split(/[、,，\s/]+/)) { const id = names.get(nm.trim()); if (id) full.add(id); } continue; }
       const mt = t.match(/^(.+?)\s*(来了|到了|进来了?|出现了?|回来了|加入|走了|离开了?|离场|退场|离去|出去了)$/);
       if (!mt) continue;
       const id = names.get(mt[1].trim());
       if (!id) continue;
       if (/走|离|退|出去/.test(mt[2])) { left.add(id); came.delete(id); } else { came.add(id); left.delete(id); }
     }
-    if (!came.size && !left.size) return false;
+    if (!full && !came.size && !left.size) return false;
     // a re-roll replaces what the previous swipe reported
     if (msg) c.chat = c.chat.filter((d) => !(d.kind === "divider" && d.cast && d.fromMsg === msg.id));
     const cur = presentNow(c);
-    const ids = [...new Set([...(cur ? cur.ids : []), ...came])].filter((id) => !left.has(id));
+    const base = full ? [...full] : (cur ? cur.ids : []);
+    const ids = [...new Set([...base, ...came])].filter((id) => !left.has(id));
     const d = setPresent(c, ids, msg ? msg.id : null);
     if (!d) return false;
-    toastUndo(d.content.replace(/^👥 /, "在场：") , () => { c.chat = c.chat.filter((x) => x.id !== d.id); save(); renderMessages(); renderCharList(); renderCastChip(); });
+    toastUndo(d.content.replace(/^👥 /, "在场：").replace(/\{\{user\}\}/g, state.persona.name || "你"), () => { c.chat = c.chat.filter((x) => x.id !== d.id); save(); renderMessages(); renderCharList(); renderCastChip(); });
     return true;
   }
   function toastUndo(text, onUndo) {
@@ -8172,7 +8176,7 @@
       return `## 现在在场\n除了 ${c.name} 和 ${u}，此刻在场的通讯录人物：${here.length ? "\n" + here.map(line).join("\n") : "没有"}\n（在场的人由你代为演出，按各自的性格和说话方式来。）\n${rule}`;
     }
     const fallback = recentCastInstruction(c, history);
-    return (fallback ? fallback + "\n" : "") + `## 在场标记\n${rule}`;
+    return (fallback ? fallback + "\n" : "") + `## 在场标记\n还没有确定的在场名单。这次回复的最末尾请另起一行报一份完整名单：<cast>在场：名字、名字</cast>（除了 ${c.name} 和 ${u} 之外此刻在场的通讯录人物；一个都没有就写 <cast>在场：无</cast>）。名字只限 ${c.npcs.map((n) => n.name).join(" / ")}，路人不算。之后：${rule}`;
   }
   // composer chip
   function renderCastChip() {
@@ -8196,6 +8200,23 @@
     $("castHint").textContent = p ? "勾选此刻在场的人。页面会自动算出谁来了、谁走了，写成一条分隔线。" : "还没标过。勾选此刻在场的人；之后模型写到有人来了或走了会自动更新，你随时能改。";
     $("castBack").hidden = false;
   }
+  async function castAsk() {
+    const c = active(); if (!c || busy || !chatReady()) return;
+    const u = state.persona.name || "用户";
+    const recent = c.chat.filter((m) => !m.npc && !m.group && !isMoment(m) && m.kind !== "divider" && !m.error).slice(-20);
+    const lines = recent.map((m) => `${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").slice(0, 300)}`).join("\n");
+    const prompt = `下面是一段角色扮演的最近对话。判断在最后一楼的时刻，除了「${c.name}」和「${u}」之外，下面这些人物里哪些正在现场（同一个地方、能直接交谈）：${c.npcs.map((n) => n.name + (n.aliases && n.aliases.length ? `（别名：${n.aliases.join("、")}）` : "")).join("、")}。只被提到、打电话、发消息、已经离开的都不算在场。\n\n只输出 JSON：{"present":["名字", ...]}，没有人就 {"present":[]}。\n\n=== 对话 ===\n${lines}`;
+    const btn = $("castAsk"); btn.disabled = true; btn.textContent = "判断中…";
+    try {
+      const v = await completeJson(prompt, { tier: state.settings.tier });
+      const names = castNameMap(c);
+      const ids = new Set((v && Array.isArray(v.present) ? v.present : []).map((nm) => names.get(String(nm).trim())).filter(Boolean));
+      $("castList").querySelectorAll("input").forEach((x) => { x.checked = ids.has(x.dataset.id); });
+      $("castHint").textContent = ids.size ? `模型认为在场：${[...ids].map((id) => npcName(c, id)).join("、")}。不对就改，然后点确定。` : "模型认为现在没有通讯录人物在场。不对就勾，然后点确定。";
+    } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
+    finally { btn.disabled = false; btn.textContent = "🤖 让模型判断"; }
+  }
+  $("castAsk").onclick = castAsk;
   $("castChip").onclick = openCast;
   $("castClose").onclick = () => { $("castBack").hidden = true; };
   $("castAll").onclick = () => { $("castList").querySelectorAll("input").forEach((x) => { x.checked = true; }); };
