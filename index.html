@@ -657,6 +657,7 @@
   .section { display: flex; flex-direction: column; gap: 10px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+  .stat.warn { color: var(--danger); }
 
   /* ---------- Modal ---------- */
   .modal-back {
@@ -847,6 +848,7 @@
         <input type="file" id="importFile" accept=".png,.json,image/png,application/json" multiple hidden>
       </div>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
+      <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
       <div class="stat" id="storeStat">本地保存 · 仅此浏览器</div>
     </div>
   </aside>
@@ -869,6 +871,7 @@
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
         <button class="btn ghost" id="openLib" title="世界书 · 预设 · 正则（对所有角色生效）">全局库</button>
         <button class="btn ghost icon" id="bgBtn" title="聊天背景" aria-label="聊天背景">🖼</button>
+        <button class="btn ghost" id="saveBtn" title="存档 / 读档：在这里存个档，之后随时回到这条线">存档</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
       </div>
@@ -1941,6 +1944,24 @@
   </div>
 </div>
 
+<div class="modal-back" id="saveBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saveTitle" style="width:min(560px,100%)">
+    <div class="modal-head">
+      <span id="saveTitle">存档</span>
+      <button class="btn ghost icon" id="saveClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <input id="saveName" placeholder="存档名" style="flex:1;min-width:0">
+        <button class="btn primary" id="saveNew">＋ 在这里存档</button>
+      </div>
+      <div class="help">存档记录对话、状态面板、关系、NPC、群、记忆书和记忆索引；角色设定和世界书不受影响。读档前会自动留一份「读档前」，回溯、重开前也会自动留一份。</div>
+      <div class="rx-list" id="saveList"></div>
+      <div class="stat" id="saveStat"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -2265,18 +2286,56 @@
   }
   async function truncateAfter(c, index) {
     const removed = c.chat.slice(index + 1);
+    if (removed.some((m) => m.kind !== "divider")) makeSave(c, `自动 · 回溯前（第 ${floorCount(c)} 楼）`, "rollback");
+    const lo = floorOf(c, index) + 1;
     c.chat = c.chat.slice(0, index + 1);
     if (c.phone) c.phone.open = phoneStillOpen(c);
     c.scene = sceneFromDividers(c);
     save(); renderMessages(); renderCharList();
     if (!$("phoneBack").hidden) renderPhone();
     await rollbackStatusAfterDelete(c, removed);
+    await rollbackMemoryAfterDelete(c, removed, lo, true);
   }
   async function deleteFloor(c, m) {
+    const idx = c.chat.indexOf(m);
+    const tail = idx >= 0 && c.chat.slice(idx + 1).every((x) => x.kind === "divider");
+    const lo = idx >= 0 ? floorOf(c, idx) : 0;
     c.chat = c.chat.filter((x) => x.id !== m.id);
     save(); renderMessages(); renderCharList();
     if (!$("phoneBack").hidden) renderPhone();
     await rollbackStatusAfterDelete(c, [m]);
+    await rollbackMemoryAfterDelete(c, [m], lo, tail);
+  }
+  // After floors are deleted: memory summaries that covered them now describe things that never happened.
+  // On a tail cut (回溯 / deleting the last floor) offer to drop those entries; always clamp the "summarised up to" marker.
+  async function rollbackMemoryAfterDelete(c, removed, lo, tail) {
+    if (!c.memory) return;
+    const n = floorCount(c);
+    const ids = new Set(c.chat.map((m) => m.id));
+    const stale = [];
+    if (tail && removed.some((m) => m.kind !== "divider")) {
+      for (const b of c.books) {
+        if (!b.memory) continue;
+        for (const e of b.entries) {
+          const x = e.extensions || {};
+          const r = Array.isArray(x.memory_range) ? x.memory_range : null;
+          const ms = Array.isArray(x.memory_msgs) ? x.memory_msgs : null;
+          if (r && Number(r[1]) >= lo) stale.push({ b, e, why: `第 ${r[0]}–${r[1]} 楼` });
+          else if (ms && ms.length && !ids.has(ms[ms.length - 1])) stale.push({ b, e, why: b.name });
+        }
+      }
+    }
+    if (stale.length) {
+      const names = stale.slice(0, 4).map((s) => `「${s.e.comment}」`).join("、") + (stale.length > 4 ? ` 等 ${stale.length} 条` : "");
+      if (await askConfirm(`有 ${stale.length} 条记忆总结覆盖了刚删掉的楼层：${names}。要一起删掉这些总结吗？不删的话，TA 会继续记得那些已经不存在的剧情。`, "删掉总结", true)) {
+        for (const s of stale) s.b.entries = s.b.entries.filter((e) => e !== s.e);
+        const minFrom = Math.min(...stale.map((s) => { const r = s.e.extensions && s.e.extensions.memory_range; return r ? Number(r[0]) : Infinity; }));
+        if (minFrom !== Infinity) c.memory.lastFloor = Math.min(c.memory.lastFloor || 0, Math.max(0, minFrom - 1));
+        toast(`已删掉 ${stale.length} 条过期的记忆总结`);
+      }
+    }
+    if ((c.memory.lastFloor || 0) > n) c.memory.lastFloor = n;
+    save(); updateStats();
   }
   const markStatusManual = (c) => { if (c && c.status) c.status.manualTs = Date.now(); };
   // After floors are deleted: if any of them carried a status snapshot, the panel came from them,
@@ -2315,6 +2374,7 @@
     c.scene = c.scene && typeof c.scene === "object" ? (Array.isArray(c.scene.npcs) && c.scene.npcs.length ? { npcs: c.scene.npcs.map(String) } : c.scene.npc ? { npcs: [String(c.scene.npc)] } : null) : null;
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.memory.npcDone = c.memory.npcDone && typeof c.memory.npcDone === "object" ? c.memory.npcDone : {};
+    c.saves = Array.isArray(c.saves) ? c.saves.filter((s) => s && s.data && typeof s.data === "object") : [];
     c.usage = c.usage && typeof c.usage === "object" ? { prompt: Number(c.usage.prompt) || 0, completion: Number(c.usage.completion) || 0, calls: Number(c.usage.calls) || 0, real: Number(c.usage.real) || 0 } : { prompt: 0, completion: 0, calls: 0, real: 0 };
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
     c.creatorNotes = c.creatorNotes || "";
@@ -3047,7 +3107,10 @@
     if (c) $("chatStat").textContent = `${floorCount(c)} 楼 · ${c.chat.reduce((n, m) => n + m.content.length, 0)} 字` + (c.memory && c.memory.lastFloor ? ` · 记忆已总结到第 ${c.memory.lastFloor} 楼` : "");
     try {
       const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
-      $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${(bytes / 1024).toFixed(0)} KB`;
+      const d = daysSinceBackup();
+      const bk = d == null ? "从未备份" : d === 0 ? "今天备份过" : `上次备份 ${d} 天前`;
+      $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${(bytes / 1024).toFixed(0)} KB · ${bk}`;
+      $("storeStat").classList.toggle("warn", backupWorthIt() && (d == null || d >= 7));
     } catch (e) {
       $("storeStat").textContent = "本地保存不可用（隐私模式？）";
     }
@@ -5723,6 +5786,7 @@
     $("input").disabled = on;
     $("editChar").disabled = on;
     $("resetChat").disabled = on;
+    $("saveBtn").disabled = on;
     $("inspire").disabled = on;
     $("memBtn").disabled = on;
     $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on; $("phoneRedo").disabled = on; $("phoneGroupEdit").disabled = on; $("phoneSpeaker").disabled = on;
@@ -6676,13 +6740,7 @@
   $("apiContext").addEventListener("change", (e) => { state.api.maxContext = Math.max(2000, parseInt(e.target.value, 10) || 32000); e.target.value = state.api.maxContext; save(); refreshContextMeter(); });
   $("apiFollowPreset").addEventListener("change", (e) => { state.api.followPreset = e.target.checked; save(); });
   $("apiTest").onclick = apiTest;
-  $("dataExport").onclick = async () => {
-    const json = JSON.stringify(exportAllData(), null, 2);
-    const name = "lantern-tavern-backup-" + new Date().toISOString().slice(0, 10) + ".json";
-    if (downloads) { try { await downloads.save({ filename: name, data: json }); toast("已备份"); } catch (e) { if (e && e.code !== "cancelled") toast("备份失败：" + (e.message || e.code), true); } return; }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    toast("已备份");
-  };
+  $("dataExport").onclick = backupAll;
   $("dataImport").onclick = () => $("dataFile").click();
   $("dataFile").addEventListener("change", async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) await importAllData(f); });
 
@@ -6793,9 +6851,11 @@
   $("resetChat").onclick = async () => {
     const c = active();
     if (!c || busy) return;
-    if (c.chat.length > 1 && !(await askConfirm(`清空和 ${c.name} 的对话，回到开场白？`, "重开"))) return;
+    if (c.chat.length > 1 && !(await askConfirm(`清空和 ${c.name} 的对话，回到开场白？重开前会自动留一份存档。`, "重开"))) return;
     if (busy) return;
+    if (c.chat.length > 1) makeSave(c, `自动 · 重开前（第 ${floorCount(c)} 楼）`, "reset");
     c.chat = [greeting(c)];
+    c.memory.lastFloor = 0;
     save(); renderMessages(); renderCharList();
   };
   async function deleteCharacter(c) {
@@ -7050,9 +7110,110 @@
   applyPanels();
 
   // ============================================================
+  // Save slots (存档): snapshot the chat-side of a character and go back later
+  // ============================================================
+  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups"];
+  function deep(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  function saveSnapshot(c) {
+    const d = {};
+    for (const k of SAVE_FIELDS) if (c[k] !== undefined) d[k] = deep(c[k]);
+    d.books = deep(c.books.filter((b) => b.memory));
+    return d;
+  }
+  function makeSave(c, name, auto) {
+    c.saves = Array.isArray(c.saves) ? c.saves : [];
+    const data = saveSnapshot(c);
+    const s = { id: auto ? "auto:" + auto : uid(), name, ts: Date.now(), floors: floorCount(c), auto: !!auto, bytes: JSON.stringify(data).length, data };
+    if (auto) c.saves = c.saves.filter((x) => x.id !== s.id);
+    c.saves.push(s);
+    save();
+    return s;
+  }
+  async function loadSave(c, s) {
+    if (busy) return;
+    if (!(await askConfirm(`回到存档「${s.name}」（第 ${s.floors} 楼）？当前进度会先自动存成「读档前」，随时能再回来。`, "读档"))) return;
+    makeSave(c, `自动 · 读档前（第 ${floorCount(c)} 楼）`, "load");
+    const d = s.data;
+    for (const k of SAVE_FIELDS) if (d[k] !== undefined) c[k] = deep(d[k]);
+    c.books = [...c.books.filter((b) => !b.memory), ...deep(d.books || [])];
+    try { normalizeChar(c); } catch (e) { console.error(e); }
+    if (c.phone) c.phone.open = phoneStillOpen(c);
+    c.scene = sceneFromDividers(c);
+    save(); renderAll(); renderStatusStrip();
+    if (!$("phoneBack").hidden) renderPhone();
+    renderSaves(c);
+    toast(`已回到「${s.name}」`);
+  }
+  function fmtBytes(n) { return n > 1024 * 1024 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+  function fmtWhen(ts) { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+  function renderSaves(c) {
+    const box = $("saveList"); box.innerHTML = "";
+    const list = (c.saves || []).slice().sort((a, b) => b.ts - a.ts);
+    if (!list.length) { box.appendChild(el("div", "rx-empty", "还没有存档。下面起个名字点「在这里存档」，回溯和读档时也会自动留一份。")); }
+    for (const s of list) {
+      const row = el("div", "rx-row"); row.style.gridTemplateColumns = "minmax(0,1fr) auto auto auto";
+      const nm = el("span", "nm", s.name); nm.title = s.name; nm.appendChild(el("small", null, `第 ${s.floors} 楼 · ${fmtWhen(s.ts)} · ${fmtBytes(s.bytes || 0)}`)); row.appendChild(nm);
+      const ld = el("button", "btn primary", "读档"); ld.style.cssText = "padding:3px 10px;font-size:12px"; ld.onclick = () => loadSave(c, s); row.appendChild(ld);
+      const rn = el("button", "btn ghost", "改名"); rn.style.cssText = "padding:3px 8px;font-size:12px";
+      rn.onclick = () => {
+        const inp = document.createElement("input"); inp.value = s.name; inp.style.cssText = "min-width:0;width:100%";
+        const done = (commit) => { if (commit && inp.value.trim()) { s.name = inp.value.trim(); s.auto = false; if (s.id.startsWith("auto:")) s.id = uid(); save(); } renderSaves(c); };
+        inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); done(true); } if (e.key === "Escape") { e.stopPropagation(); done(false); } };
+        inp.onblur = () => done(true);
+        nm.replaceWith(inp); inp.focus(); inp.select();
+      };
+      row.appendChild(rn);
+      const del = el("button", "btn ghost", "删除"); del.style.cssText = "padding:3px 8px;font-size:12px;color:var(--danger)"; del.onclick = async () => { if (await askConfirm(`删除存档「${s.name}」？`, "删除", true)) { c.saves = c.saves.filter((x) => x.id !== s.id); save(); renderSaves(c); } }; row.appendChild(del);
+      box.appendChild(row);
+    }
+    const total = (c.saves || []).reduce((n, s) => n + (s.bytes || 0), 0);
+    $("saveStat").textContent = `${(c.saves || []).length} 个存档 · 共 ${fmtBytes(total)} · 都存在这个浏览器里，记得定期「备份全部」`;
+    $("saveName").placeholder = `第 ${floorCount(c)} 楼 · ${fmtWhen(Date.now())}`;
+  }
+  function openSaves() {
+    const c = active(); if (!c) return;
+    $("saveTitle").textContent = `存档 · ${c.name}`;
+    $("saveName").value = "";
+    renderSaves(c);
+    $("saveBack").hidden = false;
+  }
+  $("saveBtn").onclick = openSaves;
+  $("saveClose").onclick = () => { $("saveBack").hidden = true; };
+  $("saveNew").onclick = () => {
+    const c = active(); if (!c) return;
+    const name = $("saveName").value.trim() || $("saveName").placeholder;
+    makeSave(c, name);
+    $("saveName").value = "";
+    renderSaves(c);
+    toast(`已存档「${name}」`);
+  };
+  $("saveName").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("saveNew").click(); } });
+
+  // ============================================================
+  // Backup reminder
+  // ============================================================
+  async function backupAll() {
+    const json = JSON.stringify(exportAllData(), null, 2);
+    const name = "lantern-tavern-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    if (downloads) {
+      try { await downloads.save({ filename: name, data: json }); }
+      catch (e) { if (e && e.code !== "cancelled") toast("备份失败：" + (e.message || e.code), true); return; }
+    } else {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    }
+    state.lastBackup = Date.now();
+    save();
+    toast("已备份全部数据");
+  }
+  function daysSinceBackup() { return state.lastBackup ? Math.floor((Date.now() - state.lastBackup) / 86400000) : null; }
+  function backupWorthIt() { return state.characters.reduce((n, c) => n + floorCount(c), 0) >= 10; }
+  $("backupBtn").onclick = backupAll;
+
+  // ============================================================
   // Boot
   // ============================================================
   renderAll();
+  { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
   refreshGlobalRx();
   renderGlobalBooks();
   renderPresetSelect();
