@@ -1411,10 +1411,12 @@
         </div>
       </div>
       <div class="section">
-        <div class="section-title">这次会发给模型的内容</div>
-        <div class="meter" id="ctxMeter"><span style="width:0"></span></div>
+        <div class="section-title">用量</div>
         <dl class="kv" id="ctxKv"></dl>
-        <div class="book-note" id="ctxAdvice"></div>
+        <div class="book-note" id="ctxAdvice" hidden></div>
+      </div>
+      <div class="section">
+        <div class="section-title">隐藏楼层</div>
         <div class="wi-toolbar">
           <span class="pill-select">隐藏第 1 楼到第 <input id="hideUpto" type="number" min="1" class="mono" style="width:80px;padding:4px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"> 楼</span>
           <button class="btn" id="hideApply">隐藏</button>
@@ -2287,6 +2289,7 @@
     c.scene = c.scene && typeof c.scene === "object" ? (Array.isArray(c.scene.npcs) && c.scene.npcs.length ? { npcs: c.scene.npcs.map(String) } : c.scene.npc ? { npcs: [String(c.scene.npc)] } : null) : null;
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.memory.npcDone = c.memory.npcDone && typeof c.memory.npcDone === "object" ? c.memory.npcDone : {};
+    c.usage = c.usage && typeof c.usage === "object" ? { prompt: Number(c.usage.prompt) || 0, completion: Number(c.usage.completion) || 0, calls: Number(c.usage.calls) || 0, real: Number(c.usage.real) || 0 } : { prompt: 0, completion: 0, calls: 0, real: 0 };
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
     c.creatorNotes = c.creatorNotes || "";
     c.creator = c.creator || "";
@@ -3550,17 +3553,36 @@
     return { text: (reasoning ? `<think>${reasoning}</think>\n` : "") + text, truncated: finish === "length" };
   }
   // One entry point for every place that needs a completion. `input` is a turn list or a plain prompt string.
+  // running token total for the active character: real usage when the API reports it, estimates otherwise
+  function recordUsage(inputText, outputText, startedAt) {
+    const c = active(); if (!c) return;
+    c.usage = c.usage && typeof c.usage === "object" ? c.usage : { prompt: 0, completion: 0, calls: 0, real: 0 };
+    const lu = state.lastUsage;
+    const real = isCustom() && lu && lu.at >= startedAt;
+    c.usage.prompt += real ? lu.prompt : estTokens(inputText || "");
+    c.usage.completion += real ? lu.completion : estTokens(outputText || "");
+    c.usage.calls += 1;
+    if (real) c.usage.real += 1;
+    save();
+  }
+  const inputAsText = (input) => (typeof input === "string" ? input : input.map((t) => t.content).join("\n"));
   async function complete(input, { onText, signal, tier } = {}) {
+    const t0 = Date.now();
     if (isCustom()) {
       const messages = typeof input === "string" ? [{ role: "user", content: input }] : input;
-      return apiChat(messages, { onText, signal });
+      const out = await apiChat(messages, { onText, signal });
+      recordUsage(inputAsText(input), out.text, t0);
+      return out;
     }
     const res = await sample(typeof input === "string" ? input : forBackend(input), { cache: false, modelTier: tier || state.settings.tier, signal, onText });
+    recordUsage(inputAsText(input), res.text, t0);
     return { text: res.text, truncated: !!res.truncated, modelTierApplied: res.modelTierApplied };
   }
   async function completeJson(prompt, { signal, tier } = {}) {
-    if (!isCustom()) return sample.json(prompt, { cache: false, modelTier: tier || state.settings.tier, signal });
+    const t0 = Date.now();
+    if (!isCustom()) { const v = await sample.json(prompt, { cache: false, modelTier: tier || state.settings.tier, signal }); recordUsage(prompt, JSON.stringify(v), t0); return v; }
     const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字。" }], { signal });
+    recordUsage(prompt, text, t0);
     const body = stripReasoning(text);
     const tryParse = (t) => { try { return JSON.parse(t); } catch (e) { return undefined; } };
     let v = tryParse(body);
@@ -5083,10 +5105,8 @@
     try { { const scl = sceneNpcs(c); buildTurns(c, undefined, scl.length ? scl[0].id : null, !!scl.length, scl.map((n) => n.id)); } } catch (e) { return; }
     const r = lastReport;
     if (!r) return;
-    const pct = r.total / r.cap;
-    const tpct = r.tokens / r.capTokens;
-    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}`;
-    btn.classList.toggle("warn", pct > 0.75 || tpct > 0.75 || r.dropped > 0);
+    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}${r.dropped ? ` · 丢了 ${r.dropped} 楼` : ""}`;
+    btn.classList.toggle("warn", r.dropped > 0);
   }
   function openContext() {
     const c = active();
@@ -5138,7 +5158,7 @@
     row("total", "合计", r.segments.reduce((n, x) => n + x.chars, 0), r.tokens, null);
     const lu = state.lastUsage;
     $("tokNote").textContent = tokCalib() !== 1 ? `· 已按接口返回的真实用量校准（×${tokCalib().toFixed(2)}）` : "· 估算：中文约 1 字 1 token，英文约 4 字节 1 token";
-    $("tokHelp").textContent = lu ? `上一次请求接口实际计费：输入 ${fmtTok(lu.prompt)} token，输出 ${fmtTok(lu.completion)} token（${lu.model || ""}）。` : (isCustom() ? "发过一条消息后，这里会显示接口返回的真实 prompt_tokens，并用它校准估算。" : "页内 Claude 接口不返回用量，这里只能估算；上限按 64 KB 换算。");
+    $("tokHelp").textContent = lu ? `上一次请求接口实际计费：输入 ${fmtTok(lu.prompt)} token，输出 ${fmtTok(lu.completion)} token（${lu.model || ""}）。` : (isCustom() ? "发过一条消息后，这里会显示接口返回的真实 prompt_tokens，并用它校准估算。" : "页内 Claude 接口不返回用量，这里只能估算。");
   }
   function renderContextPanel() {
     const c = active();
@@ -5150,25 +5170,16 @@
     $("tokToggle").textContent = showTok ? "隐藏" : "显示";
     $("tokNote").textContent = showTok ? "" : `· 合计 ≈${fmtTok(r.tokens)} token`;
     if (showTok) renderTokenTable(r);
-    const pct = Math.min(1, r.total / r.cap);
-    const meter = $("ctxMeter");
-    meter.querySelector("span").style.width = (pct * 100).toFixed(1) + "%";
-    meter.classList.toggle("warn", pct > 0.75 || r.dropped > 0);
     const kv = $("ctxKv");
     kv.innerHTML = "";
     const add = (k, v) => { kv.appendChild(el("dt", null, k)); kv.appendChild(el("dd", null, v)); };
-    add("合计", `${fmtKB(r.total)} / ${fmtKB(r.cap)}（${Math.round(pct * 100)}%）`);
-    add("上限来源", isCustom() ? `接口设置的上下文窗口 ${state.api.maxContext || 32000} token，扣掉回复预留后按 1 token ≈ 3 字节估算` : "页内 Claude 接口的固定输入上限 64 KB");
-    add("角色设定 + 世界书 + 记忆", fmtKB(r.instruction));
-    add("对话历史", `${fmtKB(r.history)} · ${r.floors} 楼（第 ${r.firstFloor}–${r.lastFloor} 楼）`);
-    add("检索带入", `${r.retrieved} 楼`);
-    add("已隐藏", `${r.hidden} 楼`);
-    if (r.trimmedByMem) add("被「带入消息数」截掉", `${r.trimmedByMem} 楼`);
-    if (r.dropped) add("因超出上限被丢弃", `${r.dropped} 楼`);
+    const us = c.usage || { prompt: 0, completion: 0, calls: 0, real: 0 };
+    add("本对话累计", `输入 ≈${fmtTok(us.prompt)} · 输出 ≈${fmtTok(us.completion)} · 共 ${fmtTok(us.prompt + us.completion)} token · ${us.calls} 次调用${us.calls ? (us.real === us.calls ? "（接口真实用量）" : us.real ? `（${us.real} 次为真实用量，其余估算）` : "（估算）") : ""}`);
+    add("这次将发送", `≈${fmtTok(r.tokens)} token · 设定/世界书/记忆 ${fmtKB(r.instruction)} · 对话 ${fmtKB(r.history)}`);
+    add("对话历史", `${r.floors} 楼（第 ${r.firstFloor}–${r.lastFloor} 楼）${r.retrieved ? ` · 检索带入 ${r.retrieved} 楼` : ""}${r.hidden ? ` · 已隐藏 ${r.hidden} 楼` : ""}${r.trimmedByMem ? ` · 被「带入消息数」截掉 ${r.trimmedByMem} 楼` : ""}`);
     const adv = $("ctxAdvice");
-    if (r.dropped) adv.textContent = `上下文超出上限，最早的 ${r.dropped} 楼已被丢弃。建议先做「记忆总结」，再隐藏已总结的楼层。`;
-    else if (pct > 0.75) adv.textContent = "上下文快满了。建议对早期楼层做「记忆总结」，然后隐藏它们；隐藏后仍能被下面的索引检索到。";
-    else adv.textContent = "上下文余量充足。";
+    adv.hidden = !r.dropped;
+    if (r.dropped) adv.textContent = `最早的 ${r.dropped} 楼这次没带上（超出接口能接受的长度）。建议先做「记忆总结」，再隐藏已总结的楼层。`;
     const ix = ragIndex(c);
     $("ragStat").textContent = `已索引 ${ix.docs.length} 楼 / 共 ${floorCount(c)} 楼 · ${ix.postings.size} 个词项 · 其中隐藏 ${r.hidden} 楼仍可检索`;
   }
