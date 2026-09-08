@@ -1305,7 +1305,7 @@
     </div>
     <div class="modal-body">
       <div class="stat" id="memStat"></div>
-      <div class="row">
+      <div class="row" id="memRangeRow">
         <div class="field">
           <label for="memFrom">起始楼</label>
           <input id="memFrom" type="number" min="1" class="mono">
@@ -1320,7 +1320,7 @@
         <div class="inner">
           <div class="field">
             <textarea id="memPrompt" style="min-height:180px" class="mono"></textarea>
-            <div class="help">可用占位符：{{char}} {{user}} {{range}}（如 1-20）{{messages}}（这段楼层的原文）{{previous}}（此前的记忆摘要）。改动会保存。</div>
+            <div class="help">可用占位符：{{char}} {{user}} {{range}}（如 1-20）{{messages}}（这段楼层的原文）{{previous}}（此前的记忆摘要）；NPC 私聊总结另有一套模板，多一个 {{npc}}。改动会保存。</div>
           </div>
           <button class="btn ghost" id="memPromptReset">恢复默认提示词</button>
         </div>
@@ -1762,6 +1762,27 @@
   </div>
 </div>
 
+<div class="modal-back" id="tellBack" hidden style="z-index:59">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tellTitle" style="width:min(520px,100%)">
+    <div class="modal-head">
+      <span id="tellTitle">转述给主角</span>
+      <button class="btn ghost icon" id="tellClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help" id="tellHint"></div>
+      <div class="field">
+        <textarea id="tellText" style="min-height:110px"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right">
+        <button class="btn" id="tellCancel">取消</button>
+        <button class="btn primary" id="tellGo">当面告诉主角</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="phone-back" id="phoneBack" hidden>
   <div class="phone" id="phone" role="dialog" aria-modal="true" aria-label="手机">
     <div class="phone-head">
@@ -1776,6 +1797,8 @@
     <div class="phone-tools">
       <button class="btn" id="phoneNudge" title="根据当前剧情，让对方先发消息">让 TA 先开口</button>
       <button class="btn ghost" id="phoneWait" title="过一会儿再看：对方可能会继续发消息">过一会儿…</button>
+      <button class="btn ghost" id="phoneMemo" title="把这段私聊压成记忆，只有这个 NPC 看得到" hidden>总结私聊</button>
+      <button class="btn ghost" id="phoneTell" title="把私聊里的事当面告诉主角" hidden>转述给主角</button>
       <span class="spacer" style="flex:1"></span>
       <button class="btn ghost" id="phoneContacts" title="联系人：角色和可以私聊的 NPC">👥</button>
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
@@ -2860,7 +2883,7 @@
       default: return hits.some(Boolean);    // AND ANY
     }
   }
-  function activeLore(c, history) {
+  function activeLore(c, history, audience) {
     const bound = c && c.worldName ? (state.books || []).filter((b) => b && b.name === c.worldName) : [];
     const globals = (state.books || []).filter((b) => b && b.enabled !== false && !bound.includes(b));
     const own = c ? (c.books || []).filter((b) => b.enabled !== false) : [];
@@ -2878,6 +2901,12 @@
         for (const e of book.entries) {
           const key = bi + ":" + e.id;
           if (seen.has(key) || !e.enabled || !e.content.trim()) continue;
+          if (book.memory) {
+            // memory entries carry a visibility: the character, everyone, or one NPC
+            const sc = entryScope(e);
+            const ok = audience ? (sc === "public" || sc === "npc:" + audience) : (sc === "char" || sc === "public");
+            if (!ok) continue;
+          }
           let hit = e.constant;
           if (!hit) {
             if (pass > 0 && (!book.recursive_scanning || e.exclude_recursion)) continue;
@@ -3574,6 +3603,7 @@
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
       brief: String(n.brief || ""), desc: String(n.desc || ""), entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
   }
   const npcById = (c, id) => (c && c.npcs ? c.npcs.find((n) => n.id === id) : null) || null;
@@ -3600,7 +3630,7 @@
     const parts = [];
     const intro = `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 之间的手机私聊；「${c.name}」不在场，也不知道这段对话的内容。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
-    const lore = activeLore(c, history || c.chat);
+    const lore = activeLore(c, history || c.chat, npc.id);
     if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", `世界书（前）条目 ${i + 1}`, t)); }
     parts.push(`\n## ${npc.name} 的设定`);
     const desc = [npc.brief, npc.desc].filter((x) => x && x.trim()).join("\n");
@@ -3811,6 +3841,139 @@
     renderPhone();
     toast(`已加入 ${added} 位联系人${updated ? `，更新 ${updated} 位` : ""}`);
   }
+  // ---------- NPC memory: private-thread summaries, entry visibility, retelling to the character ----------
+  const entryScope = (e) => (e && e.extensions && typeof e.extensions.lantern_scope === "string" && e.extensions.lantern_scope) || "char";
+  function scopeLabel(c, e) {
+    const sc = entryScope(e);
+    if (sc === "public") return "公开";
+    if (sc.startsWith("npc:")) return `仅 ${npcName(c, sc.slice(4))}`;
+    return "";
+  }
+  const DEFAULT_NPC_MEM_PROMPT = [
+    "你是这场角色扮演的记录员。下面是「{{npc}}」和「{{user}}」之间一段手机私聊的原文（{{char}} 不在场，也不知道这段对话）。请把这段私聊压缩成便于 {{npc}} 日后回忆的记忆摘要。",
+    "",
+    "要求：",
+    "- 按时间顺序写清聊了什么：透露的信息、做出的决定和约定、两人态度的变化。",
+    "- 保留具体的名字、数字、时间和承诺，去掉修辞和重复。",
+    "- 用第三人称的陈述句，直接写摘要本身，不要标题、不要评论，200 字以内。",
+    "",
+    "{{previous}}",
+    "=== {{range}} ===",
+    "{{messages}}",
+  ].join("\n");
+  let memNpc = null; // when set, the memory window summarises this NPC's private thread instead of a floor range
+  function npcUnsummarized(c, npc) {
+    const all = c.chat.filter((m) => m.npc === npc.id && !m.error);
+    if (!npc.memLastId) return all;
+    const at = all.findIndex((m) => m.id === npc.memLastId);
+    return at < 0 ? all : all.slice(at + 1);
+  }
+  function openMemoryForNpc(npc) {
+    const c = active();
+    if (!c || busy || !npc) return;
+    memNpc = npc;
+    $("memTitle").textContent = `记忆总结 · 和 ${npc.name} 的私聊`;
+    $("memRangeRow").hidden = true;
+    $("memPrompt").value = state.settings.memPromptNpc && state.settings.memPromptNpc.trim() ? state.settings.memPromptNpc : DEFAULT_NPC_MEM_PROMPT;
+    $("memResult").value = "";
+    const pending = npcUnsummarized(c, npc);
+    $("memGen").disabled = !chatReady() || !pending.length;
+    memUpdateHint();
+    if (!pending.length) $("memHint").textContent = "没有新的私聊可以总结";
+    else if (!chatReady()) $("memHint").textContent = "接口未就绪：只能手写总结";
+    $("memBack").hidden = false;
+  }
+  function buildNpcMemPrompt(c, npc) {
+    const u = state.persona.name || "用户";
+    const msgs = npcUnsummarized(c, npc);
+    const lines = msgs.map((m) => `${m.role === "user" ? u : npc.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n");
+    const book = memoryBook(c, false);
+    const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim() && entryScope(e) === "npc:" + npc.id).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
+    let prompt = $("memPrompt").value || DEFAULT_NPC_MEM_PROMPT;
+    prompt = prompt
+      .replace(/\{\{npc\}\}/g, npc.name)
+      .replace(/\{\{range\}\}/g, `${npc.name} 私聊 · 第 ${(npc.memCount || 0) + 1} 段`)
+      .replace(/\{\{messages\}\}/g, () => lines)
+      .replace(/\{\{previous\}\}/g, () => (prev ? `此前的记忆摘要（用于衔接，不要重复其中内容）：\n${prev}\n` : ""));
+    prompt = sub(prompt, c);
+    while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
+    return prompt;
+  }
+  function memSaveNpc(c, npc, text) {
+    const msgs = npcUnsummarized(c, npc);
+    const created = !memoryBook(c, false);
+    const book = memoryBook(c, true);
+    const e = newEntry(book);
+    const k = (npc.memCount || 0) + 1;
+    e.comment = `${npc.name} · 私聊 ${k}`;
+    e.content = text;
+    e.constant = true;
+    e.position = "after_char";
+    e.insertion_order = 100 + book.entries.length;
+    e.extensions = { ...(e.extensions || {}), lantern_scope: "npc:" + npc.id, memory_npc: npc.id, memory_msgs: msgs.length ? [msgs[0].id, msgs[msgs.length - 1].id] : [] };
+    book.entries.push(e);
+    npc.memCount = k;
+    if (msgs.length) npc.memLastId = msgs[msgs.length - 1].id;
+    save();
+    closeMemory();
+    toast(created ? `已创建「${book.name}」并存入 ${npc.name} 的私聊记忆` : `已存入 ${npc.name} 的私聊记忆（仅 ${npc.name} 可见）`);
+    updateStats();
+    if (!$("phoneBack").hidden) renderPhone();
+  }
+  // ----- retell a private thread to the character, as something you say in the main scene -----
+  let tellCtl = null;
+  async function tellChar() {
+    const c = active();
+    const npc = phoneWith ? npcById(c, phoneWith) : null;
+    if (!c || !npc || busy || !chatReady()) return;
+    const u = state.persona.name || "用户";
+    const all = c.chat.filter((m) => m.npc === npc.id && !m.error);
+    let msgs = all;
+    if (npc.toldLastId) { const at = all.findIndex((m) => m.id === npc.toldLastId); if (at >= 0) msgs = all.slice(at + 1); }
+    if (!msgs.length) msgs = all.slice(-20);
+    if (!msgs.length) { toast("还没有可以转述的私聊", true); return; }
+    const lines = msgs.map((m) => `${m.role === "user" ? u : npc.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n");
+    const prompt = [
+      `下面是 ${u} 和 ${npc.name} 之间的一段手机私聊。${u} 现在要当面把这段私聊里值得说的内容告诉 ${c.name}。`,
+      `请以 ${u} 的第一人称口吻写出这段话：像当面转述一样自然，一到三句，只说 ${u} 愿意让 ${c.name} 知道的要点，不要加引号、不要加名字前缀、不要解释。`,
+      "",
+      "=== 私聊原文 ===",
+      lines,
+    ].join("\n");
+    $("tellTitle").textContent = `转述给 ${c.name}`;
+    $("tellText").value = ""; $("tellText").placeholder = "正在整理…";
+    $("tellGo").disabled = true;
+    $("tellHint").textContent = `${msgs.length} 条私聊 → 一段你当面说的话。可以改，发出去后 ${c.name} 会回应。`;
+    $("tellBack").hidden = false;
+    tellCtl = new AbortController();
+    try {
+      const res = await complete(prompt, { signal: tellCtl.signal, onText: ({ text }) => { $("tellText").value = stripReasoning(text); } });
+      $("tellText").value = stripReasoning(res.text).trim().replace(/^[「"“]|[」"”]$/g, "");
+    } catch (e) {
+      if (!(e && (e.code === "cancelled" || e.name === "AbortError"))) toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true);
+    } finally {
+      tellCtl = null;
+      $("tellGo").disabled = false;
+      $("tellText").placeholder = "写下你要告诉主角的话";
+    }
+    $("tellBack").dataset.last = msgs[msgs.length - 1].id;
+  }
+  function closeTell() { if (tellCtl) tellCtl.abort(); $("tellBack").hidden = true; }
+  async function tellGo() {
+    const c = active();
+    const npc = phoneWith ? npcById(c, phoneWith) : null;
+    const text = $("tellText").value.trim();
+    if (!c || !npc || busy) return;
+    if (!text) { $("tellText").focus(); return; }
+    const lastId = $("tellBack").dataset.last || null;
+    $("tellBack").hidden = true;
+    if (c.phone && c.phone.open) exitPhone(false);
+    closePhoneView();
+    c.chat.push({ id: uid(), role: "user", content: `*我把和${npc.name}聊的事说给${c.name}听。* 「${text}」`, ts: Date.now() });
+    if (lastId) npc.toldLastId = lastId;
+    save(); renderMessages(); renderCharList();
+    await generate(c);
+  }
   let phoneSel = null;   // message id whose action row is open
   let phoneEdit = null;  // message id being edited inline
   function phoneActsNode(m, i, c, isLast) {
@@ -3874,6 +4037,7 @@
       return;
     }
     $("phoneNudge").textContent = npc ? `让 ${npc.name} 先开口` : "让 TA 先开口";
+    $("phoneMemo").hidden = !npc; $("phoneTell").hidden = !npc;
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
     const typing = busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone" && (m.npc || null) === phoneWith);
     $("phoneStatus").textContent = typing ? "正在输入…" : npc ? (npcAppeared(c, npc) ? "在线" : "还没在故事里出场 · 初次联系") : phoneMode(c) === "together" ? "就在附近 · 悄悄聊" : (st && st.value ? `在 ${st.value}` : "在线");
@@ -4393,6 +4557,15 @@
   function memUpdateHint() {
     const c = active();
     if (!c) return;
+    if (memNpc) {
+      const pending = npcUnsummarized(c, memNpc);
+      const chars = pending.reduce((s, m) => s + m.content.length, 0);
+      $("memHint").textContent = `${memNpc.name} 私聊 · ${pending.length} 条未总结，约 ${chars} 字`;
+      $("memStat").textContent = `已为 ${memNpc.name} 存过 ${memNpc.memCount || 0} 段私聊记忆 · 这些条目只有 ${memNpc.name} 看得到`;
+      const b0 = memoryBook(c, false);
+      $("memBook").textContent = b0 ? `记忆世界书：${b0.name} · ${b0.entries.length} 条` : "第一次保存时会自动创建「记忆 · " + c.name + "」世界书";
+      return;
+    }
     const { from, to, n } = memRange();
     $("memFrom").value = from; $("memTo").value = to;
     const chars = chatRange(c, from, to).reduce((s, m) => s + m.content.length, 0);
@@ -4404,6 +4577,9 @@
   function openMemory() {
     const c = active();
     if (!c || busy) return;
+    memNpc = null;
+    $("memTitle").textContent = "记忆总结";
+    $("memRangeRow").hidden = false;
     const last = c.memory.lastFloor || 0;
     $("memFrom").value = Math.max(1, Math.min(last + 1, floorCount(c)));
     $("memTo").value = floorCount(c);
@@ -4416,6 +4592,7 @@
   }
   function closeMemory() { if (memCtl) memCtl.abort(); $("memBack").hidden = true; }
   function buildMemPrompt(c) {
+    if (memNpc) return buildNpcMemPrompt(c, memNpc);
     const { from, to } = memRange();
     const u = state.persona.name || "用户";
     let fl = from - 1;
@@ -4426,7 +4603,7 @@
       return `#${fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`;
     }).filter(Boolean).join("\n\n");
     const book = memoryBook(c, false);
-    const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
+    const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim() && entryScope(e) !== "public" && !entryScope(e).startsWith("npc:")).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
     let prompt = $("memPrompt").value || DEFAULT_MEM_PROMPT;
     prompt = prompt
       .replace(/\{\{range\}\}/g, `${from}-${to}`)
@@ -4465,6 +4642,7 @@
     const text = $("memResult").value.trim();
     if (!c) return;
     if (!text) { $("memResult").focus(); toast("总结是空的，先生成或自己写一段。", true); return; }
+    if (memNpc) return memSaveNpc(c, memNpc, text);
     const { from, to } = memRange();
     const created = !memoryBook(c, false);
     const book = memoryBook(c, true);
@@ -4986,7 +5164,7 @@
       cb.onchange = () => { e.enabled = cb.checked; card.classList.toggle("off", !e.enabled); };
       const ttl = el("div", "ttl"); ttl.textContent = e.comment || e.keys[0] || `条目 ${i + 1}`;
       const small = document.createElement("small"); small.textContent = e.keys.slice(0, 4).join(", ") + (e.keys.length > 4 ? " …" : ""); ttl.appendChild(small);
-      const pill = el("span", "pill", e.constant ? "常驻" : e.position === "before_char" ? "前置" : "");
+      const pill = el("span", "pill", (b.memory ? scopeLabel(active(), e) + " " : "") + (e.constant ? "常驻" : e.position === "before_char" ? "前置" : ""));
       if (!pill.textContent) pill.style.visibility = "hidden";
       const bDel = el("button", "btn ghost danger", "删除");
       bDel.onclick = async (ev) => { ev.stopPropagation(); if (!(await askConfirm(`删除条目「${ttl.firstChild.textContent}」？`, "删除", true))) return; b.entries.splice(i, 1); wiEditing.open.delete(e.id); renderWiEntries(); };
@@ -5030,6 +5208,10 @@
     const checks = el("div", "checks"); checks.append(lConst, lCase, lWhole, lExcl, lPrev);
     const row3 = el("div", "row3"); row3.append(field("插入位置", sPos), field("顺序", iOrder, "数字小的排前面；预算不够时数字大的优先保留"), field("概率 %", iProb));
     const row4 = el("div", "row3"); row4.append(field("扫描深度", iScan, "留空用世界书默认"));
+    const isMem = !!(wiEditing && wiEditing.book && wiEditing.book.memory);
+    const ac = active();
+    const sScope = isMem ? sel([["char", `只有 ${ac ? ac.name : "主角"} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"], ...((ac ? ac.npcs : []).map((n) => ["npc:" + n.id, `只有 ${n.name} 知道`]))], entryScope(e)) : null;
+    if (sScope) row4.append(field("谁知道", sScope, "决定这条记忆会带给谁"));
     form.append(row1, row2, field("内容", tContent), checks, row3, row4);
 
     const sync = () => {
@@ -5043,6 +5225,7 @@
       e.position = sPos.value; e.insertion_order = Number(iOrder.value) || 0;
       e.probability = Math.min(100, Math.max(0, Number(iProb.value) || 0));
       e.scan_depth = iScan.value === "" ? null : Math.max(1, Number(iScan.value) || 1);
+      if (sScope) { e.extensions = { ...(e.extensions || {}) }; if (sScope.value === "char") delete e.extensions.lantern_scope; else e.extensions.lantern_scope = sScope.value; }
       onChange();
     };
     for (const n of form.querySelectorAll("input, select, textarea")) { n.addEventListener("input", sync); n.addEventListener("change", sync); }
@@ -5649,6 +5832,10 @@
   $("bannerExitPhone").onclick = () => exitPhone(true);
   $("phoneClose").onclick = () => { if (phoneView === "contacts") closePhoneView(); else { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); } };
   $("phoneContacts").onclick = () => { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); };
+  $("phoneMemo").onclick = () => { const c = active(); const n = c && phoneWith ? npcById(c, phoneWith) : null; if (n) openMemoryForNpc(n); };
+  $("phoneTell").onclick = tellChar;
+  $("tellClose").onclick = closeTell; $("tellCancel").onclick = closeTell; $("tellGo").onclick = tellGo;
+  $("tellBack").addEventListener("click", (e) => { if (e.target === $("tellBack")) closeTell(); });
   $("npcClose").onclick = closeNpcEditor; $("npcCancel").onclick = closeNpcEditor; $("npcSave").onclick = saveNpc; $("npcDelete").onclick = deleteNpc;
   $("npcBack").addEventListener("click", (e) => { if (e.target === $("npcBack")) closeNpcEditor(); });
   $("npcScanClose").onclick = () => { $("npcScanBack").hidden = true; };
@@ -5745,8 +5932,12 @@
   $("memGen").onclick = memGenerate;
   $("memStop").onclick = () => { if (memCtl) memCtl.abort(); };
   $("memSave").onclick = memSave;
-  $("memPrompt").addEventListener("input", (e) => { state.settings.memPrompt = e.target.value === DEFAULT_MEM_PROMPT ? "" : e.target.value; save(); });
-  $("memPromptReset").onclick = () => { $("memPrompt").value = DEFAULT_MEM_PROMPT; state.settings.memPrompt = ""; save(); };
+  $("memPrompt").addEventListener("input", (e) => {
+    if (memNpc) state.settings.memPromptNpc = e.target.value === DEFAULT_NPC_MEM_PROMPT ? "" : e.target.value;
+    else state.settings.memPrompt = e.target.value === DEFAULT_MEM_PROMPT ? "" : e.target.value;
+    save();
+  });
+  $("memPromptReset").onclick = () => { if (memNpc) { $("memPrompt").value = DEFAULT_NPC_MEM_PROMPT; state.settings.memPromptNpc = ""; } else { $("memPrompt").value = DEFAULT_MEM_PROMPT; state.settings.memPrompt = ""; } save(); };
   $("memFrom").addEventListener("change", memUpdateHint);
   $("memTo").addEventListener("change", memUpdateHint);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("memBack").hidden && !confirmResolve) { e.stopPropagation(); closeMemory(); } }, true);
