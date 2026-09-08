@@ -1913,6 +1913,7 @@
     </div>
     <div class="phone-body" id="phoneBody"></div>
     <div class="phone-tools">
+      <select id="phoneSpeaker" class="btn ghost" hidden title="让谁来接话" style="padding:5px 8px;border-radius:999px;font-size:12px"></select>
       <button class="btn" id="phoneNudge" title="根据当前剧情，让对方先发消息">让 TA 先开口</button>
       <button class="btn ghost" id="phoneWait" title="过一会儿再看：对方可能会继续发消息">过一会儿…</button>
       <button class="btn ghost" id="phoneMemo" title="把这段私聊压成记忆，只有这个 NPC 看得到" hidden>总结私聊</button>
@@ -4975,7 +4976,16 @@
       renderContacts(c, body);
       return;
     }
-    $("phoneNudge").textContent = grp ? "让他们聊一会儿" : npc ? `让 ${npc.name} 先开口` : "让 TA 先开口";
+    const spk = $("phoneSpeaker");
+    spk.hidden = !grp;
+    if (grp) {
+      const cur = spk.value;
+      spk.innerHTML = "";
+      for (const [v, t] of [["", "大家"], ...grp.members.map((id) => [id, groupMemberName(c, id)])]) { const o = document.createElement("option"); o.value = v; o.textContent = t; spk.appendChild(o); }
+      spk.value = grp.members.includes(cur) ? cur : "";
+    }
+    const pick = grp && spk.value ? groupMemberName(c, spk.value) : "";
+    $("phoneNudge").textContent = grp ? (pick ? `让 ${pick} 说` : "让他们聊一会儿") : npc ? `让 ${npc.name} 先开口` : "让 TA 先开口";
     $("phoneMemo").hidden = !npc && !grp; $("phoneRedo").hidden = !grp; $("phoneGroupEdit").hidden = !grp; $("phoneWait").hidden = !!grp;
     $("phoneMemo").textContent = grp ? "总结群聊" : "总结私聊";
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
@@ -5049,7 +5059,13 @@
     const c = active();
     if (!c || busy || !chatReady()) return;
     const u = state.persona.name || "用户";
-    if (phoneGroup) { await generateGroup(c, phoneGroup, { nudge: "（大家接着聊，3 到 6 条。）" }); return; }
+    if (phoneGroup) {
+      const who = $("phoneSpeaker").value;
+      const g = groupById(c, phoneGroup);
+      const name = who && g && g.members.includes(who) ? groupMemberName(c, who) : "";
+      await generateGroup(c, phoneGroup, { nudge: name ? `（这一轮由 ${name} 接话，1 到 3 条；别人可以不出现，最多简短回一句。）` : "（大家接着聊，3 到 6 条。）" });
+      return;
+    }
     const npc = phoneWith ? npcById(c, phoneWith) : null;
     if (phoneWith && !npc) return;
     if (!npc && !(c.phone && c.phone.open)) c.phone = { ...(c.phone || {}), open: true };
@@ -5694,7 +5710,7 @@
     $("resetChat").disabled = on;
     $("inspire").disabled = on;
     $("memBtn").disabled = on;
-    $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on; $("phoneRedo").disabled = on; $("phoneGroupEdit").disabled = on;
+    $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on; $("phoneRedo").disabled = on; $("phoneGroupEdit").disabled = on; $("phoneSpeaker").disabled = on;
   }
 
   async function send() {
@@ -6898,6 +6914,7 @@
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
   $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneNudge").onclick = () => phoneNudge("first");
+  $("phoneSpeaker").addEventListener("change", () => renderPhone());
   $("phoneWait").onclick = () => phoneNudge("wait");
   $("phoneTheme").onclick = () => { state.settings.phoneDark = !(state.settings.phoneDark === true); save(); $("phone").classList.toggle("dark", state.settings.phoneDark === true); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("phoneBack").hidden && !confirmResolve) { e.stopPropagation(); closePhoneView(); } }, true);
