@@ -974,6 +974,7 @@
         <button class="btn" id="castChip" title="现在在场的通讯录人物" hidden>👥 在场</button>
         <span class="spacer"></span>
         <button class="btn" id="ctxBtn" title="上下文用量 / 隐藏楼层 / 记忆索引">🧠 上下文 —</button>
+        <button class="btn" id="continueBtn" title="你先不说话，让 TA 接着往下演一段（不占你的楼层）">▶ 再写一段</button>
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
       </div>
       <div class="ideas" id="ideas" hidden></div>
@@ -6456,6 +6457,7 @@
     $("resetChat").disabled = on;
     $("saveBtn").disabled = on;
     $("inspire").disabled = on;
+    $("continueBtn").disabled = on;
     $("memBtn").disabled = on;
     $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on; $("phoneRedo").disabled = on; $("phoneGroupEdit").disabled = on; $("phoneSpeaker").disabled = on;
   }
@@ -7599,6 +7601,18 @@
   $("sHtmlMode").addEventListener("change", (e) => { state.settings.htmlMode = e.target.value; save(); renderMessages(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
+  // ▶ 再写一段: the character (or the NPC you're alone with) carries on without a new message from you
+  function continueStory() {
+    const c = active();
+    if (!c || busy || !chatReady()) return;
+    if (c.phone && c.phone.open) { openPhone(false); return toast("手机模式里用「让 TA 先开口」或「过一会儿…」"); }
+    const u = state.persona.name || "用户";
+    const scl = sceneNpcs(c), sc = scl[0] || null;
+    const who = sc ? namesOf(scl) : c.name;
+    const nudge = `（${u} 这会儿没有说话也没有新的动作。请由 ${who} 接着刚才的情节往下演一段：可以是 ${who} 的下一步动作、心思或一句话，也可以让时间往前推一点；不要重复已经写过的内容，不要替 ${u} 说话或行动。）`;
+    generate(c, null, sc ? { npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", nudge } : { nudge });
+  }
+  $("continueBtn").onclick = continueStory;
   function openLib(tab) {
     if (tab) switchLibTab(tab);
     renderGlobalBooks(); renderPresetSelect(); refreshGlobalRx();
