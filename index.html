@@ -1306,6 +1306,11 @@
       <button class="btn ghost icon" id="memClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
+      <div class="field">
+        <label for="memTarget">总结谁的记忆</label>
+        <select id="memTarget"></select>
+        <div class="help">主角按楼层范围总结；NPC 总结的是和 TA 私下的手机消息和当面剧情里还没总结过的部分。</div>
+      </div>
       <div class="stat" id="memStat"></div>
       <div class="row" id="memRangeRow">
         <div class="field">
@@ -3942,8 +3947,9 @@
     const c = active();
     if (!c || busy || !npc) return;
     memNpc = npc;
+    fillMemTarget(c, "npc:" + npc.id);
     fillMemScope(c, npc);
-    $("memTitle").textContent = `记忆总结 · 和 ${npc.name} 的私聊`;
+    $("memTitle").textContent = `记忆总结 · ${npc.name}`;
     $("memRangeRow").hidden = true;
     $("memPrompt").value = state.settings.memPromptNpc && state.settings.memPromptNpc.trim() ? state.settings.memPromptNpc : DEFAULT_NPC_MEM_PROMPT;
     $("memResult").value = "";
@@ -4655,10 +4661,25 @@
     for (const [v, t] of opts) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
     sel.value = "char";
   }
+  function fillMemTarget(c, value) {
+    const sel = $("memTarget"); sel.innerHTML = "";
+    const opts = [["char", `${c.name}（主角 · 按楼层）`], ...c.npcs.map((n) => ["npc:" + n.id, `${n.name}（私聊 + 当面）`])];
+    for (const [v, t] of opts) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
+    sel.value = value;
+    sel.parentElement.hidden = !c.npcs.length;
+  }
+  // the 记忆 buttons: during a face-to-face NPC scene they summarise that NPC, otherwise the character
+  function openMemoryAuto() {
+    const c = active();
+    if (!c || busy) return;
+    const sc = sceneNpc(c);
+    if (sc) openMemoryForNpc(sc); else openMemory();
+  }
   function openMemory() {
     const c = active();
     if (!c || busy) return;
     memNpc = null;
+    fillMemTarget(c, "char");
     fillMemScope(c, null);
     $("memTitle").textContent = "记忆总结";
     $("memRangeRow").hidden = false;
@@ -6011,8 +6032,9 @@
   };
   $("hideNone").onclick = () => { const c = active(); if (!c) return; c.chat.forEach((m) => { delete m.hidden; }); save(); renderMessages(); renderContextPanel(); toast("已取消全部隐藏"); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("ctxBack").hidden && !confirmResolve) { e.stopPropagation(); closeContext(); } }, true);
-  $("memBtn").onclick = openMemory;
-  $("memBtn2").onclick = openMemory;
+  $("memBtn").onclick = openMemoryAuto;
+  $("memBtn2").onclick = openMemoryAuto;
+  $("memTarget").addEventListener("change", (e) => { const c = active(); if (!c) return; const v = e.target.value; if (v === "char") openMemory(); else { const n = npcById(c, v.slice(4)); if (n) openMemoryForNpc(n); } });
   $("memClose").onclick = closeMemory;
   $("memCancel").onclick = closeMemory;
   $("memBack").addEventListener("click", (e) => { if (e.target === $("memBack")) closeMemory(); });
