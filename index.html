@@ -974,7 +974,6 @@
         <button class="btn" id="castChip" title="现在在场的通讯录人物" hidden>👥 在场</button>
         <span class="spacer"></span>
         <button class="btn" id="ctxBtn" title="上下文用量 / 隐藏楼层 / 记忆索引">🧠 上下文 —</button>
-        <button class="btn" id="continueBtn" title="你先不说话，让 TA 接着往下演一段（不占你的楼层）">▶ 再写一段</button>
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
       </div>
       <div class="ideas" id="ideas" hidden></div>
@@ -3279,6 +3278,13 @@
       const bRegen = el("button", "btn ghost", "重新生成");
       bRegen.onclick = () => regenerate();
       actions.appendChild(bRegen);
+    }
+    const lastMsg = [...c.chat].reverse().find((x) => x.kind !== "divider");
+    if (!isUser && lastMsg && lastMsg.id === m.id && !(c.phone && c.phone.open)) {
+      const bMore = el("button", "btn ghost", "再写一段");
+      bMore.title = "你先不说话，让 TA 接着往下演一段（不占你的楼层）";
+      bMore.onclick = () => continueStory();
+      actions.appendChild(bMore);
     }
 
     const bHide = el("button", "btn ghost", m.hidden ? "取消隐藏" : "隐藏");
@@ -6457,7 +6463,6 @@
     $("resetChat").disabled = on;
     $("saveBtn").disabled = on;
     $("inspire").disabled = on;
-    $("continueBtn").disabled = on;
     $("memBtn").disabled = on;
     $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on; $("phoneRedo").disabled = on; $("phoneGroupEdit").disabled = on; $("phoneSpeaker").disabled = on;
   }
@@ -7612,7 +7617,7 @@
     const nudge = `（${u} 这会儿没有说话也没有新的动作。请由 ${who} 接着刚才的情节往下演一段：可以是 ${who} 的下一步动作、心思或一句话，也可以让时间往前推一点；不要重复已经写过的内容，不要替 ${u} 说话或行动。）`;
     generate(c, null, sc ? { npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", nudge } : { nudge });
   }
-  $("continueBtn").onclick = continueStory;
+
   function openLib(tab) {
     if (tab) switchLibTab(tab);
     renderGlobalBooks(); renderPresetSelect(); refreshGlobalRx();
