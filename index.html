@@ -1418,6 +1418,7 @@
           <input id="memTo" type="number" min="1" class="mono">
         </div>
       </div>
+      <div class="rx-list" id="memSegs" hidden></div>
       <details class="adv">
         <summary>总结提示词（可自定义）</summary>
         <div class="inner">
@@ -3290,9 +3291,9 @@
             else if (typeof audience === "string" && audience.startsWith("group:")) {
               // a group round speaks for every member: it may know what any member knows
               const g = groupById(c, audience.slice(6)); const mem = g ? g.members : [];
-              ok = book.memoryNpc ? (mem.includes(book.memoryNpc) || shared.some((x) => mem.includes(x))) : (sc === "char" ? mem.includes("char") : sc.startsWith("npc:") && mem.includes(sc.slice(4)));
+              ok = book.memoryNpc ? (mem.includes(book.memoryNpc) || shared.some((x) => mem.includes(x))) : (sc === "char" ? (mem.includes("char") || shared.some((x) => mem.includes(x))) : sc.startsWith("npc:") && mem.includes(sc.slice(4)));
             }
-            else ok = book.memoryNpc ? (audience === book.memoryNpc || (!!audience && shared.includes(audience))) : audience ? sc === "npc:" + audience : sc === "char";
+            else ok = book.memoryNpc ? (audience === book.memoryNpc || (!!audience && shared.includes(audience))) : audience ? (sc === "npc:" + audience || (sc === "char" && shared.includes(audience))) : sc === "char";
             if (!ok) { skip(book, e, "不在 TA 的知情范围"); seen.add(key); continue; }
           }
           let hit = e.constant;
@@ -5103,7 +5104,8 @@
     if (sc === "public") return "公开";
     if (book && book.memoryNpc) { const sh = e.extensions && Array.isArray(e.extensions.memory_shared) ? e.extensions.memory_shared : []; return sh.length ? `+ ${sh.map((id) => npcName(c, id)).join("、")}` : ""; }
     if (sc.startsWith("npc:")) return `仅 ${npcName(c, sc.slice(4))}`;
-    return "";
+    const sh = e.extensions && Array.isArray(e.extensions.memory_shared) ? e.extensions.memory_shared : [];
+    return sh.length ? `+ ${sh.map((id) => npcName(c, id)).join("、")}` : "";
   }
   const DEFAULT_NPC_MEM_PROMPT = [
     "你是这场角色扮演的记录员。下面是「{{npc}}」和「{{user}}」之间一段手机私聊的原文（{{char}} 不在场，也不知道这段对话）。请把这段私聊压缩成便于 {{npc}} 日后回忆的记忆摘要。",
@@ -5936,6 +5938,7 @@
     const c = active();
     if (!c) return;
     renderMemOverview(c);
+    if (memMode === "merge" || memNpc) $("memSegs").hidden = true;
     if (memMode === "merge") {
       const picked = mergeSelected(c);
       const chars = picked.reduce((n, e) => n + e.content.length, 0);
@@ -5967,8 +5970,78 @@
       note += ` · 含 ${moments} 条朋友圈动态 / 评论${$("memScope").value === "public" ? "，范围已预选「公开」" : ""}`;
     }
     $("memHint").textContent = `第 ${from}–${to} 楼，${rng.length} 条，约 ${chars} 字${note}`;
+    renderMemSegments(c);
     $("memStat").textContent = `共 ${n} 楼 · 已总结到第 ${c.memory.lastFloor || 0} 楼`;
     $("memBook").textContent = memBookLine(c, memoryBook(c, false), c.name);
+  }
+  // ---------- Suggested summary segments: split the unsummarised main floors by who was around ----------
+  function floorCast(c, m) {
+    const text = m.content || "";
+    return c.npcs.filter((n) => [n.name, ...(n.aliases || [])].some((x) => x && x.length >= 2 ? text.includes(x) : x && new RegExp(`(^|[^\\p{L}])${x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "u").test(text))).map((n) => n.id);
+  }
+  function memSegments(c) {
+    // floors already covered by a saved summary (by its recorded range) don't need suggesting again
+    const book = memoryBook(c, false);
+    const ranges = book ? book.entries.map((e) => e.extensions && Array.isArray(e.extensions.memory_range) ? e.extensions.memory_range : null).filter(Boolean) : [];
+    const start = ranges.length ? 0 : ((c.memory && c.memory.lastFloor) || 0);
+    const covered = (f) => f <= start || ranges.some((r) => f >= Number(r[0]) && f <= Number(r[1]));
+    const rows = [];
+    let fl = 0;
+    for (const m of c.chat) {
+      if (m.kind === "divider") continue;
+      fl++;
+      if (covered(fl) || m.error || m.npc || m.group) continue;
+      rows.push({ floor: fl, moments: isMoment(m), cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : floorCast(c, m) });
+    }
+    if (!rows.length) return [];
+    // an NPC stays "present" for two more floors after the last mention, so a floor without the name doesn't split the scene
+    const segs = [];
+    for (let i = 0; i < rows.length; i++) {
+      const cast = new Set(rows[i].cast);
+      for (let k = 1; k <= 2 && i - k >= 0; k++) for (const id of rows[i - k].cast) cast.add(id);
+      const key = rows[i].moments ? "public" : [...cast].sort().join(",");
+      const last = segs[segs.length - 1];
+      if (last && last.key === key) { last.to = rows[i].floor; last.n++; last.moments += rows[i].moments ? 1 : 0; }
+      else segs.push({ key, from: rows[i].floor, to: rows[i].floor, n: 1, cast: [...cast], moments: rows[i].moments ? 1 : 0 });
+    }
+    // fold tiny segments into the previous one so the list doesn't turn into confetti
+    const out = [];
+    for (const s of segs) {
+      const prev = out[out.length - 1];
+      if (prev && s.n < 3) { prev.to = s.to; prev.n += s.n; prev.moments += s.moments; prev.cast = [...new Set([...prev.cast, ...s.cast])]; prev.key = prev.moments || s.key === "public" ? "public" : prev.cast.sort().join(","); }
+      else out.push({ ...s, cast: s.cast.slice() });
+    }
+    for (const s of out) s.scope = s.key === "public" ? "public" : s.cast.length ? "share:" + s.cast.join(",") : "char";
+    return out;
+  }
+  function scopeOptionLabel(c, v) {
+    if (v === "public") return "公开 · 主角和所有 NPC 都知道";
+    if (v.startsWith("share:")) return `主角 + ${v.slice(6).split(",").map((id) => npcName(c, id)).join("、")}`;
+    if (v.startsWith("npc:")) return `只有 ${npcName(c, v.slice(4))} 知道`;
+    return `只有 ${c.name} 知道`;
+  }
+  function ensureScopeOption(c, v) {
+    const sel = $("memScope");
+    if (![...sel.options].some((o) => o.value === v)) { const o = document.createElement("option"); o.value = v; o.textContent = scopeOptionLabel(c, v); sel.insertBefore(o, sel.options[1] || null); }
+    sel.value = v;
+  }
+  function renderMemSegments(c) {
+    const box = $("memSegs"); box.innerHTML = "";
+    const show = memMode === "new" && !memNpc;
+    box.hidden = !show;
+    if (!show) return;
+    const segs = memSegments(c);
+    if (!segs.length) { box.hidden = true; return; }
+    box.appendChild(el("div", "help", "建议分段：按这段里谁在场来定「谁知道这条记忆」。点「用这段」自动填好楼层和范围。"));
+    for (const s of segs) {
+      const row = el("div", "rx-row"); row.style.gridTemplateColumns = "minmax(0,1fr) auto";
+      const who = s.key === "public" ? `含 ${s.moments} 条朋友圈` : s.cast.length ? `${s.cast.map((id) => npcName(c, id)).join("、")} 也在` : `只有 ${c.name} 和你`;
+      const nm = el("span", "nm", `第 ${s.from}–${s.to} 楼 · ${who}`); nm.appendChild(el("small", null, `建议：${scopeOptionLabel(c, s.scope)}`)); nm.title = nm.textContent;
+      const use = el("button", "btn ghost", "用这段"); use.style.cssText = "padding:3px 8px;font-size:12px";
+      use.onclick = () => { $("memFrom").value = s.from; $("memTo").value = s.to; ensureScopeOption(c, s.scope); memScopeTouched = true; memUpdateHint(); toast(`第 ${s.from}–${s.to} 楼 · ${scopeOptionLabel(c, s.scope)}`); };
+      row.append(nm, use);
+      box.appendChild(row);
+    }
   }
   let memScopeTouched = false; // the user changed the scope dropdown by hand in this memory window
   function fillMemScope(c, npc) {
@@ -6114,7 +6187,9 @@
     e.position = "after_char";
     e.insertion_order = 100 + book.entries.length;
     e.extensions = { ...(e.extensions || {}), memory_range: [from, to] };
-    if ($("memScope").value && $("memScope").value !== "char") e.extensions.lantern_scope = $("memScope").value;
+    const scopeV = $("memScope").value || "char";
+    if (scopeV.startsWith("share:")) e.extensions.memory_shared = scopeV.slice(6).split(",").filter((id) => npcById(c, id));
+    else if (scopeV !== "char") e.extensions.lantern_scope = scopeV;
     book.entries.push(e);
     c.memory.lastFloor = Math.max(c.memory.lastFloor || 0, to);
     save();
