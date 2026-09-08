@@ -3213,6 +3213,8 @@
       const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
       parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`); seg("char", "对话示例", ex);
     }
+    const castIns = recentCastInstruction(c, history);
+    if (castIns) { parts.push("\n" + castIns); seg("char", "出场过的人物", castIns); }
     const relIns = relationsInstruction(c, null);
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
     const stIns = statusInstruction(c);
@@ -3814,6 +3816,15 @@
     };
   }
   const npcById = (c, id) => (c && c.npcs ? c.npcs.find((n) => n.id === id) : null) || null;
+  // NPCs the character has to voice in the main scene: only those named in the recent floors, one line each
+  function recentCastInstruction(c, history) {
+    if (!c.npcs || !c.npcs.length) return "";
+    const recent = (history || c.chat).filter((m) => !m.npc && m.kind !== "divider" && !m.error).slice(-30).map((m) => m.content || "").join("\n");
+    const seen = c.npcs.filter((n) => [n.name, ...(n.aliases || [])].some((x) => x && recent.includes(x)));
+    if (!seen.length) return "";
+    const lines = seen.map((n) => `- ${n.name}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}`);
+    return `## 出场过的其他人物\n${lines.join("\n")}\n（这些人出场时由你代为演出，要按各自的性格和说话方式来，不要都写成一个腔调。）`;
+  }
   function npcPersonaBlock(n) {
     const lines = [];
     if (n.personality && n.personality.trim()) lines.push(`性格：${n.personality.trim()}`);
@@ -3891,6 +3902,8 @@
     }
     const nst = npcStatusInstruction(c, npc, others);
     parts.push("\n" + nst); seg("fixed", "关系变化", nst);
+    const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
+    if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
     return sub(parts.join("\n"), c);
   }
   // ---------- Relationship graph: you ↔ NPC, character ↔ NPC (you ↔ character lives in the status panel) ----------
