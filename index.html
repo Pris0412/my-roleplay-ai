@@ -874,7 +874,25 @@
       z-index: 40; box-shadow: var(--shadow);
     }
     .rail.open { transform: none; }
+    body { overflow-x: hidden; }
     .stage-head { padding: 10px 12px; }
+    /* header tools scroll sideways inside the header instead of pushing the page wider */
+    .stage-head .tools { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .stage-head .tools::-webkit-scrollbar { display: none; }
+    .stage-head .tools .btn { flex-shrink: 0; }
+    /* composer: keep the tool pills compact and let the quick-symbol row scroll sideways instead of stacking */
+    .composer-bar { gap: 6px; }
+    .composer-bar .pill-select select { max-width: 200px; }
+    .composer-bar .btn { padding: 5px 9px; font-size: 12px; }
+    .snips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+    .snips::-webkit-scrollbar { display: none; }
+    .snips > * { flex-shrink: 0; }
+    /* modals: titles wrap, their buttons don't break mid-word; the memory one-click buttons sit in one row */
+    .section-title { flex-wrap: wrap; gap: 6px; }
+    .section-title .btn, .modal-head .btn { white-space: nowrap; }
+    #memQuick, #memMergeAll, #memRebuild { font-size: 12px; padding: 4px 8px; }
+    .rx-row .nm { white-space: normal; }
+    .rx-row .nm small { display: block; margin-left: 0; white-space: normal; }
     .messages { padding: 14px 12px 8px; }
     .composer { padding: 10px 12px 12px; }
     .row { grid-template-columns: 1fr; }
@@ -1403,7 +1421,7 @@
     </div>
     <div class="modal-body">
       <div class="rx-list" id="memOverview"></div>
-      <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn ghost" id="memQuick" title="把还没总结的部分自动归位：主线进主角的记忆书、私聊进 NPC 的、群聊进群的；已总结的不动">⚡ 一键小总结</button><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
+      <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px"><button class="btn ghost" id="memQuick" title="把还没总结的部分自动归位：主线进主角的记忆书、私聊进 NPC 的、群聊进群的；已总结的不动">⚡ 一键小总结</button><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
       <div class="field">
         <label for="memTarget">总结谁的记忆</label>
         <select id="memTarget"></select>
@@ -1477,7 +1495,7 @@
       <div class="section">
         <div class="section-title">
           <span>这次发了什么 · 预览 <span class="stat" id="ctxPrevNote">只读，按当前对话实时拼出来的</span></span>
-          <span class="row" style="gap:6px"><button class="btn ghost" id="ctxPrevCopy" title="把这次要发给模型的全部内容复制到剪贴板">复制全文</button><button class="btn ghost" id="ctxPrevToggle">显示</button></span>
+          <span style="display:flex;gap:6px;flex-wrap:nowrap"><button class="btn ghost" id="ctxPrevCopy" title="把这次要发给模型的全部内容复制到剪贴板">复制全文</button><button class="btn ghost" id="ctxPrevToggle">显示</button></span>
         </div>
         <div id="ctxPrevBody" hidden></div>
       </div>
@@ -8053,7 +8071,8 @@
       const d = document.createElement("details"); d.className = "adv"; d.open = stoOpen.has(g.key);
       d.addEventListener("toggle", () => { if (d.open) stoOpen.add(g.key); else stoOpen.delete(g.key); });
       const sm = document.createElement("summary");
-      sm.append(el("span", null, g.c ? g.c.name : "全局（背景图、全局世界书、预设、设置）"), el("span", "stat", `${fmtMB(g.bytes)} · ${((g.bytes / Math.max(1, total)) * 100).toFixed(0)}% · ${g.list.length} 项`));
+      sm.append(el("span", null, g.c ? g.c.name : "全局"), el("span", "stat", `${fmtMB(g.bytes)} · ${((g.bytes / Math.max(1, total)) * 100).toFixed(0)}% · ${g.list.length} 项`));
+      if (!g.c) sm.title = "背景图、全局世界书、预设、设置";
       d.appendChild(sm);
       const inner = el("div", "inner"); inner.style.gap = "6px";
       if (g.c) {
