@@ -5959,12 +5959,20 @@
     const chars = rng.reduce((s, m) => s + m.content.length, 0);
     const npcFloors = rng.filter((m) => m.npc);
     const names = [...new Set(npcFloors.map((m) => npcName(c, m.npc)))];
-    const note = !rng.length ? "" : npcFloors.length === rng.length ? ` · 这段全是和 ${names.join("、")} 的独处，${c.name} 不在场；要总结它请在「总结谁的记忆」里选 ${names[0]}` : npcFloors.length ? ` · 其中 ${npcFloors.length} 条是和 ${names.join("、")} 的独处，不会进 ${c.name} 的总结` : "";
+    let note = !rng.length ? "" : npcFloors.length === rng.length ? ` · 这段全是和 ${names.join("、")} 的独处，${c.name} 不在场；要总结它请在「总结谁的记忆」里选 ${names[0]}` : npcFloors.length ? ` · 其中 ${npcFloors.length} 条是和 ${names.join("、")} 的独处，不会进 ${c.name} 的总结` : "";
+    const moments = rng.filter((m) => isMoment(m)).length;
+    if (moments) {
+      // moments are public: unless the user picked a scope by hand, pre-select "public" so NPCs also get this summary
+      if (!memScopeTouched && $("memScope").value === "char") $("memScope").value = "public";
+      note += ` · 含 ${moments} 条朋友圈动态 / 评论${$("memScope").value === "public" ? "，范围已预选「公开」" : ""}`;
+    }
     $("memHint").textContent = `第 ${from}–${to} 楼，${rng.length} 条，约 ${chars} 字${note}`;
     $("memStat").textContent = `共 ${n} 楼 · 已总结到第 ${c.memory.lastFloor || 0} 楼`;
     $("memBook").textContent = memBookLine(c, memoryBook(c, false), c.name);
   }
+  let memScopeTouched = false; // the user changed the scope dropdown by hand in this memory window
   function fillMemScope(c, npc) {
+    memScopeTouched = false;
     const sel = $("memScope"); sel.innerHTML = "";
     const opts = npc
       ? [["char", `只有 ${npc.name} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"]]
@@ -7477,6 +7485,7 @@
   $("memBtn2").onclick = openMemoryAuto;
   $("memTarget").addEventListener("change", (e) => { const c = active(); if (!c) return; const v = e.target.value; if (v === "char") openMemory(); else if (v.startsWith("group:")) { const g = groupById(c, v.slice(6)); if (g) openMemoryForNpc(groupAsNpc(c, g)); } else { const n = npcById(c, v.slice(4)); if (n) openMemoryForNpc(n); } });
   $("memClose").onclick = closeMemory;
+  $("memScope").addEventListener("change", () => { memScopeTouched = true; });
   $("memCancel").onclick = closeMemory;
   $("memBack").addEventListener("click", (e) => { if (e.target === $("memBack")) closeMemory(); });
   $("memGen").onclick = memGenerate;
