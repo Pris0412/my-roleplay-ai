@@ -1044,22 +1044,13 @@
       </div>
 
       <div class="section">
-        <div class="section-title">数据</div>
-        <div class="row">
-          <button class="btn" id="dataExport">备份全部数据</button>
-          <button class="btn" id="dataImport">恢复备份</button>
+        <div class="section-title">当前对话</div>
+        <div class="stat" id="chatStat"></div>
+        <button class="btn block" id="memBtn2">记忆总结</button>
+        <div class="checks">
         </div>
-        <input type="file" id="dataFile" accept=".json,application/json" hidden>
-        <div class="help">角色、聊天记录、世界书、正则、预设、设置全部打包成一个 JSON。换浏览器或把页面下载到本地打开时用它搬家。API Key 不会包含在备份里。</div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">存储</div>
-        <div class="meter" id="stoMeter"><span></span></div>
-        <div class="stat" id="stoStat" style="margin-top:6px">检查中…</div>
-        <div class="book-note" id="stoSafari" hidden>你在用 Safari：苹果的规矩是一个网站 7 天没打开，本地数据可能被清掉。请更勤地「备份全部」，或至少每周打开一次。</div>
-        <button class="btn block" id="stoOpen" style="margin-top:8px">占用明细 · 清理 · 清空</button>
-        <div class="help">数据只在这台设备的这个浏览器里。换设备、清缓存都不会带走，靠「备份全部」搬家。</div>
+        <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
+        <button class="btn danger block" id="deleteChar">删除这个角色</button>
       </div>
 
       <div class="section">
@@ -1138,13 +1129,22 @@
       </div>
 
       <div class="section">
-        <div class="section-title">当前对话</div>
-        <div class="stat" id="chatStat"></div>
-        <button class="btn block" id="memBtn2">记忆总结</button>
-        <div class="checks">
+        <div class="section-title">存储</div>
+        <div class="meter" id="stoMeter"><span></span></div>
+        <div class="stat" id="stoStat" style="margin-top:6px">检查中…</div>
+        <div class="book-note" id="stoSafari" hidden>你在用 Safari：苹果的规矩是一个网站 7 天没打开，本地数据可能被清掉。请更勤地「备份全部」，或至少每周打开一次。</div>
+        <button class="btn block" id="stoOpen" style="margin-top:8px">占用明细 · 清理 · 清空</button>
+        <div class="help">数据只在这台设备的这个浏览器里。换设备、清缓存都不会带走，靠「备份全部」搬家。</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">数据</div>
+        <div class="row">
+          <button class="btn" id="dataExport">备份全部数据</button>
+          <button class="btn" id="dataImport">恢复备份</button>
         </div>
-        <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
-        <button class="btn danger block" id="deleteChar">删除这个角色</button>
+        <input type="file" id="dataFile" accept=".json,application/json" hidden>
+        <div class="help">角色、聊天记录、世界书、正则、预设、设置全部打包成一个 JSON。换浏览器或把页面下载到本地打开时用它搬家。API Key 不会包含在备份里。</div>
       </div>
     </div>
     <div class="drawer-foot">
