@@ -700,6 +700,8 @@
   .ctx-pre { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12px; line-height: 1.55; color: var(--text); max-height: 320px; overflow: auto; padding: 8px 10px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
   .ctx-skip { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
   .ctx-skip b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rebuild-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+  .rebuild-row small { color: var(--faint); font-family: var(--font-mono); font-size: 11px; margin-left: auto; }
   .opt-btn { display: block; width: 100%; height: auto; white-space: normal; text-align: left; padding: 10px 12px; line-height: 1.45; }
   .opt-btn b { display: block; font-size: 14px; }
   .opt-btn small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -1391,6 +1393,7 @@
     </div>
     <div class="modal-body">
       <div class="rx-list" id="memOverview"></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
       <div class="field">
         <label for="memTarget">总结谁的记忆</label>
         <select id="memTarget"></select>
@@ -1994,6 +1997,27 @@
     <div class="phone-foot">
       <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
       <button class="send" id="phoneSend" aria-label="发送">↑</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="rebuildBack" hidden style="z-index:62">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rebuildTitle" style="width:min(520px,100%)">
+    <div class="modal-head">
+      <span id="rebuildTitle">🧹 重建记忆</span>
+      <button class="btn ghost icon" id="rebuildClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help">会先自动存一份档；然后删掉勾选对象的旧总结、取消所有隐藏楼层，把楼层按「谁在场」切成每段最多 20 楼，一段一段重新总结存进各自的记忆书。有别人在场或有朋友圈的段存成「公开」，只有主角和你的段存成「只有主角知道」。</div>
+      <div class="rx-list" id="rebuildList"></div>
+      <div class="stat" id="rebuildEst"></div>
+      <div class="book-note" id="rebuildProg"></div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right">
+        <button class="btn danger" id="rebuildStop" hidden>停止</button>
+        <button class="btn primary" id="rebuildStart">开始重建</button>
+      </div>
     </div>
   </div>
 </div>
@@ -5257,13 +5281,13 @@
     else if (!chatReady()) $("memHint").textContent = "接口未就绪：只能手写总结";
     $("memBack").hidden = false;
   }
-  function buildNpcMemPrompt(c, npc) {
+  function buildNpcMemPrompt(c, npc, msgsOpt, templateOpt) {
     const u = state.persona.name || "用户";
-    const msgs = npcUnsummarized(c, npc);
+    const msgs = msgsOpt || npcUnsummarized(c, npc);
     const lines = msgs.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.group ? "" : m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : npc.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n");
     const book = memoryBook(c, false, npc);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
-    let prompt = $("memPrompt").value || (npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
+    let prompt = templateOpt || $("memPrompt").value || (npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
     prompt = prompt
       .replace(/\{\{members\}\}/g, npc.isGroup ? [state.persona.name || "用户", ...npc.group.members.map((id) => groupMemberName(c, id))].join("、") : "")
       .replace(/\{\{npc\}\}/g, npc.name)
@@ -5274,8 +5298,8 @@
     while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
     return prompt;
   }
-  function memSaveNpc(c, npc, text) {
-    const msgs = npcUnsummarized(c, npc);
+  function memSaveNpc(c, npc, text, msgsOpt, scopeOpt, silent) {
+    const msgs = msgsOpt || npcUnsummarized(c, npc);
     const created = !memoryBook(c, false, npc);
     const book = memoryBook(c, true, npc);
     const e = newEntry(book);
@@ -5288,12 +5312,13 @@
     const shared = npc.isGroup ? [] : [...new Set(msgs.flatMap((m) => msgNpcs(m)).filter((id) => id !== npc.id && npcById(c, id)))];
     e.extensions = { ...(e.extensions || {}), memory_npc: npc.isGroup ? undefined : npc.id, memory_group: npc.isGroup ? npc.group.id : undefined, memory_msgs: msgs.length ? [msgs[0].id, msgs[msgs.length - 1].id] : [] };
     if (shared.length) e.extensions.memory_shared = shared;
-    if ($("memScope").value === "public") e.extensions.lantern_scope = "public";
+    if ((scopeOpt || (silent ? "char" : $("memScope").value)) === "public") e.extensions.lantern_scope = "public";
     book.entries.push(e);
     npc.memCount = k;
     const done = c.memory.npcDone || (c.memory.npcDone = {});
     for (const m of msgs) done[m.id] = true;
     save();
+    if (silent) return;
     closeMemory();
     const sharedNames = shared.map((id) => npcName(c, id)).join("、");
     toast(npc.isGroup ? `已存入「${book.name}」（群成员都能看到，共 ${book.entries.length} 条）` : created ? `已创建「${book.name}」并存入第 ${k} 段私聊记忆${shared.length ? `（${sharedNames} 也在场，同样能看到）` : `（只有 ${npc.name} 看得到）`}` : `已存入「${book.name}」（共 ${book.entries.length} 条）${shared.length ? ` · ${sharedNames} 也能看到` : ""}`);
@@ -5979,7 +6004,7 @@
     const text = m.content || "";
     return c.npcs.filter((n) => [n.name, ...(n.aliases || [])].some((x) => x && x.length >= 2 ? text.includes(x) : x && new RegExp(`(^|[^\\p{L}])${x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "u").test(text))).map((n) => n.id);
   }
-  function memSegments(c) {
+  function memSegments(c, maxLen) {
     // floors already covered by a saved summary (by its recorded range) don't need suggesting again
     const book = memoryBook(c, false);
     const ranges = book ? book.entries.map((e) => e.extensions && Array.isArray(e.extensions.memory_range) ? e.extensions.memory_range : null).filter(Boolean) : [];
@@ -6001,18 +6026,25 @@
       for (let k = 1; k <= 2 && i - k >= 0; k++) for (const id of rows[i - k].cast) cast.add(id);
       const key = rows[i].moments ? "public" : [...cast].sort().join(",");
       const last = segs[segs.length - 1];
-      if (last && last.key === key) { last.to = rows[i].floor; last.n++; last.moments += rows[i].moments ? 1 : 0; }
-      else segs.push({ key, from: rows[i].floor, to: rows[i].floor, n: 1, cast: [...cast], moments: rows[i].moments ? 1 : 0 });
+      if (last && last.key === key) { last.to = rows[i].floor; last.n++; last.moments += rows[i].moments ? 1 : 0; last.floors.push(rows[i].floor); }
+      else segs.push({ key, from: rows[i].floor, to: rows[i].floor, n: 1, cast: [...cast], moments: rows[i].moments ? 1 : 0, floors: [rows[i].floor] });
     }
     // fold tiny segments into the previous one so the list doesn't turn into confetti
     const out = [];
     for (const s of segs) {
       const prev = out[out.length - 1];
-      if (prev && s.n < 3) { prev.to = s.to; prev.n += s.n; prev.moments += s.moments; prev.cast = [...new Set([...prev.cast, ...s.cast])]; prev.key = prev.moments || s.key === "public" ? "public" : prev.cast.sort().join(","); }
-      else out.push({ ...s, cast: s.cast.slice() });
+      if (prev && s.n < 3) { prev.to = s.to; prev.n += s.n; prev.moments += s.moments; prev.cast = [...new Set([...prev.cast, ...s.cast])]; prev.floors.push(...s.floors); prev.key = prev.moments || s.key === "public" ? "public" : prev.cast.sort().join(","); }
+      else out.push({ ...s, cast: s.cast.slice(), floors: s.floors.slice() });
     }
-    for (const s of out) s.scope = s.key === "public" ? "public" : s.cast.length ? "share:" + s.cast.join(",") : "char";
-    return out;
+    // long stretches get cut into bites of at most `maxLen` floors so one summary never swallows half the story
+    const fin = [];
+    for (const s of out) {
+      if (!maxLen || s.n <= maxLen) { fin.push(s); continue; }
+      for (let i = 0; i < s.floors.length; i += maxLen) { const fl = s.floors.slice(i, i + maxLen); fin.push({ ...s, from: fl[0], to: fl[fl.length - 1], n: fl.length, floors: fl }); }
+    }
+    // suggestion: nobody else around → only the character; anyone else around or moments → public (simple beats precise)
+    for (const s of fin) s.scope = s.key === "public" || s.cast.length ? "public" : "char";
+    return fin;
   }
   function scopeOptionLabel(c, v) {
     if (v === "public") return "公开 · 主角和所有 NPC 都知道";
@@ -6126,6 +6158,9 @@
     if (memMode === "merge") return buildMergePrompt(c);
     if (memNpc) return buildNpcMemPrompt(c, memNpc);
     const { from, to } = memRange();
+    return buildMainMemPrompt(c, from, to, $("memPrompt").value || DEFAULT_MEM_PROMPT);
+  }
+  function buildMainMemPrompt(c, from, to, template) {
     const u = state.persona.name || "用户";
     let fl = from - 1;
     const lines = chatRange(c, from, to).map((m) => {
@@ -6137,7 +6172,7 @@
     }).filter(Boolean).join("\n\n");
     const book = memoryBook(c, false);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim() && entryScope(e) !== "public" && !entryScope(e).startsWith("npc:")).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
-    let prompt = $("memPrompt").value || DEFAULT_MEM_PROMPT;
+    let prompt = template || DEFAULT_MEM_PROMPT;
     prompt = prompt
       .replace(/\{\{range\}\}/g, `${from}-${to}`)
       .replace(/\{\{messages\}\}/g, () => lines)
@@ -6178,6 +6213,12 @@
     if (memMode === "merge") return memSaveMerge(c, text);
     if (memNpc) return memSaveNpc(c, memNpc, text);
     const { from, to } = memRange();
+    const { book, created } = saveMainMem(c, from, to, text, $("memScope").value || "char");
+    closeMemory();
+    toast(created ? `已创建「${book.name}」并存入记忆 ${from}-${to}` : `已存入记忆 ${from}-${to}（共 ${book.entries.length} 条）`);
+    updateStats();
+  }
+  function saveMainMem(c, from, to, text, scopeV) {
     const created = !memoryBook(c, false);
     const book = memoryBook(c, true);
     const e = newEntry(book);
@@ -6187,15 +6228,13 @@
     e.position = "after_char";
     e.insertion_order = 100 + book.entries.length;
     e.extensions = { ...(e.extensions || {}), memory_range: [from, to] };
-    const scopeV = $("memScope").value || "char";
+    scopeV = scopeV || "char";
     if (scopeV.startsWith("share:")) e.extensions.memory_shared = scopeV.slice(6).split(",").filter((id) => npcById(c, id));
     else if (scopeV !== "char") e.extensions.lantern_scope = scopeV;
     book.entries.push(e);
     c.memory.lastFloor = Math.max(c.memory.lastFloor || 0, to);
     save();
-    closeMemory();
-    toast(created ? `已创建「${book.name}」并存入记忆 ${from}-${to}` : `已存入记忆 ${from}-${to}（共 ${book.entries.length} 条）`);
-    updateStats();
+    return { book, created };
   }
 
   function setBusy(on) {
@@ -7559,6 +7598,97 @@
   $("memBtn").onclick = openMemoryAuto;
   $("memBtn2").onclick = openMemoryAuto;
   $("memTarget").addEventListener("change", (e) => { const c = active(); if (!c) return; const v = e.target.value; if (v === "char") openMemory(); else if (v.startsWith("group:")) { const g = groupById(c, v.slice(6)); if (g) openMemoryForNpc(groupAsNpc(c, g)); } else { const n = npcById(c, v.slice(4)); if (n) openMemoryForNpc(n); } });
+  // ============================================================
+  // 重建记忆: wipe the summaries, unhide everything, re-summarise segment by segment
+  // ============================================================
+  const isSummaryEntry = (e) => !!(e.extensions && (e.extensions.memory_range || e.extensions.memory_msgs || e.extensions.memory_merged || e.extensions.memory_archived));
+  let rebuildCtl = null;
+  function rebuildTargets(c) {
+    const out = { char: c.chat.some((m) => m.kind !== "divider" && !m.npc && !m.group && !m.error), npcs: [], groups: [] };
+    for (const n of c.npcs) { const k = c.chat.filter((m) => msgHasNpc(m, n.id) && m.kind !== "divider" && !m.error).length; if (k) out.npcs.push({ id: n.id, name: n.name, n: k }); }
+    for (const g of c.groups) { const k = c.chat.filter((m) => m.group === g.id && m.kind !== "divider" && !m.error).length; if (k) out.groups.push({ id: g.id, name: g.name, n: k }); }
+    return out;
+  }
+  function chunkMsgs(list, size) { const out = []; let cur = [], n = 0; for (const m of list) { cur.push(m); if (m.kind !== "divider") n++; if (n >= size) { out.push(cur); cur = []; n = 0; } } if (cur.some((m) => m.kind !== "divider")) out.push(cur); return out; }
+  function openRebuild() {
+    const c = active(); if (!c || busy || rebuildCtl) return;
+    const t = rebuildTargets(c);
+    const box = $("rebuildList"); box.innerHTML = "";
+    const mk = (key, label, sub, checked) => {
+      const row = el("label", "rebuild-row");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = checked; cb.dataset.key = key;
+      row.append(cb, el("span", null, label), el("small", null, sub));
+      box.appendChild(row);
+    };
+    if (t.char) mk("char", `${c.name} 的主线`, `${floorCount(c)} 楼`, true);
+    for (const n of t.npcs) mk("npc:" + n.id, `${n.name} 的私聊`, `${n.n} 条`, true);
+    for (const g of t.groups) mk("group:" + g.id, `群「${g.name}」`, `${g.n} 条`, true);
+    if (!box.children.length) box.appendChild(el("div", "rx-empty", "还没有可以总结的内容。"));
+    $("rebuildProg").textContent = "";
+    $("rebuildStart").hidden = false; $("rebuildStop").hidden = true; $("rebuildStart").disabled = !chatReady() || !box.children.length;
+    $("rebuildEst").textContent = chatReady() ? "预计调用次数会在开始后显示；每段最多 20 楼，一段一次。" : "接口未就绪，不能重建。";
+    $("rebuildBack").hidden = false;
+  }
+  async function rebuildMemory() {
+    const c = active(); if (!c || busy || rebuildCtl || !chatReady()) return;
+    const keys = [...$("rebuildList").querySelectorAll("input:checked")].map((x) => x.dataset.key);
+    if (!keys.length) return toast("先勾选要重建谁的记忆", true);
+    if (!(await askConfirm("会先自动存档，然后删掉勾选对象的旧总结、取消所有隐藏楼层，再一段段重新总结。开始？", "开始重建"))) return;
+    makeSave(c, `自动 · 重建记忆前（第 ${floorCount(c)} 楼）`, "rebuild");
+    for (const m of c.chat) m.hidden = false;
+    const jobs = [];
+    const done = c.memory.npcDone || (c.memory.npcDone = {});
+    if (keys.includes("char")) {
+      const book = memoryBook(c, false); if (book) book.entries = book.entries.filter((e) => !isSummaryEntry(e));
+      c.memory.lastFloor = 0;
+      for (const s of memSegments(c, 20)) jobs.push({ kind: "char", from: s.from, to: s.to, scope: s.key === "public" || s.cast.length ? "public" : "char", label: `${c.name} 第 ${s.from}–${s.to} 楼` });
+    }
+    for (const key of keys) {
+      if (key === "char") continue;
+      const npc = key.startsWith("npc:") ? npcById(c, key.slice(4)) : (() => { const g = groupById(c, key.slice(6)); return g ? groupAsNpc(c, g) : null; })();
+      if (!npc) continue;
+      const book = memoryBook(c, false, npc); if (book) book.entries = book.entries.filter((e) => !isSummaryEntry(e));
+      npc.memCount = 0; if (!npc.isGroup) npc.memLastId = null;
+      for (const m of c.chat) if (npc.isGroup ? m.group === npc.group.id : msgHasNpc(m, npc.id)) delete done[m.id];
+      for (const chunk of chunkMsgs(npcUnsummarized(c, npc), 20)) jobs.push({ kind: "npc", npc, msgs: chunk, label: npc.isGroup ? `群「${npc.name}」` : `${npc.name} 的私聊` });
+    }
+    save(); renderMessages(); updateStats();
+    if (!jobs.length) { toast("没有可以总结的内容", true); return; }
+    rebuildCtl = new AbortController();
+    $("rebuildStart").hidden = true; $("rebuildStop").hidden = false;
+    $("rebuildEst").textContent = `共 ${jobs.length} 段，一段一次调用。`;
+    let ok = 0, fail = 0;
+    try {
+      for (let i = 0; i < jobs.length; i++) {
+        const j = jobs[i];
+        $("rebuildProg").textContent = `第 ${i + 1} / ${jobs.length} 段 · ${j.label}…`;
+        try {
+          const prompt = j.kind === "char" ? buildMainMemPrompt(c, j.from, j.to, memPromptTemplate()) : buildNpcMemPrompt(c, j.npc, j.msgs, j.npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
+          const res = await complete(prompt, { signal: rebuildCtl.signal });
+          const text = stripReasoning(res.text).trim();
+          if (!text) { fail++; continue; }
+          if (j.kind === "char") saveMainMem(c, j.from, j.to, text, j.scope); else memSaveNpc(c, j.npc, text, j.msgs, null, true);
+          ok++;
+        } catch (e) {
+          if (e && (e.code === "cancelled" || e.name === "AbortError")) throw e;
+          fail++; console.error(e);
+        }
+      }
+      $("rebuildProg").textContent = `完成：存了 ${ok} 段${fail ? `，失败 ${fail} 段` : ""}。`;
+      toast(`记忆已重建：${ok} 段${fail ? `，失败 ${fail} 段` : ""}`);
+    } catch (e) {
+      $("rebuildProg").textContent = `已停止：存了 ${ok} 段，剩下的没做。`;
+    } finally {
+      rebuildCtl = null;
+      $("rebuildStart").hidden = false; $("rebuildStop").hidden = true;
+      save(); updateStats(); renderMessages();
+      if (!$("memBack").hidden) memUpdateHint();
+    }
+  }
+  $("memRebuild").onclick = openRebuild;
+  $("rebuildStart").onclick = rebuildMemory;
+  $("rebuildStop").onclick = () => { if (rebuildCtl) rebuildCtl.abort(); };
+  $("rebuildClose").onclick = () => { if (rebuildCtl) { toast("正在重建，先点「停止」", true); return; } $("rebuildBack").hidden = true; };
   $("memClose").onclick = closeMemory;
   $("memScope").addEventListener("change", () => { memScopeTouched = true; });
   $("memCancel").onclick = closeMemory;
