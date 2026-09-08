@@ -535,6 +535,36 @@
   .ct-row .tg.on { color: #34c759; border-color: #34c759; }
   .ct-row .ed { border: 0; background: transparent; color: #0a84ff; font-size: 12px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
   .ct-row .ed:hover { background: rgba(10,132,255,0.12); }
+  /* 朋友圈 */
+  .mo { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  .mo-compose { background: #fff; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .phone.dark .mo-compose, .phone.dark .mo-post { background: #1c1c1e; }
+  .mo-compose textarea { width: 100%; resize: vertical; border: 0; background: transparent; font: inherit; font-size: 14px; color: inherit; outline: none; min-height: 44px; }
+  .mo-row { display: flex; align-items: center; gap: 8px; }
+  .mo-row .spacer { flex: 1; }
+  .mo-row .btn, .mo-tools .btn, .mo-ci .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
+  .mo-auto { font-size: 12px; color: #8e8e93; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .mo-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .mo-tools select { font-size: 12px; padding: 4px 8px; border-radius: 999px; max-width: 150px; }
+  .mo-post { background: #fff; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .mo-head { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+  .mo-head .av { width: 36px; height: 36px; border-radius: 8px; background: #d1d1d6; color: #fff; display: grid; place-items: center; font-weight: 600; overflow: hidden; }
+  .mo-head .av img { width: 100%; height: 100%; object-fit: cover; }
+  .mo-head .nm { font-weight: 600; font-size: 14px; color: #576b95; }
+  .mo-head .tm { font-size: 11px; color: #8e8e93; }
+  .mo-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .mo-likes { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #576b95; }
+  .mo-like { border: 0; background: transparent; cursor: pointer; font-size: 14px; padding: 0 2px; }
+  .mo-cms { background: #f2f2f7; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 3px; }
+  .phone.dark .mo-cms { background: #2c2c2e; }
+  .mo-cm { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; display: flex; gap: 2px; align-items: baseline; }
+  .mo-cm b { color: #576b95; font-weight: 600; white-space: nowrap; }
+  .mo-cm .mo-x { margin-left: auto; }
+  .mo-x { border: 0; background: transparent; color: #c7c7cc; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; }
+  .mo-x:hover { color: #ff3b30; }
+  .mo-ci { display: flex; gap: 6px; align-items: center; }
+  .mo-ci input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid #e5e5ea; background: #fff; color: inherit; }
+  .phone.dark .mo-ci input { background: #2c2c2e; border-color: #3a3a3c; }
   .ct-tools { display: flex; gap: 6px; padding: 6px 0; }
   .ct-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
   .ct-empty { font-size: 12px; color: #8e8e93; padding: 10px 4px; line-height: 1.5; }
@@ -2940,8 +2970,8 @@
     const flush = () => { if (run) { box.appendChild(phoneCardNode(run, c, runKey)); run = null; runKey = null; } };
     c.chat.forEach((m, i) => {
       if (m.kind === "divider") { flush(); box.appendChild(dividerNode(m, c)); return; }
-      if (m.channel === "phone") {
-        const key = m.group ? "g:" + m.group : (m.npc || null);
+      if (m.channel === "phone" || m.channel === "moments") {
+        const key = m.channel === "moments" ? "m:" : m.group ? "g:" + m.group : (m.npc || null);
         if (run && runKey !== key) flush();
         if (!run) { run = []; runKey = key; }
         run.push({ m, i }); return;
@@ -2969,6 +2999,7 @@
     return d;
   }
   function phoneCardNode(run, c, npcId) {
+    if (npcId === "m:") return momentsCardNode(run, c);
     if (npcId && String(npcId).startsWith("g:")) return groupCardNode(run, c, npcId.slice(2));
     const npc = npcId ? npcById(c, npcId) : null;
     const wrap = el("div", "phone-card");
@@ -3318,6 +3349,7 @@
     let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth: 0, c });
     if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
     if (m.kind === "divider") return `（${sub(m.content, c)}）`;
+    if (m.channel === "moments") return momentLine(c, m);
     if (m.group) { const g = groupById(c, m.group); return `[群聊·${g ? g.name : "群"} ${fmtTime(m.ts)}] ${groupSpeakerName(c, m)}：${txt}`; }
     if (m.channel === "phone") {
       if (txt.trim() === "[不回复]") return `[手机 ${fmtTime(m.ts)}] ${c.name} 看到了消息，没有回复。`;
@@ -3913,6 +3945,7 @@
   // ---------- ➕ menu ----------
   const PLUS_ITEMS = [
     { id: "phone", icon: "📱", label: "手机", hint: "分隔两地，或同一场合悄悄发消息", run: () => askPhoneScene() },
+    { id: "moments", icon: "🌄", label: "朋友圈", hint: "你、主角和联系人都能发动态、点赞、评论，大家都看得到", run: () => openMoments() },
     { id: "npc", icon: "👥", label: "联系人 · 私聊 NPC", hint: "和世界书里的人单独聊，主角不知道", run: () => openContacts() },
   ];
   function renderPlusMenu() {
@@ -4387,7 +4420,7 @@
   }
   // ----- contacts view inside the phone -----
   let phoneWith = null;        // null = the character; otherwise an NPC id
-  let phoneView = "chat";      // "chat" | "contacts"
+  let phoneView = "chat";      // "chat" | "contacts" | "moments"
   function openContacts() {
     const c = active();
     if (!c) return;
@@ -4416,6 +4449,16 @@
   function renderContacts(c, body) {
     const u = state.persona.name || "你";
     const list = el("div", "ct-list");
+    {
+      const row = el("button", "ct-row");
+      const a = el("div", "av", "🌄");
+      const t = el("div"); t.appendChild(el("div", "nm", "朋友圈"));
+      const ps = momentPosts(c); const lp = ps[ps.length - 1];
+      t.appendChild(el("div", "sb", lp ? `${momentAuthorName(c, lp.author)}：${sub(lp.content, c).split("\n")[0].slice(0, 30)}` : "大家的动态都在这里，你、主角和联系人都能发、都能看"));
+      row.append(a, t, el("span", "tg" + (ps.length ? " on" : ""), ps.length ? `${ps.length} 条` : "新"));
+      row.onclick = () => openMoments();
+      list.appendChild(row);
+    }
     list.appendChild(el("div", "ct-h", "角色"));
     const rowChar = el("button", "ct-row");
     const av = el("div", "av"); if (c.image) { const img = document.createElement("img"); img.src = c.image; av.appendChild(img); } else av.textContent = c.emoji || c.name[0];
@@ -4625,8 +4668,8 @@
   const groupById = (c, id) => (c && c.groups ? c.groups.find((g) => g.id === id) : null) || null;
   const groupHas = (c, gid, who) => { const g = groupById(c, gid); return !!g && g.members.includes(who); };
   // who can see a message: the character sees main-scene floors and groups she is in; an NPC sees its own threads and its groups
-  const visibleToChar = (c, m) => (m.group ? groupHas(c, m.group, "char") : !m.npc);
-  const visibleToNpc = (c, m, id) => (m.group ? groupHas(c, m.group, id) : msgHasNpc(m, id));
+  const visibleToChar = (c, m) => (m.channel === "moments" ? true : m.group ? groupHas(c, m.group, "char") : !m.npc);
+  const visibleToNpc = (c, m, id) => (m.channel === "moments" ? true : m.group ? groupHas(c, m.group, id) : msgHasNpc(m, id));
   function groupMemberName(c, who) { return who === "char" ? c.name : npcName(c, who); }
   function groupSpeakerName(c, m) { return m.role === "user" ? (state.persona.name || "用户") : groupMemberName(c, m.speaker || "char"); }
   function groupMsgs(c, gid) { return c.chat.map((m, i) => ({ m, i })).filter((x) => x.m.group === gid); }
@@ -4846,6 +4889,212 @@
     c.chat = c.chat.filter((m) => !(m.group === gid && m.batch === last.batch));
     save(); renderMessages(); renderPhone();
     await generateGroup(c, gid, { nudge: lastGroupNudge });
+  }
+  // ============================================================
+  // 朋友圈 (moments): a public timeline everyone can post to and read.
+  // Posts and comments are floors in c.chat with channel "moments" — they roll back, index, summarise and save like any floor.
+  // ============================================================
+  const isMoment = (m) => m.channel === "moments";
+  function momentAuthorName(c, a) { return a === "user" ? (state.persona.name || "你") : a === "char" ? c.name : npcName(c, a); }
+  function momentPosts(c) { return c.chat.filter((m) => isMoment(m) && m.kind === "post" && !m.error); }
+  function momentComments(c, postId) { return c.chat.filter((m) => isMoment(m) && m.kind === "comment" && m.post === postId && !m.error); }
+  function momentAuthors(c) {
+    const map = new Map([[c.name, "char"]]);
+    for (const n of c.npcs) { map.set(n.name, n.id); for (const a of n.aliases || []) if (a) map.set(a, n.id); }
+    return map;
+  }
+  function momentLine(c, m) {
+    const t = fmtTime(m.ts);
+    if (m.kind === "comment") {
+      const p = c.chat.find((x) => x.id === m.post);
+      const head = p ? `${momentAuthorName(c, p.author)} 的动态「${sub(p.content, c).replace(/\s+/g, " ").slice(0, 20)}${p.content.length > 20 ? "…" : ""}」` : "一条动态";
+      return `[朋友圈 ${t}] ${momentAuthorName(c, m.author)} 评论了${head}：${sub(m.content, c)}`;
+    }
+    const likes = (m.likes || []).map((a) => momentAuthorName(c, a));
+    return `[朋友圈 ${t}] ${momentAuthorName(c, m.author)} 发了一条动态：${sub(m.content, c)}${likes.length ? `（❤️ ${likes.join("、")}）` : ""}`;
+  }
+  function momentsCardNode(run, c) {
+    const wrap = el("div", "phone-card");
+    wrap.dataset.id = run[run.length - 1].m.id;
+    const av = el("div", "avatar", "🌄");
+    const pc = el("div", "pc");
+    const last = run[run.length - 1].m;
+    const posts = run.filter((x) => x.m.kind === "post").length, cms = run.length - posts;
+    const preview = `${momentAuthorName(c, last.author)}${last.kind === "comment" ? " 评论" : ""}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
+    const title = el("div", "t", `朋友圈 · ${posts} 条动态${cms ? ` · ${cms} 条评论` : ""}`);
+    title.appendChild(el("small", null, "大家都看得到"));
+    pc.append(el("span", "ic", "🌄"), (() => { const d = el("div"); d.appendChild(title); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${floorOf(c, run[0].i)}–#${floorOf(c, run[run.length - 1].i)}`));
+    pc.onclick = () => openMoments();
+    wrap.append(av, pc);
+    return wrap;
+  }
+  function openMoments() {
+    const c = active(); if (!c) return;
+    phoneView = "moments"; phoneWith = null; phoneGroup = null; phoneSel = null; phoneEdit = null;
+    $("phone").classList.toggle("dark", state.settings.phoneDark === true);
+    renderPhone();
+    $("phoneBack").hidden = false;
+  }
+  let momentsBusy = null; // "post" | "react" while generating
+  function momentPost(c, text) {
+    const m = { id: uid(), role: "user", channel: "moments", kind: "post", author: "user", content: text, likes: [], ts: Date.now() };
+    c.chat.push(m); save(); renderMessages(); renderCharList(); renderPhone();
+    if (state.settings.momentsAuto) generateMoments(c, "react", { target: m.id });
+  }
+  function momentComment(c, postId, text) {
+    const m = { id: uid(), role: "user", channel: "moments", kind: "comment", author: "user", post: postId, content: text, ts: Date.now() };
+    c.chat.push(m); save(); renderMessages(); renderCharList(); renderPhone();
+    if (state.settings.momentsAuto) generateMoments(c, "react", { target: postId });
+  }
+  async function momentDelete(c, m) {
+    const kids = m.kind === "post" ? momentComments(c, m.id) : [];
+    if (!(await askConfirm(m.kind === "post" ? `删掉这条动态${kids.length ? `和它下面的 ${kids.length} 条评论` : ""}？` : "删掉这条评论？", "删除", true))) return;
+    const ids = new Set([m.id, ...kids.map((k) => k.id)]);
+    c.chat = c.chat.filter((x) => !ids.has(x.id));
+    for (const p of c.chat) if (isMoment(p) && Array.isArray(p.likes)) p.likes = p.likes.filter((a) => !ids.has(a));
+    save(); renderMessages(); renderCharList(); renderPhone();
+  }
+  function momentToggleLike(c, p) {
+    p.likes = Array.isArray(p.likes) ? p.likes : [];
+    if (p.likes.includes("user")) p.likes = p.likes.filter((a) => a !== "user"); else p.likes.push("user");
+    save(); renderPhone();
+  }
+  function buildMomentsPrompt(c, kind, opts) {
+    const u = state.persona.name || "用户";
+    const cast = [{ id: "char", name: c.name }, ...c.npcs.map((n) => ({ id: n.id, name: n.name }))];
+    const parts = [];
+    parts.push(`这是一个沉浸式角色扮演里的「朋友圈」（社交动态）。用户扮演 ${u}；你同时扮演 ${cast.map((x) => x.name).join("、")}，每个人只按自己的性格、说话方式、和 ${u} 的关系来发动态、点赞或评论。朋友圈是公开的：这些人都能看到彼此发的所有内容，包括 ${u} 和别人互相评论。`);
+    const lore = activeLore(c, c.chat.filter((m) => !m.npc).slice(-8), null);
+    if (lore.before.length) parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`);
+    parts.push(`\n## ${c.name}`, [c.tag ? sub(c.tag, c) : "", (c.description || "").slice(0, 700), c.personality ? `性格：${c.personality.slice(0, 300)}` : ""].filter(Boolean).join("\n") || "（主角）");
+    for (const n of c.npcs) { parts.push(`\n## ${n.name}`, [n.brief, (n.desc || "").slice(0, 300)].filter((x) => x && x.trim()).join("\n") || "（按名字和上下文合理推断）"); const pb = npcPersonaBlock(n); if (pb) parts.push(pb); }
+    if (state.persona.desc && state.persona.desc.trim()) parts.push(`\n## ${u} 的人设`, state.persona.desc.slice(0, 500));
+    const rel = [];
+    const cu = charUserRel(c);
+    if (cu.rel || cu.aff != null) rel.push(`${c.name} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100）` : ""}`);
+    for (const n of c.npcs) { const a = relGet(c, "u", n.id), b = relGet(c, "c", n.id); if (a.set) rel.push(`${n.name} 和 ${u}：${a.rel || "（未定）"}（好感 ${a.aff}/100）${a.note ? ` · ${a.note}` : ""}`); if (b.set) rel.push(`${n.name} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100）`); }
+    if (rel.length) parts.push(`\n## 人际关系\n${rel.map((x) => "- " + x).join("\n")}`);
+    if (lore.after.length) parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`);
+    const recent = c.chat.filter((m) => !m.npc && !m.group && !isMoment(m) && m.kind !== "divider" && !m.error && !m.hidden).slice(-10);
+    if (recent.length) parts.push(`\n## 最近的正文剧情（供参考，动态和评论要贴合这些事）\n${recent.map((m) => `${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").slice(0, 160)}`).join("\n")}`);
+    const posts = momentPosts(c).slice(-12);
+    const feed = posts.map((p, i) => {
+      const likes = (p.likes || []).map((a) => momentAuthorName(c, a));
+      const cms = momentComments(c, p.id).map((k) => `    ↳ ${momentAuthorName(c, k.author)}：${sub(k.content, c)}`);
+      return [`P${i + 1}${opts && opts.target === p.id ? "（★ 刚发的）" : ""} [${fmtTime(p.ts)}] ${momentAuthorName(c, p.author)}：${sub(p.content, c)}${likes.length ? `\n    ❤️ ${likes.join("、")}` : ""}`, ...cms].join("\n");
+    }).join("\n\n");
+    parts.push(`\n## 现在的朋友圈（从旧到新）\n${feed || "（还没有动态）"}`);
+    const fmt = `只输出一个 JSON 数组，每个元素是下面三种之一：\n{"type":"post","author":"名字","text":"动态正文"}\n{"type":"like","author":"名字","post":"P2"}\n{"type":"comment","author":"名字","post":"P2","text":"评论内容"}\nauthor 必须是 ${cast.map((x) => x.name).join(" / ")} 之一，不要写 ${u}。`;
+    if (kind === "react") {
+      const who = opts && opts.who ? momentAuthorName(c, opts.who) : "";
+      parts.push(`\n## 任务\n${who ? `让 ${who} 对朋友圈做出反应：点赞或评论 1–3 条，` : "让这些人对朋友圈做出反应：一共输出 2–6 个动作，"}${opts && opts.target ? "重点是标了 ★ 的那条，" : "重点是最新的几条，"}谁反应、怎么反应按各人的性格和关系来：有人会点赞，有人会评论，有人会回评论里别人说的话（评论里可以 @名字），也有人根本不理。看到 ${u} 和别人互相评论时，可以按性格吃醋、调侃或装没看见。评论像真人发的：短、口语、可以用表情符号但别滥用。不要重复已有的点赞和评论。\n${fmt}`);
+    } else {
+      const who = opts && opts.who ? momentAuthorName(c, opts.who) : "";
+      parts.push(`\n## 任务\n${who ? `让 ${who} 发 1 条新动态` : "从这些人里选 1–3 个人各发 1 条新动态"}：内容贴合各自此刻的生活和最近剧情（可以是心情、一句话、一张图片的描述——图片用「[图片：描述]」写在正文里），别写成小作文，每条 60 字以内；不同人的风格要分得开；${who ? "" : "还可以顺手对已有动态点赞或评论 0–2 次。"}\n${fmt}`);
+    }
+    parts.push(`\n- ${langHint()}`);
+    return sub(parts.join("\n"), c);
+  }
+  async function generateMoments(c, kind, opts) {
+    if (!chatReady() || busy || momentsBusy) return;
+    opts = opts || {};
+    const ctl = new AbortController();
+    busy = { ctl, moments: true }; momentsBusy = kind;
+    setBusy(true); renderPhone();
+    try {
+      const prompt = buildMomentsPrompt(c, kind, opts);
+      let v = await completeJson(prompt, { signal: ctl.signal, tier: state.settings.tier });
+      if (v && !Array.isArray(v)) v = v.actions || v.items || v.list || [];
+      if (!Array.isArray(v)) v = [];
+      const names = momentAuthors(c);
+      const posts = momentPosts(c).slice(-12);
+      const byRef = (ref) => { const m = String(ref || "").match(/(\d+)/); const p = m ? posts[parseInt(m[1], 10) - 1] : null; return p || null; };
+      let n = 0;
+      const batch = uid();
+      for (const a of v) {
+        if (!a || typeof a !== "object") continue;
+        const author = names.get(String(a.author || "").trim());
+        if (!author) continue;
+        const text = String(a.text || "").trim();
+        if (a.type === "post" && text) { c.chat.push({ id: uid(), role: "assistant", channel: "moments", kind: "post", author, content: text, likes: [], batch, ts: Date.now() }); n++; }
+        else if (a.type === "like") { const p = byRef(a.post) || posts[posts.length - 1]; if (p && p.author !== author) { p.likes = Array.isArray(p.likes) ? p.likes : []; if (!p.likes.includes(author)) { p.likes.push(author); n++; } } }
+        else if (a.type === "comment" && text) { const p = byRef(a.post) || posts[posts.length - 1]; if (p) { c.chat.push({ id: uid(), role: "assistant", channel: "moments", kind: "comment", author, post: p.id, content: text, batch, ts: Date.now() }); n++; } }
+      }
+      if (!n) toast(kind === "react" ? "这会儿没人理会" : "没有人发动态", true);
+    } catch (e) {
+      const cancelled = e && (e.code === "cancelled" || e.name === "AbortError");
+      if (!cancelled) toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true);
+    } finally {
+      busy = null; momentsBusy = null;
+      setBusy(false); save();
+      renderMessages(); renderCharList(); renderPhone();
+    }
+  }
+  function renderMoments(c, body) {
+    const u = state.persona.name || "你";
+    const box = el("div", "mo");
+    // compose
+    const comp = el("div", "mo-compose");
+    const ta = document.createElement("textarea"); ta.rows = 2; ta.placeholder = "这一刻的想法…（可以写 [图片：描述]）"; ta.disabled = !!busy;
+    const row = el("div", "mo-row");
+    const post = el("button", "btn primary", "发布"); post.disabled = !!busy;
+    post.onclick = () => { const t = ta.value.trim(); if (!t) return; ta.value = ""; momentPost(c, t); };
+    ta.onkeydown = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); post.click(); } };
+    const auto = el("label", "mo-auto"); const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = state.settings.momentsAuto === true; cb.onchange = () => { state.settings.momentsAuto = cb.checked; save(); toast(cb.checked ? "发完动态、评论后会自动来一波反应" : "改成手动：点「看看谁来了」"); };
+    auto.append(cb, document.createTextNode(" 发完自动来反应"));
+    row.append(auto, el("span", "spacer"), post);
+    comp.append(ta, row);
+    box.appendChild(comp);
+    // tools
+    const tools = el("div", "mo-tools");
+    const sel = document.createElement("select"); sel.title = "让谁发动态 / 让谁来反应";
+    for (const [v, t] of [["", "随机 1–3 人"], ["char", c.name], ...c.npcs.map((n) => [n.id, n.name])]) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
+    const refresh = el("button", "btn", momentsBusy === "post" ? "刷新中…" : "🔄 刷新朋友圈"); refresh.disabled = !!busy || !chatReady(); refresh.title = "让主角或 NPC 发新动态";
+    refresh.onclick = () => generateMoments(c, "post", { who: sel.value || null });
+    const react = el("button", "btn ghost", momentsBusy === "react" ? "他们在看…" : "👀 看看谁来了"); react.disabled = !!busy || !chatReady() || !momentPosts(c).length; react.title = "让大家对最新的动态点赞、评论";
+    react.onclick = () => generateMoments(c, "react", { who: sel.value || null });
+    tools.append(sel, refresh, react);
+    box.appendChild(tools);
+    // feed
+    const posts = momentPosts(c).slice().reverse();
+    if (!posts.length) box.appendChild(el("div", "ct-empty", "还没有动态。发一条，或者点「刷新朋友圈」看看大家在干嘛。"));
+    for (const p of posts) {
+      const card = el("div", "mo-post"); card.dataset.id = p.id;
+      const head = el("div", "mo-head");
+      const av = el("div", "av"); if (p.author === "char") renderAvatar(av, c); else if (p.author === "user") av.textContent = u[0]; else av.textContent = momentAuthorName(c, p.author)[0];
+      const meta = el("div"); meta.appendChild(el("div", "nm", momentAuthorName(c, p.author))); meta.appendChild(el("div", "tm", `${fmtTime(p.ts)} · #${floorOf(c, c.chat.indexOf(p))}`));
+      const del = el("button", "mo-x", "×"); del.title = "删除这条动态"; del.onclick = () => momentDelete(c, p);
+      head.append(av, meta, del);
+      card.appendChild(head);
+      card.appendChild(el("div", "mo-text", sub(p.content, c)));
+      const likes = Array.isArray(p.likes) ? p.likes : [];
+      const lk = el("div", "mo-likes");
+      const heart = el("button", "mo-like" + (likes.includes("user") ? " on" : ""), likes.includes("user") ? "❤️" : "🤍"); heart.title = "赞"; heart.onclick = () => momentToggleLike(c, p);
+      lk.appendChild(heart);
+      if (likes.length) lk.appendChild(el("span", null, likes.map((a) => momentAuthorName(c, a)).join("、")));
+      card.appendChild(lk);
+      const cms = momentComments(c, p.id);
+      if (cms.length) {
+        const cl = el("div", "mo-cms");
+        for (const k of cms) {
+          const line = el("div", "mo-cm");
+          line.appendChild(el("b", null, momentAuthorName(c, k.author) + "："));
+          line.appendChild(document.createTextNode(sub(k.content, c)));
+          const kx = el("button", "mo-x", "×"); kx.title = "删除评论"; kx.onclick = () => momentDelete(c, k); line.appendChild(kx);
+          cl.appendChild(line);
+        }
+        card.appendChild(cl);
+      }
+      const ci = el("div", "mo-ci");
+      const inp = document.createElement("input"); inp.placeholder = "评论…"; inp.disabled = !!busy;
+      const go = el("button", "btn ghost", "发送"); go.disabled = !!busy;
+      const submit = () => { const t = inp.value.trim(); if (!t) return; inp.value = ""; momentComment(c, p.id, t); };
+      go.onclick = submit; inp.onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); submit(); } };
+      ci.append(inp, go);
+      card.appendChild(ci);
+      box.appendChild(card);
+    }
+    body.appendChild(box);
   }
   // ---------- NPC memory: private-thread summaries, entry visibility ----------
   function entryScope(e) { return (e && e.extensions && typeof e.extensions.lantern_scope === "string" && e.extensions.lantern_scope) || "char"; }
@@ -5096,6 +5345,21 @@
     if (!c) return;
     const body = $("phoneBody");
     const contacts = phoneView === "contacts";
+    if (phoneView === "moments") {
+      $("phoneClose").textContent = "‹ 联系人"; $("phoneClose").title = "回到联系人列表";
+      $("phoneExit").hidden = true;
+      $("phoneName").textContent = "朋友圈";
+      const np = momentPosts(c).length;
+      $("phoneStatus").textContent = momentsBusy === "react" ? "有人在看…" : momentsBusy === "post" ? "有人在发…" : `${np} 条动态 · 大家都看得到`;
+      $("phoneStatus").classList.remove("link"); $("phoneStatus").onclick = null; $("phoneStatus").title = "";
+      document.querySelector(".phone-tools").hidden = true;
+      document.querySelector(".phone-foot").hidden = true;
+      const keepTop = body.scrollTop;
+      body.innerHTML = "";
+      renderMoments(c, body);
+      body.scrollTop = keepTop;
+      return;
+    }
     const npc = !contacts && phoneWith ? npcById(c, phoneWith) : null;
     if (!contacts && phoneWith && !npc) { phoneWith = null; }
     const grp = !contacts && phoneGroup ? groupById(c, phoneGroup) : null;
@@ -5787,6 +6051,7 @@
       if (m.npc || m.group) { if (m.kind !== "divider") fl++; return null; } // private threads and group chats have their own summaries
       if (m.kind === "divider") return `（${sub(m.content, c)}）`;
       fl++;
+      if (m.channel === "moments") return `#${fl} ${momentLine(c, m)}`;
       return `#${fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`;
     }).filter(Boolean).join("\n\n");
     const book = memoryBook(c, false);
