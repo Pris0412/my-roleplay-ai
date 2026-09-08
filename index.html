@@ -1702,6 +1702,7 @@
           <button class="btn" id="relScan">🔍 扫描人物</button>
           <button class="btn" id="relAdd">＋ 新建</button>
           <button class="btn primary" id="relRefresh">让模型更新关系</button>
+          <button class="btn" id="relPersona" title="给还没写性格的人补上性格和说话方式：先照世界书，世界书没有就按剧情判断">补全性格</button>
           <span class="stat" id="relMeta"></span>
         </div>
         <div class="rel-cards" id="relTable"></div>
@@ -1823,8 +1824,17 @@
         <input id="npcBrief" placeholder="例如：书店隔壁修表铺的老板">
       </div>
       <div class="field">
+        <label for="npcPersonality">性格</label>
+        <textarea id="npcPersonality" style="min-height:60px" placeholder="例如：嘴碎但热心，爱管闲事，认死理；对年轻人嘴上不留情，心里护着"></textarea>
+      </div>
+      <div class="field">
+        <label for="npcSpeech">说话方式</label>
+        <input id="npcSpeech" placeholder="例如：短句多，爱用「我跟你讲」开头，偶尔冒方言">
+        <div class="help">这两项会单独写进提示词，并要求严格保持，和身份设定分开。留空可以用关系图里的「补全性格」让模型按世界书和剧情判断。</div>
+      </div>
+      <div class="field">
         <label for="npcDesc">设定（发给模型）</label>
-        <textarea id="npcDesc" placeholder="性格、说话方式、和你的关系……从世界书条目带过来的会自动填在这里，可以改。"></textarea>
+        <textarea id="npcDesc" placeholder="身份、背景、和主角的渊源……从世界书条目带过来的会自动填在这里，可以改。"></textarea>
         <div class="help" id="npcSource"></div>
       </div>
     </div>
@@ -3799,11 +3809,19 @@
     if (!n || typeof n !== "object" || !n.name) return null;
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
-      brief: String(n.brief || ""), desc: String(n.desc || ""), entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
       memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
   }
   const npcById = (c, id) => (c && c.npcs ? c.npcs.find((n) => n.id === id) : null) || null;
+  function npcPersonaBlock(n) {
+    const lines = [];
+    if (n.personality && n.personality.trim()) lines.push(`性格：${n.personality.trim()}`);
+    if (n.speech && n.speech.trim()) lines.push(`说话方式：${n.speech.trim()}`);
+    if (!lines.length) return "";
+    lines.push(`（严格保持 ${n.name} 的这份性格和说话方式，哪怕是发短信、哪怕只有一两句，也不要滑成温和客气的通用口吻。）`);
+    return lines.join("\n");
+  }
   const npcName = (c, id) => { const n = npcById(c, id); return n ? n.name : "某人"; };
   // has this person come up in the story the character can see?
   function npcAppeared(c, npc) {
@@ -3841,9 +3859,13 @@
     if (desc) { parts.push(desc); seg("char", `${npc.name} 的设定`, desc); }
     else parts.push("（没有更多设定，按名字、世界设定和聊天记录合理推断这个人的身份和性格。）");
     if (npc.aliases && npc.aliases.length) parts.push(`别名：${npc.aliases.join("、")}`);
+    const pers = npcPersonaBlock(npc);
+    if (pers) { parts.push(pers); seg("char", `${npc.name} 的性格`, pers); }
     for (const o of others) {
       const od = [o.brief, o.desc].filter((x) => x && x.trim()).join("\n") || "（没有更多设定，按名字和上下文合理推断。）";
       parts.push(`\n## ${o.name} 的设定`, od); seg("char", `${o.name} 的设定`, od);
+      const op = npcPersonaBlock(o);
+      if (op) { parts.push(op); seg("char", `${o.name} 的性格`, op); }
       if (o.aliases && o.aliases.length) parts.push(`别名：${o.aliases.join("、")}`);
     }
     const aboutChar = `${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}。${all} 只知道关于 ${c.name} 的公开信息，不知道 ${c.name} 和 ${u} 私下发生的事，除非 ${u} 在这段私聊里说了。`;
@@ -3977,12 +3999,14 @@
       const hd = el("div", "hd");
       hd.appendChild(el("b", null, n.name));
       hd.appendChild(el("small", null, n.brief || ""));
+      if (!n.personality) { const warn = el("span", "tg", "没写性格"); warn.style.color = "var(--danger)"; warn.style.borderColor = "var(--danger)"; hd.appendChild(warn); }
       hd.appendChild(el("span", "tg", npcAppeared(c, n) ? "已出场" : "未出场"));
       const ops = el("div", "ops");
       const ed = el("button", "btn ghost", "编辑"); ed.onclick = () => openNpcEditor(n);
       const del = el("button", "btn ghost danger", "删除"); del.onclick = async () => { npcEditing = n; await deleteNpc(); renderRelTable(c); };
       ops.append(ed, del); hd.appendChild(ops);
       card.appendChild(hd);
+      if (n.personality || n.speech) { const pl = el("div", "help", [n.personality ? `性格：${n.personality}` : "", n.speech ? `说话：${n.speech}` : ""].filter(Boolean).join("　")); pl.style.margin = "0"; card.appendChild(pl); }
       card.appendChild(relLine(c, "u", n, `和 ${u}`));
       card.appendChild(relLine(c, "c", n, `和 ${c.name}`));
       box.appendChild(card);
@@ -4096,6 +4120,48 @@
       $("relRefresh").disabled = false; $("relRefresh").textContent = "让模型更新关系";
     }
   }
+  let personaCtl = null;
+  async function fillPersonalities() {
+    const c = active();
+    if (!c || personaCtl || !chatReady()) return;
+    const targets = c.npcs.filter((n) => !n.personality || !n.speech);
+    if (!targets.length) { toast("每个人都已经有性格和说话方式了"); return; }
+    const u = state.persona.name || "用户";
+    const clip = (m, k) => stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, k);
+    const lines = targets.map((n) => {
+      const mine = c.chat.filter((m) => m.kind !== "divider" && !m.error && (msgHasNpc(m, n.id) || (!m.npc && [n.name, ...n.aliases].some((x) => x && (m.content || "").includes(x))))).slice(-16);
+      return `### ${n.name}${n.aliases.length ? `（${n.aliases.join("/")}）` : ""}\n身份：${n.brief || "（无）"}\n设定原文：${(n.desc || "（无）").slice(0, 600)}\n出场片段：\n${mine.length ? mine.map((m) => `${m.role === "user" ? u : (m.npc ? n.name : c.name)}：${clip(m, 200)}`).join("\n") : "（还没出场）"}`;
+    });
+    const prompt = [
+      `这是一场角色扮演的资料。主角「${c.name}」，用户「${u}」。请给下面每个人物写性格和说话方式。优先照搬设定原文里的描述；原文没写的，按出场片段里的表现判断；两者都没有的，按身份和世界观合理设定，但要具体、有棱角，不要写成温和万金油。`,
+      "",
+      lines.join("\n\n"),
+      "",
+      "只输出 JSON：",
+      `{"people":[{"name":"名字","personality":"性格（30 到 60 字：脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）"}]}`,
+    ].join("\n");
+    personaCtl = new AbortController();
+    $("relPersona").disabled = true; $("relPersona").textContent = "判断中…";
+    try {
+      const res = await completeJson(prompt, { signal: personaCtl.signal, tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      const list = Array.isArray(res) ? res : (res && Array.isArray(res.people) ? res.people : []);
+      let k = 0;
+      for (const r of list) {
+        const name = String(r && r.name || "").trim();
+        const n = targets.find((x) => x.name === name || x.aliases.includes(name));
+        if (!n) continue;
+        if (!n.personality && r.personality) { n.personality = String(r.personality).slice(0, 200); k++; }
+        if (!n.speech && r.speech) { n.speech = String(r.speech).slice(0, 120); k++; }
+      }
+      save(); renderRelTable(c);
+      toast(k ? `已补上 ${k} 项` : "模型没有给出可用的内容");
+    } catch (e) {
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) toast("失败：" + (e && e.message ? e.message : e), true);
+    } finally {
+      personaCtl = null;
+      $("relPersona").disabled = false; $("relPersona").textContent = "补全性格";
+    }
+  }
   function renderRelMeta(c) { $("relMeta").textContent = c.relsUpdated ? `模型上次评估：第 ${c.relsUpdated.floor} 楼 · ${fmtTime(c.relsUpdated.ts)}` : "还没让模型评估过"; }
   function showStatusTab(name) {
     $("stTabPanel").hidden = name !== "panel";
@@ -4177,6 +4243,8 @@
     $("npcAliases").value = n ? n.aliases.join(", ") : "";
     $("npcBrief").value = n ? n.brief : "";
     $("npcDesc").value = n ? n.desc : "";
+    $("npcPersonality").value = n ? n.personality || "" : "";
+    $("npcSpeech").value = n ? n.speech || "" : "";
     $("npcSource").textContent = n && n.entryId ? "设定来自世界书条目，改这里不会改回条目。" : "";
     $("npcDelete").hidden = !n;
     $("npcBack").hidden = false;
@@ -4189,8 +4257,9 @@
     if (!name) { toast("名字不能为空", true); $("npcName").focus(); return; }
     const aliases = $("npcAliases").value.split(/[,，、]/).map((x) => x.trim()).filter((x) => x && x !== name);
     if (c.npcs.some((x) => x !== npcEditing && x.name === name)) { toast("已经有同名的联系人了", true); return; }
-    if (npcEditing) { Object.assign(npcEditing, { name, aliases, brief: $("npcBrief").value.trim(), desc: $("npcDesc").value.trim() }); }
-    else c.npcs.push(normalizeNpc({ name, aliases, brief: $("npcBrief").value.trim(), desc: $("npcDesc").value.trim() }));
+    const fields = { name, aliases, brief: $("npcBrief").value.trim(), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim() };
+    if (npcEditing) Object.assign(npcEditing, fields);
+    else c.npcs.push(normalizeNpc(fields));
     save(); closeNpcEditor(); renderPhone(); renderMessages();
     if (!$("stBack").hidden) renderRelTable(c);
   }
@@ -4240,8 +4309,8 @@
       `## 角色简介\n${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}\n${(c.description || "").slice(0, 600)}`,
       "",
       "只输出 JSON，格式：",
-      `{"people":[{"name":"名字","aliases":["别名"],"brief":"一句话身份（20 字内）","entry":条目编号或null,"met":true或false,"withChar":{"rel":"和${c.name}的关系词（2 到 6 字）","aff":0到100,"note":"现状一句话（20 字内）"}}]}`,
-      `entry 填这个人主要来自哪条世界书条目的编号，没有就 null。met 表示 ${u} 在聊天记录里已经和这个人说过话或见过面。withChar 是这个人和 ${c.name} 的关系，资料里看不出来就省略。不要编造资料里没有的人，最多 30 个。`,
+      `{"people":[{"name":"名字","aliases":["别名"],"brief":"一句话身份（20 字内）","personality":"性格（30 到 60 字，具体到脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）","entry":条目编号或null,"met":true或false,"withChar":{"rel":"和${c.name}的关系词（2 到 6 字）","aff":0到100,"note":"现状一句话（20 字内）"}}]}`,
+      `entry 填这个人主要来自哪条世界书条目的编号，没有就 null。met 表示 ${u} 在聊天记录里已经和这个人说过话或见过面。withChar 是这个人和 ${c.name} 的关系，资料里看不出来就省略。personality 和 speech 优先照搬世界书里的描述，世界书没写就按这个人在剧情里的表现判断，判断不了就省略。不要编造资料里没有的人，最多 30 个。`,
     ].join("\n");
     scanning = new AbortController();
     renderPhone();
@@ -4256,7 +4325,7 @@
         const ent = Number.isInteger(p.entry) ? entries.find((x) => x.n === p.entry) : null;
         const existing = c.npcs.find((x) => x.name === name || x.aliases.includes(name) || aliases.includes(x.name));
         const withChar = p.withChar && typeof p.withChar === "object" && (p.withChar.rel || p.withChar.aff != null) ? { rel: String(p.withChar.rel || ""), aff: Number(p.withChar.aff), note: String(p.withChar.note || "") } : null;
-        return { name, aliases, brief: String(p.brief || "").slice(0, 60), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
+        return { name, aliases, brief: String(p.brief || "").slice(0, 60), personality: String(p.personality || "").slice(0, 200), speech: String(p.speech || "").slice(0, 120), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
       }).filter(Boolean);
       if (focus) scanFound = scanFound.filter((x) => !x.existing).map((x) => ({ ...x, preselect: true }));
       if (!scanFound.length) toast(focus ? "最近这几楼没有新人物" : "没有找到别的人物");
@@ -4303,10 +4372,12 @@
         for (const a of p.aliases) if (!p.existing.aliases.includes(a) && a !== p.existing.name) p.existing.aliases.push(a);
         if (!p.existing.brief && p.brief) p.existing.brief = p.brief;
         if (!p.existing.desc && p.entry) { p.existing.desc = p.entry.content.trim(); p.existing.entryId = p.entry.id; }
+        if (!p.existing.personality && p.personality) p.existing.personality = p.personality;
+        if (!p.existing.speech && p.speech) p.existing.speech = p.speech;
         if (p.withChar && !relGet(c, "c", p.existing.id).set) relSet(c, "c", p.existing.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff, p.withChar.note, "扫描世界书");
         updated++;
       } else {
-        const n = normalizeNpc({ name: p.name, aliases: p.aliases, brief: p.brief, desc: p.entry ? p.entry.content.trim() : "", entryId: p.entry ? p.entry.id : null });
+        const n = normalizeNpc({ name: p.name, aliases: p.aliases, brief: p.brief, desc: p.entry ? p.entry.content.trim() : "", personality: p.personality, speech: p.speech, entryId: p.entry ? p.entry.id : null });
         c.npcs.push(n);
         if (p.withChar) relSet(c, "c", n.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff, p.withChar.note, "扫描世界书");
         added++;
@@ -6538,6 +6609,7 @@
   $("stTabs").addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (b) showStatusTab(b.dataset.stab); });
   $("relRefresh").onclick = () => relRefresh(false);
   $("relScan").onclick = scanNpcs;
+  $("relPersona").onclick = fillPersonalities;
   $("relAdd").onclick = () => openNpcEditor(null);
   $("relStages").addEventListener("change", (e) => { state.settings.relStages = e.target.value.trim(); save(); const c = active(); if (c) renderRelTable(c); });
   $("relAuto").addEventListener("change", (e) => { state.settings.relAuto = Math.max(0, Math.min(500, parseInt(e.target.value, 10) || 0)); e.target.value = state.settings.relAuto; save(); });
