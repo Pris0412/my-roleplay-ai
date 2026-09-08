@@ -658,6 +658,17 @@
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
   .stat.warn { color: var(--danger); }
+  .ctx-grp .inner { gap: 6px; }
+  .ctx-item { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--raised); }
+  .ctx-item summary { cursor: pointer; padding: 7px 0; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; list-style: none; }
+  .ctx-item summary > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  details.adv .ctx-item summary::after { content: none; }
+  .ctx-item summary .stat { flex: none; }
+  .ctx-item summary::before { content: "▸ "; color: var(--faint); }
+  .ctx-item[open] summary::before { content: "▾ "; }
+  .ctx-pre { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12px; line-height: 1.55; color: var(--text); max-height: 320px; overflow: auto; padding: 8px 10px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
+  .ctx-skip { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .ctx-skip b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .opt-btn { display: block; width: 100%; height: auto; white-space: normal; text-align: left; padding: 10px 12px; line-height: 1.45; }
   .opt-btn b { display: block; font-size: 14px; }
   .opt-btn small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -1418,6 +1429,13 @@
       <button class="btn ghost icon" id="ctxClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
+      <div class="section">
+        <div class="section-title">
+          <span>这次发了什么 · 预览 <span class="stat" id="ctxPrevNote">只读，按当前对话实时拼出来的</span></span>
+          <span class="row" style="gap:6px"><button class="btn ghost" id="ctxPrevCopy" title="把这次要发给模型的全部内容复制到剪贴板">复制全文</button><button class="btn ghost" id="ctxPrevToggle">显示</button></span>
+        </div>
+        <div id="ctxPrevBody" hidden></div>
+      </div>
       <div class="section">
         <div class="section-title">
           <span>Token 明细 <span class="stat" id="tokNote"></span></span>
@@ -3207,24 +3225,28 @@
       default: return hits.some(Boolean);    // AND ANY
     }
   }
+  let loreTrace = null; // which lorebook entries were skipped in the last activeLore call, and why
   function activeLore(c, history, audience) {
     const bound = c && c.worldName ? (state.books || []).filter((b) => b && b.name === c.worldName) : [];
     const globals = (state.books || []).filter((b) => b && b.enabled !== false && !bound.includes(b));
     const own = c ? (c.books || []).filter((b) => b.enabled !== false) : [];
     const books = [...own, ...bound, ...globals].filter((b) => b && b.entries && b.entries.length);
-    const empty = { before: [], after: [] };
-    if (!books.length) return empty;
+    const empty = { before: [], after: [], labels: { before: [], after: [] } };
+    if (!books.length) { loreTrace = { skipped: [] }; return empty; }
     const msgs = history.map((m) => sub(m.content, c));
     const hayAt = (depth) => msgs.slice(-Math.max(1, depth)).join("\n");
     const picked = [];
     const seen = new Set();
+    const trace = { skipped: [] };
+    const skip = (book, e, reason) => trace.skipped.push({ book: book.name, name: e.comment || (e.keys && e.keys[0]) || "（无标题）", reason });
     let recursionText = "";
     for (let pass = 0; pass < 4; pass++) {
       let added = false;
       books.forEach((book, bi) => {
         for (const e of book.entries) {
           const key = bi + ":" + e.id;
-          if (seen.has(key) || !e.enabled || !e.content.trim()) continue;
+          if (seen.has(key) || !e.content.trim()) continue;
+          if (!e.enabled) { if (pass === 0) skip(book, e, "条目已关闭"); seen.add(key); continue; }
           if (book.memory) {
             // the character's memory book: entries are for the character unless marked public or for one NPC;
             // an NPC's memory book: entries are for that NPC unless marked public
@@ -3239,7 +3261,7 @@
               ok = book.memoryNpc ? (mem.includes(book.memoryNpc) || shared.some((x) => mem.includes(x))) : (sc === "char" ? mem.includes("char") : sc.startsWith("npc:") && mem.includes(sc.slice(4)));
             }
             else ok = book.memoryNpc ? (audience === book.memoryNpc || (!!audience && shared.includes(audience))) : audience ? sc === "npc:" + audience : sc === "char";
-            if (!ok) continue;
+            if (!ok) { skip(book, e, "不在 TA 的知情范围"); seen.add(key); continue; }
           }
           let hit = e.constant;
           if (!hit) {
@@ -3248,7 +3270,7 @@
             hit = entryHits(e, hay);
           }
           if (!hit) continue;
-          if (e.probability < 100 && Math.random() * 100 > e.probability) { seen.add(key); continue; }
+          if (e.probability < 100 && Math.random() * 100 > e.probability) { skip(book, e, `概率 ${e.probability}% 没抽中`); seen.add(key); continue; }
           seen.add(key);
           picked.push({ e, book });
           if (!e.prevent_recursion) recursionText += "\n" + sub(e.content, c);
@@ -3257,17 +3279,20 @@
       });
       if (!added || !books.some((b) => b.recursive_scanning)) break;
     }
+    books.forEach((book, bi) => { for (const e of book.entries) { if (!seen.has(bi + ":" + e.id) && e.content.trim() && e.enabled && !e.constant) skip(book, e, `关键词没出现：${(e.keys || []).slice(0, 4).join(" / ")}`); } });
     // budget: rough 1 token ≈ 2 characters of mixed text
     let budget = Math.max(2000, books.reduce((n, b) => n + (b.token_budget || 1000), 0) * 2);
     picked.sort((a, b) => (b.e.insertion_order - a.e.insertion_order)); // higher order = higher priority for budget
-    const out = { before: [], after: [] };
-    for (const { e } of picked) {
+    const out = { before: [], after: [], labels: { before: [], after: [] } };
+    for (const { e, book } of picked) {
       const text = applyRegex(sub(e.content, c), { placement: 5, stage: "prompt", c }).trim();
-      if (!text || text.length > budget) continue;
+      if (!text) continue;
+      if (text.length > budget) { skip(book, e, "世界书预算不够，被挤掉"); continue; }
       budget -= text.length;
-      out[e.position === "before_char" ? "before" : "after"].push({ order: e.insertion_order, text });
+      out[e.position === "before_char" ? "before" : "after"].push({ order: e.insertion_order, text, label: `${book.name} › ${e.comment || (e.keys && e.keys[0]) || "（无标题）"}` });
     }
-    for (const k of ["before", "after"]) out[k] = out[k].sort((a, b) => a.order - b.order).map((x) => x.text);
+    for (const k of ["before", "after"]) { const sorted = out[k].sort((a, b) => a.order - b.order); out.labels[k] = sorted.map((x) => x.label); out[k] = sorted.map((x) => x.text); }
+    loreTrace = trace;
     return out;
   }
 
@@ -3334,12 +3359,12 @@
     }
     parts.push("");
     const lore = activeLore(c, history || c.chat);
-    if (lore.before.length) { parts.push(`## 世界设定\n${lore.before.join("\n\n")}\n`); lore.before.forEach((t, i) => seg("lore", `世界书（前）条目 ${i + 1}`, t)); }
+    if (lore.before.length) { parts.push(`## 世界设定\n${lore.before.join("\n\n")}\n`); lore.before.forEach((t, i) => seg("lore", (lore.labels && lore.labels.before[i]) || `世界书（前）条目 ${i + 1}`, t)); }
     parts.push(`## ${c.name} 的设定`);
     if (c.description) { parts.push(c.description); seg("char", "角色描述", c.description); }
     if (c.personality) { parts.push(`性格：${c.personality}`); seg("char", "性格", c.personality); }
     if (c.scenario) { parts.push(`\n## 场景\n${c.scenario}`); seg("char", "场景", c.scenario); }
-    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", `世界书（后）条目 ${i + 1}`, t)); }
+    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
     if (retrieved && retrieved.length) {
       const u = state.persona.name || "用户";
       const lines = retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : c.name}：${h.text}`);
@@ -4022,7 +4047,7 @@
       : `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 之间的手机私聊；「${c.name}」不在场，也不知道这段对话的内容。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
     const lore = activeLore(c, history || c.chat, npc.id);
-    if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", `世界书（前）条目 ${i + 1}`, t)); }
+    if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", (lore.labels && lore.labels.before[i]) || `世界书（前）条目 ${i + 1}`, t)); }
     parts.push(`\n## ${npc.name} 的设定`);
     const desc = [npc.brief, npc.desc].filter((x) => x && x.trim()).join("\n");
     if (desc) { parts.push(desc); seg("char", `${npc.name} 的设定`, desc); }
@@ -4042,7 +4067,7 @@
     const relIns = relationsInstruction(c, npc, others);
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
     if (state.persona.desc && state.persona.desc.trim()) { parts.push(`\n## ${u} 的人设`, state.persona.desc); seg("char", "用户人设", state.persona.desc); }
-    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", `世界书（后）条目 ${i + 1}`, t)); }
+    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
     if (retrieved && retrieved.length) {
       const lines = retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : npc.name}：${h.text}`);
       parts.push(`\n## 相关记忆（从更早的私聊里检索到的片段，按需参考，不要复述）\n${lines.join("\n")}`);
@@ -4695,7 +4720,7 @@
     const intro = `这是一个沉浸式角色扮演里的手机群聊。群名「${g.name}」，成员：${[u + "（用户扮演）", ...names].join("、")}。你同时扮演除 ${u} 以外的所有成员，每个人按各自的性格和说话方式发言。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
     const lore = activeLore(c, history, "group:" + g.id);
-    if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", `世界书（前）条目 ${i + 1}`, t)); }
+    if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", (lore.labels && lore.labels.before[i]) || `世界书（前）条目 ${i + 1}`, t)); }
     for (const s of speakers) {
       if (s.id === "char") {
         const d = [c.tag ? sub(c.tag, c) : "", (c.description || "").slice(0, 900), c.personality ? `性格：${c.personality.slice(0, 400)}` : ""].filter(Boolean).join("\n");
@@ -4717,7 +4742,7 @@
       if (b.set && g.members.includes("char")) relLines.push(`${s.name} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100，${relStage(b.aff)}）${b.note ? ` · ${b.note}` : ""}`);
     }
     if (relLines.length) { const rl = `## 人际关系\n${relLines.map((x) => "- " + x).join("\n")}`; parts.push("\n" + rl); seg("fixed", "人际关系", rl); }
-    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", `世界书（后）条目 ${i + 1}`, t)); }
+    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
     const rules = [
       "## 群聊规则",
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
@@ -5536,6 +5561,11 @@
     if (!c) return;
     { const scl = sceneNpcs(c); buildTurns(c, undefined, scl.length ? scl[0].id : null, !!scl.length, scl.map((n) => n.id)); }
     const r = lastReport;
+    const showPrev = state.settings.ctxPreview === true;
+    $("ctxPrevBody").hidden = !showPrev;
+    $("ctxPrevToggle").textContent = showPrev ? "隐藏" : "显示";
+    $("ctxPrevNote").textContent = showPrev ? `${r.segments.length} 段 · ≈${fmtTok(r.tokens)} tok` : "只读，按当前对话实时拼出来的";
+    if (showPrev) renderCtxPreview(r);
     const showTok = state.settings.tokShow === true;
     $("tokBody").hidden = !showTok;
     $("tokToggle").textContent = showTok ? "隐藏" : "显示";
@@ -7086,6 +7116,54 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("bgBack").hidden && !confirmResolve) { e.stopPropagation(); $("bgBack").hidden = true; } }, true);
   $("ctxBtn").onclick = openContext;
   $("ctxBtnHead").onclick = openContext;
+  // ---------- "这次发了什么" read-only preview ----------
+  const prevOpen = new Set();
+  function renderCtxPreview(r) {
+    const box = $("ctxPrevBody"); box.innerHTML = "";
+    const groups = new Map();
+    for (const sg of r.segments) { if (!groups.has(sg.group)) groups.set(sg.group, []); groups.get(sg.group).push(sg); }
+    const mkDetails = (key, title, extra) => {
+      const d = document.createElement("details"); d.className = "adv ctx-grp"; d.open = prevOpen.has(key);
+      d.addEventListener("toggle", () => { if (d.open) prevOpen.add(key); else prevOpen.delete(key); });
+      const sm = document.createElement("summary"); sm.append(el("span", null, title), el("span", "stat", extra || "")); d.appendChild(sm);
+      return d;
+    };
+    for (const key of ["preset", "fixed", "char", "lore", "rag", "history"]) {
+      const list = groups.get(key);
+      if (!list || !list.length) continue;
+      const tokens = list.reduce((n, x) => n + x.tokens, 0);
+      const d = mkDetails(key, `${GROUP_LABELS[key]} · ${list.length} 项`, `≈${fmtTok(tokens)} tok`);
+      const inner = el("div", "inner");
+      for (const sg of list) {
+        const it = document.createElement("details"); it.className = "ctx-item";
+        const sm = document.createElement("summary"); sm.append(el("span", null, sg.label), el("span", "stat", `≈${fmtTok(sg.tokens)} tok · ${sg.chars} 字`)); it.appendChild(sm);
+        const pre = el("pre", "ctx-pre", sg.text); it.appendChild(pre);
+        inner.appendChild(it);
+      }
+      d.appendChild(inner); box.appendChild(d);
+    }
+    const tr = loreTrace;
+    if (tr && tr.skipped.length) {
+      const d = mkDetails("skipped", `这次没带上的世界书 / 记忆条目 · ${tr.skipped.length} 条`, "为什么 TA 不记得");
+      const inner = el("div", "inner");
+      for (const s of tr.skipped) {
+        const row = el("div", "ctx-skip");
+        row.appendChild(el("b", null, `${s.book} › ${s.name}`));
+        row.appendChild(el("span", "stat", s.reason));
+        inner.appendChild(row);
+      }
+      inner.appendChild(el("div", "help", "「关键词没出现」：世界书条目只有关键词出现在最近几楼里才会带上；想让 TA 一直记得，把条目设为常驻，或把内容写进记忆总结。"));
+      d.appendChild(inner); box.appendChild(d);
+    }
+    if (!r.segments.length) box.appendChild(el("div", "rx-empty", "还没有内容。"));
+  }
+  $("ctxPrevToggle").onclick = () => { state.settings.ctxPreview = !(state.settings.ctxPreview === true); save(); renderContextPanel(); };
+  $("ctxPrevCopy").onclick = async () => {
+    const r = lastReport; if (!r) return;
+    const text = r.segments.map((sg) => `【${GROUP_LABELS[sg.group]} · ${sg.label}】\n${sg.text}`).join("\n\n");
+    try { await navigator.clipboard.writeText(text); toast("已复制这次要发送的全文"); }
+    catch (e) { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); toast("已复制这次要发送的全文"); }
+  };
   $("tokToggle").onclick = () => { state.settings.tokShow = !(state.settings.tokShow === true); save(); renderContextPanel(); };
   $("ctxClose").onclick = closeContext;
   $("ctxDone").onclick = closeContext;
