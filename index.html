@@ -3984,9 +3984,7 @@
 
   // ---------- ➕ menu ----------
   const PLUS_ITEMS = [
-    { id: "phone", icon: "📱", label: "手机", hint: "分隔两地，或同一场合悄悄发消息", run: () => askPhoneScene() },
-    { id: "moments", icon: "🌄", label: "朋友圈", hint: "你、主角和联系人都能发动态、点赞、评论，大家都看得到", run: () => openMoments() },
-    { id: "npc", icon: "👥", label: "联系人 · 私聊 NPC", hint: "和世界书里的人单独聊，主角不知道", run: () => openContacts() },
+    { id: "phone", icon: "📱", label: "手机", hint: "朋友圈、主角、联系人私聊、群聊都在里面；会回到上次停的那一页", run: () => openPhoneHome() },
   ];
   function renderPlusMenu() {
     const m = $("plusMenu");
@@ -4069,7 +4067,22 @@
     $("phoneBack").hidden = false;
     $("phoneInput").focus();
   }
-  function closePhoneView() { $("phoneBack").hidden = true; phoneSel = null; phoneEdit = null; phoneWith = null; phoneGroup = null; phoneView = "chat"; }
+  function closePhoneView() {
+    const c = active();
+    if (c) { c.phoneLast = { view: phoneView, with: phoneWith, group: phoneGroup }; save(); }
+    $("phoneBack").hidden = true; phoneSel = null; phoneEdit = null; phoneWith = null; phoneGroup = null; phoneView = "chat";
+  }
+  // the one 📱 entry: reopen where you left off (an NPC thread, a group, the feed), else the home page
+  function openPhoneHome() {
+    const c = active();
+    if (!c || busy) return;
+    const l = c.phoneLast || null;
+    if (l && l.view === "moments") return openMoments();
+    if (l && l.view === "chat" && l.group && groupById(c, l.group)) return openPhoneGroup(l.group);
+    if (l && l.view === "chat" && l.with && npcById(c, l.with)) return openPhoneWith(l.with);
+    if (l && l.view === "chat" && !l.with && !l.group && c.phone && c.phone.open) return openPhone(false);
+    openContacts();
+  }
   function exitPhone(rerender) {
     const c = active();
     if (!c || !(c.phone && c.phone.open)) { closePhoneView(); return; }
@@ -4078,6 +4091,7 @@
     c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: together ? "📱 收起手机，回到现场" : "📱 放下手机，回到当面的场景", ts: Date.now() });
     save();
     closePhoneView();
+    c.phoneLast = null; save();
     if (rerender !== false) { renderMessages(); renderCharList(); }
   }
   // ---------- NPC contacts: people from the lorebook (or scanned / hand-made) you can text privately ----------
@@ -4502,7 +4516,7 @@
     list.appendChild(el("div", "ct-h", "角色"));
     const rowChar = el("button", "ct-row");
     const av = el("div", "av"); if (c.image) { const img = document.createElement("img"); img.src = c.image; av.appendChild(img); } else av.textContent = c.emoji || c.name[0];
-    const tx = el("div"); tx.appendChild(el("div", "nm", c.name)); tx.appendChild(el("div", "sb", c.phone && c.phone.open ? "手机模式进行中" : "当面场景中 · 点开会先选场景"));
+    const tx = el("div"); tx.appendChild(el("div", "nm", c.name)); tx.appendChild(el("div", "sb", c.phone && c.phone.open ? "手机模式进行中" : "当面场景中 · 点开拿出手机"));
     rowChar.append(av, tx, el("span", "tg on", "主角"));
     rowChar.onclick = () => selectContact(null);
     list.appendChild(rowChar);
