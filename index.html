@@ -1879,7 +1879,11 @@
     <div class="modal-body">
       <div class="field">
         <label for="groupName">群名</label>
-        <input id="groupName" placeholder="例如：书店夜话">
+        <div style="display:flex;gap:6px">
+          <input id="groupName" placeholder="例如：书店夜话" style="flex:1;min-width:0">
+          <button class="btn" id="groupNameGen" title="按勾选的成员、世界背景和人设起几个群名，随机换">🎲 起名</button>
+        </div>
+        <div class="help" id="groupNameHint"></div>
       </div>
       <div class="field">
         <label>成员（你自己默认在群里）</label>
@@ -4522,10 +4526,43 @@
       list.appendChild(row);
     }
     $("groupDelete").hidden = !g;
+    $("groupNameHint").textContent = ""; groupNameIdeas = [];
+    $("groupMembers").addEventListener("change", () => { groupNameIdeas = []; $("groupNameHint").textContent = ""; }, { once: true });
     $("groupBack").hidden = false;
     $("groupName").focus();
   }
-  function closeGroupEditor() { $("groupBack").hidden = true; groupEditing = null; }
+  function closeGroupEditor() { $("groupBack").hidden = true; groupEditing = null; groupNameIdeas = []; }
+  let groupNameIdeas = [];
+  let groupNameCtl = null;
+  // ask the model for a handful of names that fit the members and the world; each click cycles, a re-fetch happens when the list runs out
+  async function suggestGroupName() {
+    const c = active(); if (!c || !chatReady() || groupNameCtl) return;
+    if (groupNameIdeas.length) { $("groupName").value = groupNameIdeas.shift(); $("groupNameHint").textContent = groupNameIdeas.length ? `再点换一个（还有 ${groupNameIdeas.length} 个备选）` : "备选用完了，再点会重新想"; return; }
+    const members = [...$("groupMembers").querySelectorAll("input:checked")].map((x) => x.value);
+    const u = state.persona.name || "用户";
+    const who = members.map((id) => id === "char" ? `${c.name}（主角${c.tag ? `，${sub(c.tag, c)}` : ""}）` : (() => { const n = npcById(c, id); return n ? `${n.name}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `，性格：${n.personality.slice(0, 40)}` : ""}` : ""; })()).filter(Boolean);
+    const prompt = [
+      `给一个手机群起名。群成员：${u}（用户）、${who.join("、")}。`,
+      `世界背景：${(c.scenario || c.description || "").slice(0, 400) || "（无）"}`,
+      "要求：贴合这群人的关系、共同点或他们会闹的梗，像真人随手起的群名（2 到 8 个字，可以带表情或标点，不要太正式），风格各不相同。",
+      "只输出 JSON：{\"names\":[\"名1\",\"名2\",\"名3\",\"名4\",\"名5\",\"名6\"]}",
+    ].join("\n");
+    groupNameCtl = new AbortController();
+    $("groupNameGen").disabled = true; $("groupNameGen").textContent = "想名字…";
+    try {
+      const res = await completeJson(prompt, { signal: groupNameCtl.signal, tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      const list = (Array.isArray(res) ? res : (res && Array.isArray(res.names) ? res.names : [])).map((x) => String(x).trim().slice(0, 30)).filter(Boolean);
+      if (!list.length) { toast("模型没想出名字", true); return; }
+      groupNameIdeas = list;
+      $("groupName").value = groupNameIdeas.shift();
+      $("groupNameHint").textContent = `再点换一个（还有 ${groupNameIdeas.length} 个备选）`;
+    } catch (e) {
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) toast("起名失败：" + (e && e.message ? e.message : e), true);
+    } finally {
+      groupNameCtl = null;
+      $("groupNameGen").disabled = false; $("groupNameGen").textContent = "🎲 起名";
+    }
+  }
   function saveGroup() {
     const c = active(); if (!c) return;
     const name = $("groupName").value.trim();
@@ -6838,6 +6875,7 @@
   $("phoneMemo").onclick = () => { const c = active(); if (!c) return; if (phoneGroup) { const g = groupById(c, phoneGroup); if (g) openMemoryForNpc(groupAsNpc(c, g)); return; } const n = phoneWith ? npcById(c, phoneWith) : null; if (n) openMemoryForNpc(n); };
   $("phoneRedo").onclick = groupRedo;
   $("phoneGroupEdit").onclick = () => { const c = active(); const g = c && phoneGroup ? groupById(c, phoneGroup) : null; if (g) openGroupEditor(g); };
+  $("groupNameGen").onclick = suggestGroupName;
   $("groupClose").onclick = closeGroupEditor; $("groupCancel").onclick = closeGroupEditor; $("groupSave").onclick = saveGroup; $("groupDelete").onclick = deleteGroup;
   $("groupBack").addEventListener("click", (e) => { if (e.target === $("groupBack")) closeGroupEditor(); });
   $("npcClose").onclick = closeNpcEditor; $("npcCancel").onclick = closeNpcEditor; $("npcSave").onclick = saveNpc; $("npcDelete").onclick = deleteNpc;
