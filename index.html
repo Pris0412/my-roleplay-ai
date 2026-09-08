@@ -1054,6 +1054,15 @@
       </div>
 
       <div class="section">
+        <div class="section-title">存储</div>
+        <div class="meter" id="stoMeter"><span></span></div>
+        <div class="stat" id="stoStat" style="margin-top:6px">检查中…</div>
+        <div class="book-note" id="stoSafari" hidden>你在用 Safari：苹果的规矩是一个网站 7 天没打开，本地数据可能被清掉。请更勤地「备份全部」，或至少每周打开一次。</div>
+        <button class="btn block" id="stoOpen" style="margin-top:8px">占用明细 · 清理 · 清空</button>
+        <div class="help">数据只在这台设备的这个浏览器里。换设备、清缓存都不会带走，靠「备份全部」搬家。</div>
+      </div>
+
+      <div class="section">
         <div class="section-title">你的人设</div>
         <div class="field">
           <label for="pName">你的名字（{{user}}）</label>
@@ -2001,6 +2010,34 @@
   </div>
 </div>
 
+<div class="modal-back" id="stoBack" hidden style="z-index:62">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stoTitle" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <span id="stoTitle">存储 · 占用明细</span>
+      <button class="btn ghost icon" id="stoClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help">按大小从大到小排。每一行都能单独删；删对话记录会先自动留一份存档。</div>
+      <div class="rx-list" id="stoList"></div>
+      <div class="section">
+        <div class="section-title">一键清理</div>
+        <label class="rebuild-row"><input type="checkbox" id="stoCleanAuto" checked> 删掉所有「自动 ·」存档</label>
+        <label class="rebuild-row" style="margin-top:6px"><input type="checkbox" id="stoCleanArch" checked> 删掉已合并停用的旧记忆条目</label>
+        <label class="rebuild-row" style="margin-top:6px"><input type="checkbox" id="stoCleanImg"> 压缩过大的头像和背景图</label>
+        <button class="btn block" id="stoCleanGo" style="margin-top:8px">执行清理</button>
+      </div>
+      <div class="section">
+        <div class="section-title">清空全部</div>
+        <div class="help">回到刚打开页面的样子：角色、对话、记忆、世界书、预设全部清掉，只保留 API 设置。按下去之前会先强制下载一份完整备份。</div>
+        <div class="row">
+          <input id="stoWipeText" placeholder="输入「清空」两个字才生效" style="flex:1;min-width:0">
+          <button class="btn danger" id="stoWipeGo">清空全部</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="rebuildBack" hidden style="z-index:62">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rebuildTitle" style="width:min(520px,100%)">
     <div class="modal-head">
@@ -2505,20 +2542,82 @@
     return c;
   }
 
+  // ---------- Storage: IndexedDB is the primary store (hundreds of MB+); localStorage stays as a small mirror / fallback ----------
+  const DB_NAME = "lantern-tavern", DB_STORE = "kv";
+  function idbOpen() {
+    return new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open(DB_NAME, 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore(DB_STORE); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error || new Error("indexedDB open failed"));
+        r.onblocked = () => rej(new Error("indexedDB blocked"));
+      } catch (e) { rej(e); }
+    });
+  }
+  async function idbGet(key) {
+    const db = await idbOpen();
+    return new Promise((res, rej) => { const tx = db.transaction(DB_STORE, "readonly"); const r = tx.objectStore(DB_STORE).get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); tx.oncomplete = () => db.close(); });
+  }
+  async function idbSet(key, val) {
+    const db = await idbOpen();
+    return new Promise((res, rej) => { const tx = db.transaction(DB_STORE, "readwrite"); tx.objectStore(DB_STORE).put(val, key); tx.oncomplete = () => { db.close(); res(); }; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error || new Error("aborted")); });
+  }
+  function parseState(raw) {
+    if (!raw) return null;
+    const s = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!(s && Array.isArray(s.characters) && s.characters.length)) return null;
+    s.characters.forEach((c) => { try { normalizeChar(c); } catch (e) { console.error("normalizeChar failed", e); } });
+    s.regex = Array.isArray(s.regex) ? s.regex : [];
+    s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : [];
+    s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : [];
+    s.activePreset = s.activePreset || "";
+    s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true }, s.api || {});
+    s.settings = s.settings || {};
+    s.settings.backend = s.settings.backend || "claude";
+    return s;
+  }
+  let lsHadData = false;
   function load() {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (s && Array.isArray(s.characters) && s.characters.length) { s.characters.forEach((c) => { try { normalizeChar(c); } catch (e) { console.error("normalizeChar failed", e); } }); s.regex = Array.isArray(s.regex) ? s.regex : []; s.books = Array.isArray(s.books) ? s.books.map(normalizeBook).filter(Boolean) : []; s.presets = Array.isArray(s.presets) ? s.presets.map(normalizePreset).filter(Boolean) : []; s.activePreset = s.activePreset || ""; s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true }, s.api || {}); s.settings.backend = s.settings.backend || "claude"; return s; }
-      }
-    } catch (e) { /* fall through */ }
+    try { const raw = localStorage.getItem(LS_KEY); lsHadData = !!raw; const s = parseState(raw); if (s) return s; } catch (e) { /* fall through */ }
     return defaultState();
   }
+  let lastJson = "", lastBytes = 0, lsOk = true, idbOk = null, idbError = null, idbTimer = null, idbPending = false, idbSaving = null;
+  function flushIdb() {
+    if (!idbPending || idbOk === false) return;
+    idbPending = false;
+    const json = lastJson;
+    idbSaving = idbSet(LS_KEY, json).then(() => { idbOk = true; idbError = null; }).catch((e) => { idbError = e; console.error("indexedDB save failed", e); });
+  }
   function save() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage may be blocked */ }
+    state.savedAt = Date.now();
+    lastJson = JSON.stringify(state);
+    lastBytes = new Blob([lastJson]).size;
+    try { localStorage.setItem(LS_KEY, lastJson); lsOk = true; }
+    catch (e) { lsOk = false; if (idbOk) { try { localStorage.removeItem(LS_KEY); } catch (_) { /* ignore */ } } }
+    idbPending = true;
+    clearTimeout(idbTimer); idbTimer = setTimeout(flushIdb, 150);
     updateStats();
   }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { clearTimeout(idbTimer); flushIdb(); } });
+  window.addEventListener("pagehide", () => { clearTimeout(idbTimer); flushIdb(); });
+  // at boot: the localStorage copy renders instantly; the IndexedDB copy (always at least as new once it exists) replaces it
+  async function bootStorage() {
+    let fromIdb = null;
+    try { const raw = await idbGet(LS_KEY); idbOk = true; if (raw) fromIdb = parseState(raw); } catch (e) { idbOk = false; idbError = e; }
+    if (fromIdb && (fromIdb.savedAt || 0) >= (state.savedAt || 0)) state = fromIdb;
+    else if (idbOk && lsHadData) { lastJson = JSON.stringify(state); lastBytes = new Blob([lastJson]).size; idbPending = true; flushIdb(); }
+    refreshQuota();
+  }
+  let quotaInfo = null, quotaAt = 0;
+  function refreshQuota() {
+    if (!(navigator.storage && navigator.storage.estimate)) return;
+    if (Date.now() - quotaAt < 5000) return;
+    quotaAt = Date.now();
+    navigator.storage.estimate().then((q) => { quotaInfo = q; updateStats(); }).catch(() => {});
+  }
+  const fmtMB = (b) => (b >= 1024 * 1024 * 1024 ? (b / 1073741824).toFixed(2) + " GB" : b >= 1024 * 1024 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB");
+  const isSafari = () => /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
 
   let state = load();
   let sample = null;          // claude.use("sample") namespace, or null
@@ -3218,10 +3317,12 @@
       $("chatStat").textContent = lines.join("\n");
     }
     try {
-      const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
+      const bytes = lastBytes || new Blob([JSON.stringify(state)]).size;
       const d = daysSinceBackup();
       const bk = d == null ? "从未备份" : d === 0 ? "今天备份过" : `上次备份 ${d} 天前`;
-      $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${(bytes / 1024).toFixed(0)} KB · ${bk}`;
+      const q = quotaInfo && quotaInfo.quota ? ` / 可用 ${fmtMB(quotaInfo.quota)}` : "";
+      $("storeStat").textContent = `本地保存 · ${state.characters.length} 个角色 · ${fmtMB(bytes)}${q} · ${bk}`;
+      try { renderStorageStat(); } catch (e) { /* panel not ready yet */ }
       $("storeStat").classList.toggle("warn", backupWorthIt() && (d == null || d >= 7));
     } catch (e) {
       $("storeStat").textContent = "本地保存不可用（隐私模式？）";
@@ -6941,8 +7042,10 @@
     const n = (st.characters || []).length;
     if (!(await askConfirm(`用备份覆盖当前全部数据？备份里有 ${n} 个角色。当前的角色、记录和设置会被替换（API Key 保留）。`, "覆盖", true))) return;
     const key = state.api.key;
-    try { localStorage.setItem(LS_KEY, JSON.stringify(st)); } catch (e) { return toast("写入本地存储失败（空间不足？）", true); }
-    state = load();
+    let ns = null;
+    try { ns = parseState(st); } catch (e) { ns = null; }
+    if (!ns) return toast("备份文件读不出角色数据", true);
+    state = ns;
     state.api.key = key;
     save();
     renderAll(); refreshGlobalRx(); renderGlobalBooks(); renderPresetSelect(); refreshBackendUi();
@@ -7832,6 +7935,116 @@
     $("rebuildEst").textContent = `共 ${jobs.length} 段，一段一次调用。`;
     await runMemoryJobs(c, jobs);
   }
+  // ============================================================
+  // Storage panel: what takes space, delete it piece by piece, clean up, wipe
+  // ============================================================
+  const bytesOf = (x) => new Blob([JSON.stringify(x)]).size;
+  function storageItems() {
+    const items = [];
+    const add = (label, sub, bytes, del, danger) => { if (bytes > 0) items.push({ label, sub, bytes, del, danger }); };
+    let counted = 0;
+    for (const c of state.characters) {
+      const chatB = bytesOf(c.chat); counted += chatB;
+      add(`对话记录 · ${c.name}`, `${floorCount(c)} 楼`, chatB, c.chat.length > 1 ? async () => { if (!(await askConfirm(`清空和 ${c.name} 的全部对话记录（回到开场白）？记忆书、状态、关系保留。会先自动留一份存档。`, "清空对话", true))) return false; makeSave(c, `自动 · 清空对话前（第 ${floorCount(c)} 楼）`, "wipe"); c.chat = [greeting(c)]; c.memory.lastFloor = 0; c.phone = { open: false }; c.scene = null; c.phoneLast = null; return true; } : null);
+      for (const sv of c.saves || []) { const b = bytesOf(sv); counted += b; add(`存档 · ${c.name} · ${sv.name}`, `第 ${sv.floors} 楼`, b, () => { c.saves = c.saves.filter((x) => x !== sv); return true; }); }
+      if (c.image) { const b = c.image.length; counted += b; add(`头像 · ${c.name}`, "图片", b, async () => { if (!(await askConfirm(`删掉 ${c.name} 的头像图片？`, "删除", true))) return false; c.image = ""; return true; }); }
+      if (c.bg && c.bg.image) { const b = c.bg.image.length; counted += b; add(`聊天背景图 · ${c.name}`, "图片", b, () => { c.bg.image = ""; return true; }); }
+      for (const bk of c.books) { const b = bytesOf(bk); counted += b; add(`${bk.memory ? "记忆书" : "角色世界书"} · ${bk.name} · ${c.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉「${bk.name}」整本（${bk.entries.length} 条）？`, "删除", true))) return false; c.books = c.books.filter((x) => x !== bk); return true; }); }
+      const misc = bytesOf({ n: c.npcs, r: c.rels, g: c.groups, s: c.status }); counted += misc;
+      add(`NPC、群、关系、状态 · ${c.name}`, `${c.npcs.length} 位联系人 · ${c.groups.length} 个群`, misc, null);
+    }
+    if (state.bg && state.bg.image) { const b = state.bg.image.length; counted += b; add("聊天背景图 · 全局", "图片", b, () => { state.bg.image = ""; return true; }); }
+    for (const bk of state.books) { const b = bytesOf(bk); counted += b; add(`全局世界书 · ${bk.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉全局世界书「${bk.name}」（${bk.entries.length} 条）？`, "删除", true))) return false; state.books = state.books.filter((x) => x !== bk); return true; }); }
+    for (const ps of state.presets) { const b = bytesOf(ps); counted += b; add(`预设 · ${ps.name}`, "", b, () => { state.presets = state.presets.filter((x) => x !== ps); if (state.activePreset === ps.id) state.activePreset = ""; return true; }); }
+    const total = lastBytes || bytesOf(state);
+    add("其他（设置、人设、正则、角色设定）", "", Math.max(0, total - counted), null);
+    items.sort((a, b) => b.bytes - a.bytes);
+    return { items, total };
+  }
+  function cleanupPlan() {
+    const autoSaves = [], archived = [], images = [];
+    for (const c of state.characters) {
+      for (const sv of c.saves || []) if (String(sv.id).startsWith("auto:")) autoSaves.push({ c, sv, bytes: bytesOf(sv) });
+      for (const bk of c.books) if (bk.memory) for (const e of bk.entries) if (e.extensions && e.extensions.memory_archived) archived.push({ bk, e, bytes: bytesOf(e) });
+      if (c.image && c.image.length > 150000) images.push({ get: () => c.image, set: (v) => { c.image = v; }, max: 512, bytes: c.image.length, label: `头像 · ${c.name}` });
+      if (c.bg && c.bg.image && c.bg.image.length > 400000) images.push({ get: () => c.bg.image, set: (v) => { c.bg.image = v; }, max: 1600, bytes: c.bg.image.length, label: `背景 · ${c.name}` });
+    }
+    if (state.bg && state.bg.image && state.bg.image.length > 400000) images.push({ get: () => state.bg.image, set: (v) => { state.bg.image = v; }, max: 1600, bytes: state.bg.image.length, label: "背景 · 全局" });
+    return { autoSaves, archived, images };
+  }
+  function shrinkImage(dataUrl, max, q) {
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const r = Math.min(1, max / Math.max(img.width, img.height));
+          const cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(img.width * r)); cv.height = Math.max(1, Math.round(img.height * r));
+          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+          const out = cv.toDataURL("image/jpeg", q);
+          res(out.length < dataUrl.length ? out : dataUrl);
+        } catch (e) { res(dataUrl); }
+      };
+      img.onerror = () => res(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+  function renderStorageStat() {
+    const total = lastBytes || bytesOf(state);
+    const q = quotaInfo && quotaInfo.quota ? quotaInfo.quota : 0;
+    const pct = q ? Math.min(100, (total / q) * 100) : 0;
+    const meter = $("stoMeter"); meter.querySelector("span").style.width = (q ? Math.max(0.5, pct) : 0).toFixed(1) + "%"; meter.classList.toggle("warn", q ? pct > 80 : false);
+    const where = idbOk === true ? "存在浏览器的大抽屉（IndexedDB）里" : idbOk === false ? "这个浏览器没法用大抽屉，只能用 5 MB 的小抽屉（localStorage）" : "检查中…";
+    $("stoStat").textContent = `本页数据 ${fmtMB(total)}${q ? ` / 浏览器可用 ${fmtMB(q)}（${pct < 0.1 ? "<0.1" : pct.toFixed(1)}%）` : ""} · ${where}${!lsOk && idbOk ? " · 已超过小抽屉的 5 MB，只靠大抽屉保存" : ""}${idbError ? " · ⚠ 大抽屉写入失败" : ""}`;
+    $("stoSafari").hidden = !isSafari();
+  }
+  function renderStorageList() {
+    const box = $("stoList"); box.innerHTML = "";
+    const { items, total } = storageItems();
+    for (const it of items.slice(0, 60)) {
+      const row = el("div", "rx-row"); row.style.gridTemplateColumns = "minmax(0,1fr) auto auto";
+      const nm = el("span", "nm", it.label); nm.title = it.label; if (it.sub) nm.appendChild(el("small", null, it.sub)); row.appendChild(nm);
+      row.appendChild(el("span", "stat", `${fmtMB(it.bytes)} · ${((it.bytes / Math.max(1, total)) * 100).toFixed(0)}%`));
+      if (it.del) { const b = el("button", "btn ghost", "删除"); b.style.cssText = "padding:3px 8px;font-size:12px;color:var(--danger)"; b.onclick = async () => { const ok = await it.del(); if (ok === false) return; save(); renderAll(); renderGlobalBooks(); renderPresetSelect(); renderStorageList(); renderStorageStat(); toast("已删除"); }; row.appendChild(b); }
+      else row.appendChild(el("span", "stat", ""));
+      box.appendChild(row);
+    }
+    const plan = cleanupPlan();
+    $("stoCleanAuto").nextSibling.textContent = ` 删掉所有「自动 ·」存档（${plan.autoSaves.length} 个，${fmtMB(plan.autoSaves.reduce((n, x) => n + x.bytes, 0))}）`;
+    $("stoCleanArch").nextSibling.textContent = ` 删掉已合并停用的旧记忆条目（${plan.archived.length} 条，${fmtMB(plan.archived.reduce((n, x) => n + x.bytes, 0))}）`;
+    $("stoCleanImg").nextSibling.textContent = ` 压缩过大的头像和背景图（${plan.images.length} 张，${fmtMB(plan.images.reduce((n, x) => n + x.bytes, 0))}；头像最长边 512，背景 1600，会糊一点）`;
+    $("stoCleanAuto").disabled = !plan.autoSaves.length; $("stoCleanArch").disabled = !plan.archived.length; $("stoCleanImg").disabled = !plan.images.length;
+  }
+  function openStorage() {
+    renderStorageStat();
+    renderStorageList();
+    $("stoWipeText").value = "";
+    $("stoBack").hidden = false;
+  }
+  async function runCleanup() {
+    const plan = cleanupPlan();
+    let freed = 0, n = 0;
+    if ($("stoCleanAuto").checked) for (const x of plan.autoSaves) { x.c.saves = x.c.saves.filter((s) => s !== x.sv); freed += x.bytes; n++; }
+    if ($("stoCleanArch").checked) for (const x of plan.archived) { x.bk.entries = x.bk.entries.filter((e) => e !== x.e); freed += x.bytes; n++; }
+    if ($("stoCleanImg").checked) for (const x of plan.images) { const before = x.get(); const after = await shrinkImage(before, x.max, 0.82); if (after !== before) { x.set(after); freed += before.length - after.length; n++; } }
+    if (!n) return toast("没有可以清理的东西");
+    save(); renderAll(); renderStorageList(); renderStorageStat();
+    toast(`清理了 ${n} 项，省下约 ${fmtMB(freed)}`);
+  }
+  async function wipeAll() {
+    if ($("stoWipeText").value.trim() !== "清空") return toast("先在框里输入「清空」两个字", true);
+    if (!(await askConfirm("会先下载一份完整备份，然后把这个页面恢复成刚打开时的样子（API 设置保留）。确定？", "清空全部", true))) return;
+    await backupAll();
+    const api = state.api;
+    state = defaultState(); state.api = api;
+    save();
+    $("stoBack").hidden = true;
+    renderAll(); refreshGlobalRx(); renderGlobalBooks(); renderPresetSelect(); refreshBackendUi();
+    toast("已清空，备份文件在你的下载里");
+  }
+  $("stoOpen").onclick = openStorage;
+  $("stoClose").onclick = () => { $("stoBack").hidden = true; };
+  $("stoCleanGo").onclick = runCleanup;
+  $("stoWipeGo").onclick = wipeAll;
   $("memRebuild").onclick = openRebuild;
   $("memMergeAll").onclick = openMergeAll;
   $("memQuick").onclick = quickSummarize;
@@ -7981,11 +8194,13 @@
   // ============================================================
   // Boot
   // ============================================================
+  bootStorage().then(() => {
   renderAll();
   { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
   refreshGlobalRx();
   renderGlobalBooks();
   renderPresetSelect();
   initSample().then(() => renderMessages());
+  });
 })();
 </script>
