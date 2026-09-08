@@ -288,11 +288,18 @@
     font-size: 12px; color: var(--muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .stage-head .tools { display: flex; gap: 4px; }
+  .stage-head .tools { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .stage-head .tools .btn { white-space: nowrap; }
   /* desktop: both side panels can be collapsed; the toggles live in the chat header */
   @media (min-width: 761px) {
-    .app.hide-left { grid-template-columns: minmax(0, 1fr) 312px; }
     .app.hide-left .rail { display: none; }
+  }
+  /* between 761 and 1080 the drawer is an overlay, so collapsing the rail must not leave an empty column for it */
+  @media (min-width: 761px) and (max-width: 1080px) {
+    .app.hide-left { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (min-width: 1081px) {
+    .app.hide-left { grid-template-columns: minmax(0, 1fr) 312px; }
   }
   @media (min-width: 1081px) {
     .app.hide-right { grid-template-columns: 264px minmax(0, 1fr); }
