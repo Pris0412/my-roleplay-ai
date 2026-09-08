@@ -888,6 +888,7 @@
             <option value="describe">不抢话 · 可以写我的表情动作</option>
             <option value="restate">可以复述我的话</option>
             <option value="expand">复述 + 扩展我的动作表情</option>
+            <option value="none">无 · 不管，交给角色卡</option>
           </select>
         </label>
         <span class="spacer"></span>
@@ -3083,17 +3084,18 @@
     switch (state.settings.voice) {
       case "describe": return `不要替 ${u} 说新的话，也不要替 ${u} 做决定；但可以从 ${c.name} 的视角观察并描写 ${u} 的表情、动作和神态。`;
       case "restate": return `可以在回复里引用或复述 ${u} 刚才说过的话，但不要替 ${u} 说没说过的话或做决定；不要描写 ${u} 的动作和表情。`;
-      case "expand": return `可以复述 ${u} 刚才的话，并为这些话补上合理的动作、表情和语气细节（不改变原意）；不要替 ${u} 做重大决定或推进 ${u} 没提到的行动。`;
+      case "expand": return `每次回复开头，先用一两句话从 ${c.name} 的视角把 ${u} 刚才说的话和做的事重新描一遍，并补上合理的表情、动作和语气细节（不改变原意），然后才轮到 ${c.name} 回应；不要替 ${u} 说新的话、做重大决定或推进 ${u} 没提到的行动。`;
+      case "none": return "";
       default: return `只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定，也不描写 ${u} 的动作、表情或内心。`;
     }
   }
   function defaultRules(c, u) {
     return [
       `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
-      voiceRule(c, u),
+      voiceRule(c, u) || null,
       "动作与神态用 *星号* 包住，对白直接写出或用「」引住。避免总结式或说教式的结尾。",
       "推进剧情：给对方留下可以接的钩子，但不要一次推进太多。",
-    ].map((r) => "- " + r).join("\n");
+    ].filter(Boolean).map((r) => "- " + r).join("\n");
   }
 
   // ---------- Lorebook activation (character book + enabled global books) ----------
@@ -3280,6 +3282,7 @@
     parts.push("\n## 规则");
     const ruleLines = [];
     if (!(c.systemPrompt && c.systemPrompt.trim())) ruleLines.push(rules);
+    else if (!c.systemPrompt.includes("{{original}}") && voiceRule(c, u)) ruleLines.push(`- ${voiceRule(c, u)}`);
     ruleLines.push(`- ${lengthHint()}`, `- ${langHint()}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
     parts.push(...ruleLines); seg("fixed", "回复规则", ruleLines.join("\n"));
     return sub(parts.join("\n"), c);
@@ -3358,7 +3361,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint(), c) : [`- ${lengthHint()}`, `- ${langHint()}`, `- ${voiceRule(c, u)}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint(), c) : [`- ${lengthHint()}`, `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
