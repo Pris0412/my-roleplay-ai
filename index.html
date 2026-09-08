@@ -479,6 +479,7 @@
   .phone-head .who { flex: 1; min-width: 0; text-align: center; }
   .phone-head .who .nm { font-weight: 600; font-size: 15px; }
   .phone-head .who .st { font-size: 11px; color: #8e8e93; }
+  .phone-head .who .st.link { color: #0a84ff; cursor: pointer; }
   .phone-head .avatar { width: 34px; height: 34px; font-size: 16px; }
   .phone-head .ib { border: 0; background: transparent; color: #0a84ff; font-size: 14px; padding: 4px 6px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
   .phone-head .ib:hover { background: rgba(10,132,255,0.12); }
@@ -1790,10 +1791,10 @@
   </div>
 </div>
 
-<div class="modal-back" id="phoneSceneBack" hidden style="z-index:57">
+<div class="modal-back" id="phoneSceneBack" hidden style="z-index:66">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="phoneSceneTitle" style="width:min(520px,100%)">
     <div class="modal-head">
-      <span id="phoneSceneTitle">📱 拿出手机</span>
+      <span id="phoneSceneTitle">📱 手机场景</span>
       <button class="btn ghost icon" id="phoneSceneClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
@@ -1810,7 +1811,7 @@
     <div class="modal-foot" style="justify-content:flex-end">
       <div class="right">
         <button class="btn" id="phoneSceneCancel">取消</button>
-        <button class="btn primary" id="phoneSceneGo">拿出手机</button>
+        <button class="btn primary" id="phoneSceneGo">确定</button>
       </div>
     </div>
   </div>
@@ -3937,23 +3938,41 @@
   function phoneMsgs(c, npcId) {
     return c.chat.map((m, i) => ({ m, i })).filter((x) => npcId ? (x.m.npc === npcId && x.m.channel === "phone") : ((x.m.channel === "phone" && !x.m.npc && !x.m.group) || (x.m.kind === "divider" && x.m.phone)));
   }
+  // tap the phone: open it straight away with the last-used scene; the scene can be changed from the phone header
   function askPhoneScene() {
     const c = active();
     if (!c || busy) return;
     if (c.phone && c.phone.open) { openPhone(false); return; }
-    const mode = (c.phone && c.phone.mode) || "apart";
+    openPhone(true, { mode: (c.phone && c.phone.mode) || "apart", note: "" });
+  }
+  function openPhoneSceneSwitch() {
+    const c = active();
+    if (!c || busy) return;
+    const mode = phoneMode(c);
     $("phoneSceneOpts").querySelectorAll(".scene-opt").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
-    $("phoneSceneNote").value = "";
+    $("phoneSceneNote").value = (c.phone && c.phone.note) || "";
     $("phoneSceneBack").hidden = false;
     $("phoneSceneNote").focus();
   }
   function closePhoneScene() { $("phoneSceneBack").hidden = true; }
+  function phoneDividerText(c, mode, note) {
+    const base = mode === "together" ? `📱 ${c.name} 和 {{user}} 在同一个场合，不方便开口，悄悄用手机聊` : `📱 ${c.name} 和 {{user}} 不在同一个地方，改用手机联系`;
+    return base + (note ? `（${note}）` : "");
+  }
   function phoneSceneGo() {
+    const c = active();
     const on = $("phoneSceneOpts").querySelector(".scene-opt.on");
     const mode = on ? on.dataset.mode : "apart";
-    const note = $("phoneSceneNote").value.trim();
+    const note = $("phoneSceneNote").value.trim().slice(0, 200);
     closePhoneScene();
-    openPhone(true, { mode, note });
+    if (!c || !(c.phone && c.phone.open)) { openPhone(true, { mode, note }); return; }
+    if (mode === c.phone.mode && note === (c.phone.note || "")) return;
+    c.phone.mode = mode; c.phone.note = note;
+    const last = c.chat[c.chat.length - 1];
+    if (last && last.kind === "divider" && last.phone && !/^📱\s*(放下|收起)手机/.test(last.content)) last.content = phoneDividerText(c, mode, note);
+    else c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: phoneDividerText(c, mode, note).replace(/^📱 /, "📱 换个情况："), ts: Date.now() });
+    save(); renderMessages(); renderCharList(); renderPhone();
+    toast(mode === "together" ? "改成：同一场合，悄悄发" : "改成：不在一处");
   }
   function phoneBannerText(c) {
     return phoneMode(c) === "together"
@@ -3968,8 +3987,7 @@
       const mode = scene && scene.mode === "together" ? "together" : "apart";
       const note = scene && scene.note ? scene.note.slice(0, 200) : "";
       c.phone = { open: true, mode, note };
-      const base = mode === "together" ? `📱 ${c.name} 和 {{user}} 在同一个场合，不方便开口，悄悄用手机聊` : `📱 ${c.name} 和 {{user}} 不在同一个地方，改用手机联系`;
-      c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: base + (note ? `（${note}）` : ""), ts: Date.now() });
+      c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: phoneDividerText(c, mode, note), ts: Date.now() });
       save(); renderMessages(); renderCharList();
     }
     phoneWith = null; phoneGroup = null; phoneView = "chat";
@@ -5111,7 +5129,11 @@
     $("phoneMemo").textContent = grp ? "总结群聊" : "总结私聊";
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
     const typing = grp ? groupTyping === grp.id : (busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone" && (m.npc || null) === phoneWith));
-    $("phoneStatus").textContent = grp ? (typing ? "有人正在输入…" : `${grp.members.length + 1} 人 · ${grp.members.map((id) => groupMemberName(c, id)).join("、")}`) : typing ? "正在输入…" : npc ? (npcAppeared(c, npc) ? "在线" : "还没在故事里出场 · 初次联系") : phoneMode(c) === "together" ? "就在附近 · 悄悄聊" : (st && st.value ? `在 ${st.value}` : "在线");
+    const charChat = !grp && !npc;
+    $("phoneStatus").textContent = grp ? (typing ? "有人正在输入…" : `${grp.members.length + 1} 人 · ${grp.members.map((id) => groupMemberName(c, id)).join("、")}`) : typing ? "正在输入…" : npc ? (npcAppeared(c, npc) ? "在线" : "还没在故事里出场 · 初次联系") : phoneMode(c) === "together" ? "🤫 同一场合，悄悄发 ▾" : `🚶 不在一处${st && st.value ? ` · TA 在${st.value}` : ""} ▾`;
+    $("phoneStatus").classList.toggle("link", charChat && !typing);
+    $("phoneStatus").title = charChat ? "点一下切换：不在一处 / 同一场合悄悄发，或补充情境" : "";
+    $("phoneStatus").onclick = charChat && !typing ? openPhoneSceneSwitch : null;
     const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
     body.innerHTML = "";
     const thread = grp ? groupMsgs(c, grp.id) : phoneMsgs(c, phoneWith);
