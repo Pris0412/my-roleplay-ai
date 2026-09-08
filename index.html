@@ -3209,9 +3209,12 @@
       const pendChars = pend.reduce((n, m) => n + m.content.length, 0), pendTok = pend.reduce((n, m) => n + estTokens(m.content), 0);
       const r = lastReport && lastReport.charId === c.id ? lastReport : null;
       const parts = [`${total} 楼 · 共 ${chars} 字`];
-      parts.push(last ? `已总结到第 ${last} 楼` : "还没总结过");
-      parts.push(pend.length ? `未总结 ${pend.length} 楼 ≈${pendChars} 字 / ≈${fmtTok(pendTok)} tok` : "没有未总结的楼层");
-      if (r && r.floors) parts.push(`这次带入第 ${r.firstFloor}–${r.lastFloor} 楼 ≈${fmtTok(r.tokens)} tok`);
+      parts.push(last ? `主线已总结到第 ${last} 楼` : "主线还没总结过");
+      parts.push(pend.length ? `主线未总结 ${pend.length} 楼 ≈${pendChars} 字 / ≈${fmtTok(pendTok)} tok` : "主线没有未总结的楼层");
+      const npcPend = [...c.npcs, ...c.groups.map((g) => groupAsNpc(c, g))].map((n) => ({ n, k: npcUnsummarized(c, n).filter((m) => m.kind !== "divider").length })).filter((x) => x.k);
+      if (npcPend.length) parts.push(`${npcPend.map((x) => `${x.n.isGroup ? "群「" + x.n.name + "」" : x.n.name} 未总结 ${x.k} 条`).join("，")}`);
+      const scl = sceneNpcs(c);
+      if (r && r.floors) parts.push(`这次带入 ${r.floors} 条（第 ${r.firstFloor}–${r.lastFloor} 楼之间${scl.length ? `，${namesOf(scl)} 的视角` : c.phone && c.phone.open ? "，手机模式" : ""}）≈${fmtTok(r.tokens)} tok`);
       $("chatStat").textContent = parts.join(" · ");
     }
     try {
