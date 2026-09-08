@@ -1311,7 +1311,18 @@
         <select id="memTarget"></select>
         <div class="help">主角按楼层范围总结；NPC 总结的是和 TA 私下的手机消息和当面剧情里还没总结过的部分。</div>
       </div>
+      <div class="field">
+        <label for="memMode">做什么</label>
+        <select id="memMode">
+          <option value="new">总结新的内容</option>
+          <option value="merge">合并已有的记忆条目（大总结）</option>
+        </select>
+      </div>
       <div class="stat" id="memStat"></div>
+      <div id="memMergeBox" hidden>
+        <div class="rx-list" id="memMergeList"></div>
+        <div class="help">勾选的条目会被压成一条大总结；旧条目停用并标「已合并」，不会删，想反悔可以在世界书里重新启用。</div>
+      </div>
       <div class="row" id="memRangeRow">
         <div class="field">
           <label for="memFrom">起始楼</label>
@@ -1327,7 +1338,7 @@
         <div class="inner">
           <div class="field">
             <textarea id="memPrompt" style="min-height:180px" class="mono"></textarea>
-            <div class="help">可用占位符：{{char}} {{user}} {{range}}（如 1-20）{{messages}}（这段楼层的原文）{{previous}}（此前的记忆摘要）；NPC 私聊总结另有一套模板，多一个 {{npc}}。改动会保存。</div>
+            <div class="help">可用占位符：{{char}} {{user}} {{range}}（如 1-20）{{messages}}（这段楼层的原文）{{previous}}（此前的记忆摘要）；NPC 私聊总结另有一套模板，多一个 {{npc}}；合并模式用 {{entries}}（勾选的条目原文）。三套模板分别保存。</div>
           </div>
           <button class="btn ghost" id="memPromptReset">恢复默认提示词</button>
         </div>
@@ -3937,6 +3948,100 @@
     "{{messages}}",
   ].join("\n");
   let memNpc = null; // when set, the memory window summarises this NPC's private thread instead of a floor range
+  let memMode = "new"; // "new" = summarise chat, "merge" = fold existing memory entries into one
+  const DEFAULT_MERGE_PROMPT = [
+    "你是这场角色扮演的记录员。下面是若干条按时间顺序排列的记忆摘要，主角是「{{char}}」，用户是「{{user}}」{{npcline}}。请把它们合并成一条更精炼的长期记忆。",
+    "",
+    "要求：",
+    "- 保留所有仍然重要的事实：人物关系及其变化、做过的决定和约定、关键地点和物品、未解决的伏笔。",
+    "- 把重复的、过程性的细节压掉，用一句话带过已经完结的小事。",
+    "- 按时间顺序，用第三人称陈述句，不要标题、不要评论，400 字以内。",
+    "",
+    "=== 待合并的记忆 ===",
+    "{{entries}}",
+  ].join("\n");
+  const MEM_BOOK_WARN_TOKENS = 1500;
+  function memBookFor(c) { return memNpc ? memoryBook(c, false, memNpc) : memoryBook(c, false); }
+  function memBookTokens(book) { return book ? book.entries.filter((e) => e.enabled && e.content.trim()).reduce((n, e) => n + estTokens(e.content), 0) : 0; }
+  function memTemplateFor(mode) {
+    if (mode === "merge") return state.settings.memPromptMerge && state.settings.memPromptMerge.trim() ? state.settings.memPromptMerge : DEFAULT_MERGE_PROMPT;
+    if (memNpc) return state.settings.memPromptNpc && state.settings.memPromptNpc.trim() ? state.settings.memPromptNpc : DEFAULT_NPC_MEM_PROMPT;
+    return memPromptTemplate();
+  }
+  function setMemMode(mode) {
+    memMode = mode === "merge" ? "merge" : "new";
+    const c = active(); if (!c) return;
+    $("memMode").value = memMode;
+    $("memRangeRow").hidden = memMode === "merge" || !!memNpc;
+    $("memMergeBox").hidden = memMode !== "merge";
+    $("memPrompt").value = memTemplateFor(memMode);
+    $("memResult").value = "";
+    $("memGen").textContent = memMode === "merge" ? "生成大总结" : "生成总结";
+    $("memSave").textContent = memMode === "merge" ? "存为合并后的记忆" : "存为记忆条目";
+    if (memMode === "merge") renderMergeList(c);
+    memUpdateHint();
+  }
+  function renderMergeList(c) {
+    const box = $("memMergeList"); box.innerHTML = "";
+    const book = memBookFor(c);
+    const entries = book ? book.entries : [];
+    if (!entries.length) { box.appendChild(el("div", "rx-empty", "这本记忆书还没有条目。")); return; }
+    const live = entries.filter((e) => e.enabled && !(e.extensions && e.extensions.memory_archived));
+    const scopes = new Set(live.map((e) => entryScope(e)));
+    entries.forEach((e) => {
+      const archived = !!(e.extensions && e.extensions.memory_archived);
+      const row = el("label", "rx-row" + (archived || !e.enabled ? " off" : ""));
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.dataset.id = e.id;
+      cb.checked = e.enabled && !archived && (scopes.size <= 1 || entryScope(e) === entryScope(live[0]));
+      cb.disabled = archived;
+      const nm = el("span", "nm", e.comment || "（无标题）");
+      nm.appendChild(el("small", null, `${archived ? "已合并 · " : !e.enabled ? "已停用 · " : ""}${scopeLabel(c, e, book) || "默认"} · ${e.content.length} 字`));
+      row.append(cb, nm, el("span"), el("span"));
+      cb.addEventListener("change", memUpdateHint);
+      box.appendChild(row);
+    });
+    if (scopes.size > 1) box.appendChild(el("div", "help", "这本书里有不同「谁知道」的条目，默认只勾了第一种；合并不同可见范围的条目时，记得在下面选好结果的可见范围。"));
+  }
+  function mergeSelected(c) {
+    const book = memBookFor(c); if (!book) return [];
+    const ids = new Set([...$("memMergeList").querySelectorAll("input[type=checkbox]:checked")].map((x) => x.dataset.id));
+    return book.entries.filter((e) => ids.has(String(e.id)));
+  }
+  function buildMergePrompt(c) {
+    const u = state.persona.name || "用户";
+    const picked = mergeSelected(c);
+    const text = picked.map((e) => `【${e.comment || "记忆"}】${e.content.trim()}`).join("\n\n");
+    let prompt = $("memPrompt").value || DEFAULT_MERGE_PROMPT;
+    prompt = prompt
+      .replace(/\{\{npcline\}\}/g, memNpc ? `，这些是「${memNpc.name}」和「${u}」私下相处的记忆` : "")
+      .replace(/\{\{npc\}\}/g, memNpc ? memNpc.name : "")
+      .replace(/\{\{entries\}\}/g, () => text);
+    prompt = sub(prompt, c);
+    while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
+    return prompt;
+  }
+  function memSaveMerge(c, text) {
+    const book = memBookFor(c);
+    const picked = mergeSelected(c);
+    if (!book || picked.length < 2) { toast("至少勾选两条记忆再合并", true); return; }
+    const e = newEntry(book);
+    const first = picked[0].comment || "", last = picked[picked.length - 1].comment || "";
+    e.comment = `合并 · ${first}${last && last !== first ? ` ~ ${last}` : ""}`;
+    e.content = text;
+    e.constant = true;
+    e.position = "after_char";
+    e.insertion_order = Math.min(...picked.map((x) => x.insertion_order || 100));
+    e.extensions = { ...(e.extensions || {}), memory_merged: picked.map((x) => x.id) };
+    const sc = $("memScope").value;
+    if (sc && sc !== "char") e.extensions.lantern_scope = sc;
+    for (const x of picked) { x.enabled = false; x.extensions = { ...(x.extensions || {}), memory_archived: true }; }
+    const at = book.entries.indexOf(picked[0]);
+    book.entries.splice(at < 0 ? book.entries.length : at, 0, e);
+    save();
+    closeMemory();
+    toast(`已把 ${picked.length} 条记忆合并成一条，旧条目已停用并标「已合并」`);
+    updateStats();
+  }
   function npcUnsummarized(c, npc) {
     const all = c.chat.filter((m) => m.npc === npc.id && !m.error);
     if (!npc.memLastId) return all;
@@ -3947,6 +4052,7 @@
     const c = active();
     if (!c || busy || !npc) return;
     memNpc = npc;
+    memMode = "new"; $("memMode").value = "new"; $("memMergeBox").hidden = true; $("memGen").textContent = "生成总结"; $("memSave").textContent = "存为记忆条目";
     fillMemTarget(c, "npc:" + npc.id);
     fillMemScope(c, npc);
     $("memTitle").textContent = `记忆总结 · ${npc.name}`;
@@ -4633,16 +4739,30 @@
     from = Math.max(1, Math.min(from, n)); to = Math.max(from, Math.min(to, n));
     return { from, to, n };
   }
+  function memBookLine(c, book, fallbackName) {
+    if (!book) return "第一次保存时会自动创建「记忆 · " + fallbackName + "」世界书";
+    const tok = memBookTokens(book);
+    const live = book.entries.filter((e) => e.enabled).length;
+    return `记忆世界书：${book.name} · ${live} 条常驻 · 约 ${tok} token${tok > MEM_BOOK_WARN_TOKENS ? " · 建议合并成大总结" : ""}`;
+  }
   function memUpdateHint() {
     const c = active();
     if (!c) return;
+    if (memMode === "merge") {
+      const picked = mergeSelected(c);
+      const chars = picked.reduce((n, e) => n + e.content.length, 0);
+      $("memHint").textContent = `已勾选 ${picked.length} 条，约 ${chars} 字 → 压成一条`;
+      $("memStat").textContent = memNpc ? `合并 ${memNpc.name} 的记忆书` : `合并 ${c.name} 的记忆书`;
+      $("memBook").textContent = memBookLine(c, memBookFor(c), memNpc ? memNpc.name : c.name);
+      $("memGen").disabled = !chatReady() || picked.length < 2;
+      return;
+    }
     if (memNpc) {
       const pending = npcUnsummarized(c, memNpc).filter((m) => m.kind !== "divider");
       const chars = pending.reduce((s, m) => s + m.content.length, 0);
       $("memHint").textContent = `${memNpc.name} · ${pending.length} 条未总结（手机和当面都算），约 ${chars} 字`;
       $("memStat").textContent = `已为 ${memNpc.name} 存过 ${memNpc.memCount || 0} 段私聊记忆 · 只有 ${memNpc.name} 看得到`;
-      const b0 = memoryBook(c, false, memNpc);
-      $("memBook").textContent = b0 ? `记忆世界书：${b0.name} · ${b0.entries.length} 条` : "第一次保存时会自动创建「记忆 · " + memNpc.name + "」世界书";
+      $("memBook").textContent = memBookLine(c, memoryBook(c, false, memNpc), memNpc.name);
       return;
     }
     const { from, to, n } = memRange();
@@ -4650,8 +4770,7 @@
     const chars = chatRange(c, from, to).reduce((s, m) => s + m.content.length, 0);
     $("memHint").textContent = `第 ${from}–${to} 楼，${to - from + 1} 条，约 ${chars} 字`;
     $("memStat").textContent = `共 ${n} 楼 · 已总结到第 ${c.memory.lastFloor || 0} 楼`;
-    const b = memoryBook(c, false);
-    $("memBook").textContent = b ? `记忆世界书：${b.name} · ${b.entries.length} 条` : "第一次保存时会自动创建「记忆 · " + c.name + "」世界书";
+    $("memBook").textContent = memBookLine(c, memoryBook(c, false), c.name);
   }
   function fillMemScope(c, npc) {
     const sel = $("memScope"); sel.innerHTML = "";
@@ -4679,6 +4798,7 @@
     const c = active();
     if (!c || busy) return;
     memNpc = null;
+    memMode = "new"; $("memMode").value = "new"; $("memMergeBox").hidden = true; $("memGen").textContent = "生成总结"; $("memSave").textContent = "存为记忆条目";
     fillMemTarget(c, "char");
     fillMemScope(c, null);
     $("memTitle").textContent = "记忆总结";
@@ -4695,6 +4815,7 @@
   }
   function closeMemory() { if (memCtl) memCtl.abort(); $("memBack").hidden = true; }
   function buildMemPrompt(c) {
+    if (memMode === "merge") return buildMergePrompt(c);
     if (memNpc) return buildNpcMemPrompt(c, memNpc);
     const { from, to } = memRange();
     const u = state.persona.name || "用户";
@@ -4745,6 +4866,7 @@
     const text = $("memResult").value.trim();
     if (!c) return;
     if (!text) { $("memResult").focus(); toast("总结是空的，先生成或自己写一段。", true); return; }
+    if (memMode === "merge") return memSaveMerge(c, text);
     if (memNpc) return memSaveNpc(c, memNpc, text);
     const { from, to } = memRange();
     const created = !memoryBook(c, false);
@@ -5269,7 +5391,7 @@
       cb.onchange = () => { e.enabled = cb.checked; card.classList.toggle("off", !e.enabled); };
       const ttl = el("div", "ttl"); ttl.textContent = e.comment || e.keys[0] || `条目 ${i + 1}`;
       const small = document.createElement("small"); small.textContent = e.keys.slice(0, 4).join(", ") + (e.keys.length > 4 ? " …" : ""); ttl.appendChild(small);
-      const pill = el("span", "pill", (b.memory ? scopeLabel(active(), e, b) + " " : "") + (e.constant ? "常驻" : e.position === "before_char" ? "前置" : ""));
+      const pill = el("span", "pill", (b.memory && e.extensions && e.extensions.memory_archived ? "已合并 " : "") + (b.memory ? scopeLabel(active(), e, b) + " " : "") + (e.constant ? "常驻" : e.position === "before_char" ? "前置" : ""));
       if (!pill.textContent) pill.style.visibility = "hidden";
       const bDel = el("button", "btn ghost danger", "删除");
       bDel.onclick = async (ev) => { ev.stopPropagation(); if (!(await askConfirm(`删除条目「${ttl.firstChild.textContent}」？`, "删除", true))) return; b.entries.splice(i, 1); wiEditing.open.delete(e.id); renderWiEntries(); };
@@ -6042,11 +6164,18 @@
   $("memStop").onclick = () => { if (memCtl) memCtl.abort(); };
   $("memSave").onclick = memSave;
   $("memPrompt").addEventListener("input", (e) => {
-    if (memNpc) state.settings.memPromptNpc = e.target.value === DEFAULT_NPC_MEM_PROMPT ? "" : e.target.value;
+    if (memMode === "merge") state.settings.memPromptMerge = e.target.value === DEFAULT_MERGE_PROMPT ? "" : e.target.value;
+    else if (memNpc) state.settings.memPromptNpc = e.target.value === DEFAULT_NPC_MEM_PROMPT ? "" : e.target.value;
     else state.settings.memPrompt = e.target.value === DEFAULT_MEM_PROMPT ? "" : e.target.value;
     save();
   });
-  $("memPromptReset").onclick = () => { if (memNpc) { $("memPrompt").value = DEFAULT_NPC_MEM_PROMPT; state.settings.memPromptNpc = ""; } else { $("memPrompt").value = DEFAULT_MEM_PROMPT; state.settings.memPrompt = ""; } save(); };
+  $("memPromptReset").onclick = () => {
+    if (memMode === "merge") { $("memPrompt").value = DEFAULT_MERGE_PROMPT; state.settings.memPromptMerge = ""; }
+    else if (memNpc) { $("memPrompt").value = DEFAULT_NPC_MEM_PROMPT; state.settings.memPromptNpc = ""; }
+    else { $("memPrompt").value = DEFAULT_MEM_PROMPT; state.settings.memPrompt = ""; }
+    save();
+  };
+  $("memMode").addEventListener("change", (e) => setMemMode(e.target.value));
   $("memFrom").addEventListener("change", memUpdateHint);
   $("memTo").addEventListener("change", memUpdateHint);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("memBack").hidden && !confirmResolve) { e.stopPropagation(); closeMemory(); } }, true);
