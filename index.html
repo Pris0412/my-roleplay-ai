@@ -1212,9 +1212,14 @@
     </div>
     <div class="modal-body">
       <div class="section">
-        <div class="section-title">Token 明细 <span class="stat" id="tokNote"></span></div>
-        <div style="overflow-x:auto"><table class="tok" id="tokTable"></table></div>
-        <div class="help" id="tokHelp"></div>
+        <div class="section-title">
+          <span>Token 明细 <span class="stat" id="tokNote"></span></span>
+          <button class="btn ghost" id="tokToggle">显示</button>
+        </div>
+        <div id="tokBody" hidden>
+          <div style="overflow-x:auto"><table class="tok" id="tokTable"></table></div>
+          <div class="help" id="tokHelp"></div>
+        </div>
       </div>
       <div class="section">
         <div class="section-title">这次会发给模型的内容</div>
@@ -3387,7 +3392,7 @@
     if (!r) return;
     const pct = r.total / r.cap;
     const tpct = r.tokens / r.capTokens;
-    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} / ${fmtTok(r.capTokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}`;
+    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}`;
     btn.classList.toggle("warn", pct > 0.75 || tpct > 0.75 || r.dropped > 0);
   }
   function openContext() {
@@ -3437,7 +3442,7 @@
         for (const sg of sorted) row("sub", sg.label, sg.chars, sg.tokens, null);
       }
     }
-    row("total", `合计（上限 ${fmtTok(r.capTokens)}，${Math.round((r.tokens / r.capTokens) * 100)}%）`, r.segments.reduce((n, x) => n + x.chars, 0), r.tokens, null);
+    row("total", "合计", r.segments.reduce((n, x) => n + x.chars, 0), r.tokens, null);
     const lu = state.lastUsage;
     $("tokNote").textContent = tokCalib() !== 1 ? `· 已按接口返回的真实用量校准（×${tokCalib().toFixed(2)}）` : "· 估算：中文约 1 字 1 token，英文约 4 字节 1 token";
     $("tokHelp").textContent = lu ? `上一次请求接口实际计费：输入 ${fmtTok(lu.prompt)} token，输出 ${fmtTok(lu.completion)} token（${lu.model || ""}）。` : (isCustom() ? "发过一条消息后，这里会显示接口返回的真实 prompt_tokens，并用它校准估算。" : "页内 Claude 接口不返回用量，这里只能估算；上限按 64 KB 换算。");
@@ -3447,7 +3452,11 @@
     if (!c) return;
     buildTurns(c);
     const r = lastReport;
-    renderTokenTable(r);
+    const showTok = state.settings.tokShow === true;
+    $("tokBody").hidden = !showTok;
+    $("tokToggle").textContent = showTok ? "隐藏" : "显示";
+    $("tokNote").textContent = showTok ? "" : `· 合计 ≈${fmtTok(r.tokens)} token`;
+    if (showTok) renderTokenTable(r);
     const pct = Math.min(1, r.total / r.cap);
     const meter = $("ctxMeter");
     meter.querySelector("span").style.width = (pct * 100).toFixed(1) + "%";
@@ -4813,6 +4822,7 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("bgBack").hidden && !confirmResolve) { e.stopPropagation(); $("bgBack").hidden = true; } }, true);
   $("ctxBtn").onclick = openContext;
   $("ctxBtnHead").onclick = openContext;
+  $("tokToggle").onclick = () => { state.settings.tokShow = !(state.settings.tokShow === true); save(); renderContextPanel(); };
   $("ctxClose").onclick = closeContext;
   $("ctxDone").onclick = closeContext;
   $("ctxBack").addEventListener("click", (e) => { if (e.target === $("ctxBack")) closeContext(); });
