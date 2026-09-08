@@ -2022,7 +2022,6 @@
       <div class="section">
         <div class="section-title">一键清理</div>
         <label class="rebuild-row"><input type="checkbox" id="stoCleanAuto" checked> 删掉所有「自动 ·」存档</label>
-        <label class="rebuild-row" style="margin-top:6px"><input type="checkbox" id="stoCleanArch" checked> 删掉已合并停用的旧记忆条目</label>
         <label class="rebuild-row" style="margin-top:6px"><input type="checkbox" id="stoCleanImg"> 压缩过大的头像和背景图</label>
         <button class="btn block" id="stoCleanGo" style="margin-top:8px">执行清理</button>
       </div>
@@ -8040,9 +8039,8 @@
     }
     const plan = cleanupPlan();
     $("stoCleanAuto").nextSibling.textContent = ` 删掉所有「自动 ·」存档（${plan.autoSaves.length} 个，${fmtMB(plan.autoSaves.reduce((n, x) => n + x.bytes, 0))}）`;
-    $("stoCleanArch").nextSibling.textContent = ` 删掉已合并停用的旧记忆条目（${plan.archived.length} 条，${fmtMB(plan.archived.reduce((n, x) => n + x.bytes, 0))}）`;
     $("stoCleanImg").nextSibling.textContent = ` 压缩过大的头像和背景图（${plan.images.length} 张，${fmtMB(plan.images.reduce((n, x) => n + x.bytes, 0))}；头像最长边 512，背景 1600，会糊一点）`;
-    $("stoCleanAuto").disabled = !plan.autoSaves.length; $("stoCleanArch").disabled = !plan.archived.length; $("stoCleanImg").disabled = !plan.images.length;
+    $("stoCleanAuto").disabled = !plan.autoSaves.length; $("stoCleanImg").disabled = !plan.images.length;
   }
   function openStorage() {
     renderStorageStat();
@@ -8054,7 +8052,6 @@
     const plan = cleanupPlan();
     let freed = 0, n = 0;
     if ($("stoCleanAuto").checked) for (const x of plan.autoSaves) { x.c.saves = x.c.saves.filter((s) => s !== x.sv); freed += x.bytes; n++; }
-    if ($("stoCleanArch").checked) for (const x of plan.archived) { x.bk.entries = x.bk.entries.filter((e) => e !== x.e); freed += x.bytes; n++; }
     if ($("stoCleanImg").checked) for (const x of plan.images) { const before = x.get(); const after = await shrinkImage(before, x.max, 0.82); if (after !== before) { x.set(after); freed += before.length - after.length; n++; } }
     if (!n) return toast("没有可以清理的东西");
     save(); renderAll(); renderStorageList(); renderStorageStat();
