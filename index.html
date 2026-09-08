@@ -658,6 +658,10 @@
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
   .stat.warn { color: var(--danger); }
+  .opt-btn { display: block; width: 100%; height: auto; white-space: normal; text-align: left; padding: 10px 12px; line-height: 1.45; }
+  .opt-btn b { display: block; font-size: 14px; }
+  .opt-btn small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .opt-btn.danger small { color: inherit; opacity: .85; }
 
   /* ---------- Modal ---------- */
   .modal-back {
@@ -1958,6 +1962,20 @@
       <div class="help">存档记录对话、状态面板、关系、NPC、群、记忆书和记忆索引；角色设定和世界书不受影响。读档前会自动留一份「读档前」，回溯、重开前也会自动留一份。</div>
       <div class="rx-list" id="saveList"></div>
       <div class="stat" id="saveStat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="resetBack" hidden style="z-index:65">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resetTitle" style="width:min(460px,100%)">
+    <div class="modal-head">
+      <span id="resetTitle">重开对话</span>
+      <button class="btn ghost icon" id="resetClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help" id="resetHint">回到开场白。重开前会自动留一份存档，随时能回来。</div>
+      <button class="btn opt-btn" id="resetChatOnly"><b>只清对话</b><small>记忆书、状态面板、关系、NPC、群都保留，像换一段新剧情</small></button>
+      <button class="btn opt-btn danger" id="resetAll" style="margin-top:8px"><b>全部归零</b><small>对话、记忆书、记忆索引、状态面板、关系、NPC 记忆计数、手机、用量都清掉，从第一次见面重来。角色设定、世界书、联系人名单、存档保留</small></button>
     </div>
   </div>
 </div>
@@ -6848,16 +6866,39 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && rxEditing) closeRxEditor(); });
   $("exportPng").onclick = () => exportCard("png");
   $("editChar").onclick = () => openEditor(active());
-  $("resetChat").onclick = async () => {
+  $("resetChat").onclick = () => {
     const c = active();
     if (!c || busy) return;
-    if (c.chat.length > 1 && !(await askConfirm(`清空和 ${c.name} 的对话，回到开场白？重开前会自动留一份存档。`, "重开"))) return;
-    if (busy) return;
+    if (c.chat.length <= 1 && !c.books.some((b) => b.memory)) { c.chat = [greeting(c)]; save(); renderMessages(); renderCharList(); return toast("已回到开场白"); }
+    $("resetHint").textContent = `和 ${c.name} 聊到第 ${floorCount(c)} 楼。重开前会自动留一份存档，随时能回来。`;
+    $("resetBack").hidden = false;
+  };
+  $("resetClose").onclick = () => { $("resetBack").hidden = true; };
+  function resetChat(all) {
+    const c = active();
+    if (!c || busy) return;
+    $("resetBack").hidden = true;
     if (c.chat.length > 1) makeSave(c, `自动 · 重开前（第 ${floorCount(c)} 楼）`, "reset");
     c.chat = [greeting(c)];
     c.memory.lastFloor = 0;
-    save(); renderMessages(); renderCharList();
-  };
+    c.phone = { open: false };
+    c.scene = null;
+    if (all) {
+      c.books = c.books.filter((b) => !b.memory);
+      c.memory = { lastFloor: 0, npcDone: {} };
+      c.status = normalizeStatus({ enabled: c.status.enabled, showStrip: c.status.showStrip, extra: c.status.extra });
+      c.rels = {};
+      c.usage = { prompt: 0, completion: 0, calls: 0, real: 0 };
+      c.vars = {};
+      for (const n of c.npcs) { n.memCount = 0; n.memLastId = null; n.toldLastId = null; }
+      for (const g of c.groups) g.memCount = 0;
+    }
+    save(); renderAll(); renderStatusStrip();
+    if (!$("phoneBack").hidden) $("phoneBack").hidden = true;
+    toast(all ? `已全部归零，从第一次见面重来（重开前的进度在「存档」里）` : "已回到开场白（记忆、状态、关系都还在）");
+  }
+  $("resetChatOnly").onclick = () => resetChat(false);
+  $("resetAll").onclick = () => resetChat(true);
   async function deleteCharacter(c) {
     if (!c || busy) return;
     if (!(await askConfirm(`删除角色「${c.name}」和全部聊天记录？此操作不可恢复。`, "删除", true))) return;
