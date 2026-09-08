@@ -1692,6 +1692,19 @@
   </div>
 </div>
 
+<div class="modal-back" id="ledgerBack" hidden style="z-index:59">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ledgerTitle" style="width:min(460px,100%)">
+    <div class="modal-head">
+      <span id="ledgerTitle">账单</span>
+      <button class="btn ghost icon" id="ledgerClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="rx-list" id="ledgerList"></div>
+      <div class="help" id="ledgerSum"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="xferBack" hidden style="z-index:59">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="xferTitle" style="width:min(380px,100%)">
     <div class="modal-head">
@@ -1732,6 +1745,7 @@
     <div class="phone-tools">
       <button class="btn" id="phoneNudge" title="根据当前剧情，让对方先发消息">让 TA 先开口</button>
       <button class="btn ghost" id="phoneWait" title="过一会儿再看：对方可能会继续发消息">过一会儿…</button>
+      <button class="btn ghost" id="phoneLedger" title="这段对话里的全部转账记录">账单</button>
       <span class="spacer" style="flex:1"></span>
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
@@ -2960,6 +2974,31 @@
     }
     return card;
   }
+  function openLedger() {
+    const c = active();
+    if (!c) return;
+    expireTransfers(c);
+    const u = state.persona.name || "你";
+    const list = $("ledgerList"); list.innerHTML = "";
+    const all = c.chat.filter((m) => m.kind === "transfer");
+    let inSum = 0, outSum = 0;
+    for (const m of all) {
+      const row = el("div", "rx-row" + (m.status === "returned" ? " off" : ""));
+      const mine = m.role === "user";
+      const st = m.status === "accepted" ? "已收款" : m.status === "returned" ? `已退回${m.returnNote ? "：" + m.returnNote : ""}` : "待收款";
+      row.appendChild(el("span", null, mine ? "→" : "←"));
+      const nm = el("span", "nm", `${mine ? `${u} → ${c.name}` : `${c.name} → ${u}`} ${fmtMoney(m.amount)}${m.note ? ` · ${m.note}` : ""}`);
+      nm.appendChild(el("small", null, `${fmtTime(m.ts)} · ${st}`));
+      row.appendChild(nm);
+      row.appendChild(el("span", "stat", `#${floorOf(c, c.chat.indexOf(m))}`));
+      row.appendChild(el("span"));
+      list.appendChild(row);
+      if (m.status === "accepted") { if (mine) outSum += m.amount; else inSum += m.amount; }
+    }
+    if (!all.length) list.appendChild(el("div", "rx-empty", "这段对话里还没有转账。用输入框左边的 💲 给 TA 转账，或者等 TA 主动转。"));
+    $("ledgerSum").textContent = all.length ? `共 ${all.length} 笔 · 你实收 ${fmtMoney(inSum)} · 你实付 ${fmtMoney(outSum)}（只算已收款的）` : "";
+    $("ledgerBack").hidden = false;
+  }
   function openXfer() {
     const c = active();
     if (!c || busy) return;
@@ -3600,7 +3639,11 @@
     expireTransfers(c);
     for (const { m } of phoneMsgs(c)) {
       if (m.kind === "divider") { body.appendChild(el("div", "pm sys", sub(m.content, c).replace(/^📱\s*/, ""))); continue; }
-      if (m.kind === "transfer") { body.appendChild(transferNode(m, c)); continue; }
+      if (m.kind === "transfer") {
+        try { body.appendChild(transferNode(m, c)); }
+        catch (e) { console.error(e); body.appendChild(el("div", "pm sys", `转账卡片渲染出错：${e && e.message ? e.message : e}（${sub(m.content, c)}）`)); }
+        continue;
+      }
       const txt = stripStatus(stripReasoning(sub(m.content, c)));
       if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
       if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
@@ -5348,6 +5391,9 @@
   $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneNudge").onclick = () => phoneNudge("first");
   $("phoneMoney").onclick = openXfer;
+  $("phoneLedger").onclick = openLedger;
+  $("ledgerClose").onclick = () => { $("ledgerBack").hidden = true; };
+  $("ledgerBack").addEventListener("click", (e) => { if (e.target === $("ledgerBack")) $("ledgerBack").hidden = true; });
   $("xferClose").onclick = closeXfer; $("xferCancel").onclick = closeXfer; $("xferGo").onclick = sendXfer;
   $("xferBack").addEventListener("click", (e) => { if (e.target === $("xferBack")) closeXfer(); });
   $("xferAmount").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("xferNote").focus(); } });
