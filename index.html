@@ -523,11 +523,6 @@
   .pm.xfer .xf-ret input { flex: 1; min-width: 0; padding: 5px 9px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.15); background: #f2f2f7; color: #111; font-size: 12px; }
   .phone.dark .pm.xfer .xf-ret input { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.15); }
   .pm.xfer .xf-ret button { border: 0; border-radius: 8px; background: #0a84ff; color: #fff; font-size: 12px; padding: 4px 10px; cursor: pointer; }
-  .phone-foot .money { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15); background: #fff; color: #f5a623; font-weight: 700; font-size: 17px; display: grid; place-items: center; cursor: pointer; flex-shrink: 0; }
-  .phone.dark .phone-foot .money { background: #1c1c1e; border-color: rgba(255,255,255,0.15); }
-  .phone-foot .money:disabled { opacity: 0.5; cursor: not-allowed; }
-  .xfer-amt { display: flex; align-items: center; gap: 6px; font-size: 28px; font-weight: 600; }
-  .xfer-amt input { flex: 1; font-size: 28px; font-weight: 600; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--raised); min-width: 0; }
   .phone-tools { display: flex; gap: 6px; padding: 6px 12px; }
   .phone-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
   .phone-foot { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px 14px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.12); }
@@ -1705,32 +1700,6 @@
   </div>
 </div>
 
-<div class="modal-back" id="xferBack" hidden style="z-index:59">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="xferTitle" style="width:min(380px,100%)">
-    <div class="modal-head">
-      <span id="xferTitle">转账给 —</span>
-      <button class="btn ghost icon" id="xferClose" aria-label="关闭">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="field">
-        <label for="xferAmount">金额（美元）</label>
-        <div class="xfer-amt"><span>$</span><input id="xferAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"></div>
-      </div>
-      <div class="field">
-        <label for="xferNote">转账说明（可选）</label>
-        <input id="xferNote" maxlength="60" placeholder="例如：拿去吃饭 / 上次的饭钱">
-      </div>
-      <div class="help">TA 会按自己的人设和心情决定收下、退回，或者先晾着；24 小时没收会自动退回。</div>
-    </div>
-    <div class="modal-foot" style="justify-content:flex-end">
-      <div class="right">
-        <button class="btn" id="xferCancel">取消</button>
-        <button class="btn primary" id="xferGo">转账</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="phone-back" id="phoneBack" hidden>
   <div class="phone" id="phone" role="dialog" aria-modal="true" aria-label="手机">
     <div class="phone-head">
@@ -1750,8 +1719,7 @@
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
     <div class="phone-foot">
-      <button class="money" id="phoneMoney" title="转账给 TA" aria-label="转账">$</button>
-      <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
+      <textarea id="phoneInput" rows="1" placeholder="iMessage · 打【转账：100 说明】就是转账"></textarea>
       <button class="send" id="phoneSend" aria-label="发送">↑</button>
     </div>
   </div>
@@ -2864,6 +2832,7 @@
       `- 给不给、给多少，完全按 ${c.name} 的人设来：财力（从设定推断）、花钱习惯、和 ${u} 的关系、好感度、此刻的心情、刚才发生的事。生气不等于不给：有的人一气之下反而甩更多钱，有的人一分不出；穷的人给得少但可能更真心；阔绰的人随手就是大数目。`,
       `- 可以不等 ${u} 开口就主动转（对方说饿了、没钱、过生日、想哄人、想显摆……都行），也可以拒绝对方要钱。`,
       `- ${u} 给 ${c.name} 转账时要表态：单独一行 [收款] 收下，或 [退回 一句话原因] 退回；也可以先晾着不处理（24 小时没收会自动退回）。收不收同样看人设：穷而傲的人、生气的人、不想欠人情的人会退回。`,
+      `- ${u} 也可能给 ${c.name} 转账、收下或退回 ${c.name} 的转账，这些都会以「转账：…」的记录出现在聊天记录里，按记录里的状态理解。`,
       pendingTransfersLine(c, u),
     ].filter(Boolean).join("\n");
   }
@@ -2995,35 +2964,10 @@
       list.appendChild(row);
       if (m.status === "accepted") { if (mine) outSum += m.amount; else inSum += m.amount; }
     }
-    if (!all.length) list.appendChild(el("div", "rx-empty", "这段对话里还没有转账。用输入框左边的 💲 给 TA 转账，或者等 TA 主动转。"));
+    if (!all.length) list.appendChild(el("div", "rx-empty", "这段对话里还没有转账。在输入框里打【转账：100 说明】就能转给 TA，或者等 TA 主动转。"));
     $("ledgerSum").textContent = all.length ? `共 ${all.length} 笔 · 你实收 ${fmtMoney(inSum)} · 你实付 ${fmtMoney(outSum)}（只算已收款的）` : "";
     $("ledgerBack").hidden = false;
   }
-  function openXfer() {
-    const c = active();
-    if (!c || busy) return;
-    $("xferTitle").textContent = `转账给 ${c.name}`;
-    $("xferAmount").value = ""; $("xferNote").value = "";
-    $("xferBack").hidden = false;
-    $("xferAmount").focus();
-  }
-  function closeXfer() { $("xferBack").hidden = true; }
-  async function sendXfer() {
-    const c = active();
-    const amount = parseMoney($("xferAmount").value);
-    if (!c || busy) return;
-    if (!amount) { toast("先填一个大于 0 的金额", true); $("xferAmount").focus(); return; }
-    const note = $("xferNote").value.trim();
-    closeXfer();
-    if (!(c.phone && c.phone.open)) c.phone = { ...(c.phone || {}), open: true };
-    const t = makeTransfer("user", amount, note); syncTransfer(t, c);
-    c.chat.push(t);
-    save(); renderMessages(); renderPhone(true);
-    if (!chatReady()) return;
-    const u = state.persona.name || "用户";
-    await generate(c, null, { channel: "phone", nudge: `（${u} 刚给 ${c.name} 转了 ${fmtMoney(amount)}${note ? `，说明：${note}` : ""}。${c.name} 按自己的人设和此刻心情决定：单独一行 [收款] 收下，或 [退回 原因] 退回，或先不处理；然后照常回消息或不回。）` });
-  }
-
   let lastReport = null;
   function buildInstruction(c, history, retrieved) {
     const u = state.persona.name || "用户";
@@ -3647,7 +3591,7 @@
       const txt = stripStatus(stripReasoning(sub(m.content, c)));
       if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
       if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
-      const lines = (m.role === "assistant" ? stripXferMarkers(txt) : txt).split(/\n+/).map((x) => x.trim()).filter(Boolean);
+      const lines = stripXferMarkers(txt).split(/\n+/).map((x) => x.trim()).filter(Boolean);
       lines.forEach((line, li) => {
         if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { body.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
         const b = el("div", "pm " + (m.role === "user" ? "me" : "them"));
@@ -3663,13 +3607,25 @@
   async function phoneSend() {
     const c = active();
     const ta = $("phoneInput");
-    const text = ta.value.trim();
-    if (!c || busy || !text || !chatReady()) return;
+    const raw = ta.value.trim();
+    if (!c || busy || !raw || !chatReady()) return;
     if (!(c.phone && c.phone.open)) { c.phone = { ...(c.phone || {}), open: true }; }
-    c.chat.push({ id: uid(), role: "user", channel: "phone", content: text, ts: Date.now() });
+    const u = state.persona.name || "用户";
+    // 【转账：100 说明】 / [收款] / [退回 原因] typed by you become real transfer actions
+    const got = extractXferMarkers(raw);
+    const notes = [];
+    if (got.accept) { const t = pendingTransfers(c, "assistant").pop(); if (t) { settleTransfer(t, c, "accepted"); notes.push(`${u} 收下了 ${c.name} 转的 ${fmtMoney(t.amount)}`); } }
+    if (got.ret) { const t = pendingTransfers(c, "assistant").pop(); if (t) { settleTransfer(t, c, "returned", got.ret.note); notes.push(`${u} 把 ${c.name} 转的 ${fmtMoney(t.amount)} 退回来了${t.returnNote ? `，留言：${t.returnNote}` : ""}`); } }
+    if (got.text) c.chat.push({ id: uid(), role: "user", channel: "phone", content: got.text, ts: Date.now() });
+    for (const x of got.xfers) {
+      const t = makeTransfer("user", x.amount, x.note); syncTransfer(t, c);
+      c.chat.push(t);
+      notes.push(`${u} 刚给 ${c.name} 转了 ${fmtMoney(x.amount)}${x.note ? `，说明：${x.note}` : ""}。${c.name} 按自己的人设和此刻心情决定：单独一行 [收款] 收下，或 [退回 原因] 退回，或先不处理`);
+    }
+    if (!got.text && !got.xfers.length && !notes.length) { toast("没有内容可以发送", true); return; }
     ta.value = ""; ta.style.height = "auto";
     save(); renderMessages(); renderPhone(true);
-    await generate(c, null, { channel: "phone" });
+    await generate(c, null, { channel: "phone", nudge: notes.length ? `（${notes.join("；")}。然后照常回消息或不回。）` : "" });
   }
   async function phoneNudge(kind) {
     const c = active();
@@ -4221,7 +4177,7 @@
     $("resetChat").disabled = on;
     $("inspire").disabled = on;
     $("memBtn").disabled = on;
-    $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on; $("phoneMoney").disabled = on;
+    $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on;
   }
 
   async function send() {
@@ -5390,14 +5346,9 @@
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
   $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneNudge").onclick = () => phoneNudge("first");
-  $("phoneMoney").onclick = openXfer;
   $("phoneLedger").onclick = openLedger;
   $("ledgerClose").onclick = () => { $("ledgerBack").hidden = true; };
   $("ledgerBack").addEventListener("click", (e) => { if (e.target === $("ledgerBack")) $("ledgerBack").hidden = true; });
-  $("xferClose").onclick = closeXfer; $("xferCancel").onclick = closeXfer; $("xferGo").onclick = sendXfer;
-  $("xferBack").addEventListener("click", (e) => { if (e.target === $("xferBack")) closeXfer(); });
-  $("xferAmount").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("xferNote").focus(); } });
-  $("xferNote").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendXfer(); } });
   $("phoneWait").onclick = () => phoneNudge("wait");
   $("phoneTheme").onclick = () => { state.settings.phoneDark = !(state.settings.phoneDark === true); save(); $("phone").classList.toggle("dark", state.settings.phoneDark === true); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("phoneBack").hidden && !confirmResolve) { e.stopPropagation(); closePhoneView(); } }, true);
