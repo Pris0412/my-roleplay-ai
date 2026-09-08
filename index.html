@@ -545,8 +545,13 @@
   .pm.typing { align-self: flex-start; background: #e9e9eb; color: #8e8e93; padding: 10px 14px; }
   .phone.dark .pm.typing { background: #262629; }
   .pm .tm { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; text-align: right; }
-  .phone-tools { display: flex; gap: 6px; padding: 6px 12px; }
-  .phone-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
+  .phone-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; }
+  .phone-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+  .phone-tools .btn.ghost { padding: 4px 8px; color: #0a84ff; }
+  .phone-tools .spacer { flex: 1; }
+  .phone-tools select { white-space: nowrap; flex-shrink: 0; max-width: 130px; border: 1px solid rgba(0,0,0,0.15); background: #fff; color: #111; }
+  .phone.dark .phone-tools select { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.15); }
+  .phone-tools .brk { flex-basis: 100%; height: 0; }
   .phone-foot { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px 14px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.12); }
   .phone.dark .phone-foot { background: rgba(28,28,30,0.94); border-top-color: rgba(255,255,255,0.12); }
   .phone-foot textarea {
@@ -1913,13 +1918,14 @@
     </div>
     <div class="phone-body" id="phoneBody"></div>
     <div class="phone-tools">
-      <select id="phoneSpeaker" class="btn ghost" hidden title="让谁来接话" style="padding:5px 8px;border-radius:999px;font-size:12px"></select>
+      <select id="phoneSpeaker" hidden title="让谁来接话" style="padding:5px 8px;border-radius:999px;font-size:12px"></select>
       <button class="btn" id="phoneNudge" title="根据当前剧情，让对方先发消息">让 TA 先开口</button>
       <button class="btn ghost" id="phoneWait" title="过一会儿再看：对方可能会继续发消息">过一会儿…</button>
-      <button class="btn ghost" id="phoneMemo" title="把这段私聊压成记忆，只有这个 NPC 看得到" hidden>总结私聊</button>
-      <button class="btn ghost" id="phoneRedo" title="删掉上一轮群消息，重新生成一轮" hidden>重来一轮</button>
+      <span class="brk" id="phoneBrk" hidden></span>
+      <button class="btn ghost" id="phoneRedo" title="删掉上一轮群消息，重新生成一轮" hidden>↺ 重来</button>
+      <button class="btn ghost" id="phoneMemo" title="把这段私聊压成记忆，只有这个 NPC 看得到" hidden>总结</button>
       <button class="btn ghost" id="phoneGroupEdit" title="群名和成员" hidden>成员</button>
-      <span class="spacer" style="flex:1"></span>
+      <span class="spacer"></span>
       <button class="btn ghost" id="phoneContacts" title="联系人：角色和可以私聊的 NPC">👥</button>
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
@@ -4981,12 +4987,12 @@
     if (grp) {
       const cur = spk.value;
       spk.innerHTML = "";
-      for (const [v, t] of [["", "大家"], ...grp.members.map((id) => [id, groupMemberName(c, id)])]) { const o = document.createElement("option"); o.value = v; o.textContent = t; spk.appendChild(o); }
+      for (const [v, t] of [["", "谁说：大家"], ...grp.members.map((id) => [id, "谁说：" + groupMemberName(c, id)])]) { const o = document.createElement("option"); o.value = v; o.textContent = t; spk.appendChild(o); }
       spk.value = grp.members.includes(cur) ? cur : "";
     }
     const pick = grp && spk.value ? groupMemberName(c, spk.value) : "";
-    $("phoneNudge").textContent = grp ? (pick ? `让 ${pick} 说` : "让他们聊一会儿") : npc ? `让 ${npc.name} 先开口` : "让 TA 先开口";
-    $("phoneMemo").hidden = !npc && !grp; $("phoneRedo").hidden = !grp; $("phoneGroupEdit").hidden = !grp; $("phoneWait").hidden = !!grp;
+    $("phoneNudge").textContent = grp ? (pick ? `▶ 让 ${pick} 说` : "▶ 聊一轮") : npc ? `让 ${npc.name} 先开口` : "让 TA 先开口";
+    $("phoneMemo").hidden = !npc && !grp; $("phoneRedo").hidden = !grp; $("phoneGroupEdit").hidden = !grp; $("phoneWait").hidden = !!grp; $("phoneBrk").hidden = !grp;
     $("phoneMemo").textContent = grp ? "总结群聊" : "总结私聊";
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
     const typing = grp ? groupTyping === grp.id : (busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone" && (m.npc || null) === phoneWith));
