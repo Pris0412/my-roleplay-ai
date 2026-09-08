@@ -1044,16 +1044,6 @@
       </div>
 
       <div class="section">
-        <div class="section-title">当前对话</div>
-        <div class="stat" id="chatStat"></div>
-        <button class="btn block" id="memBtn2">记忆总结</button>
-        <div class="checks">
-        </div>
-        <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
-        <button class="btn danger block" id="deleteChar">删除这个角色</button>
-      </div>
-
-      <div class="section">
         <div class="section-title">你的人设</div>
         <div class="field">
           <label for="pName">你的名字（{{user}}）</label>
@@ -1145,6 +1135,16 @@
         </div>
         <input type="file" id="dataFile" accept=".json,application/json" hidden>
         <div class="help">角色、聊天记录、世界书、正则、预设、设置全部打包成一个 JSON。换浏览器或把页面下载到本地打开时用它搬家。API Key 不会包含在备份里。</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">当前对话</div>
+        <div class="stat" id="chatStat"></div>
+        <button class="btn block" id="memBtn2">记忆总结</button>
+        <div class="checks">
+        </div>
+        <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
+        <button class="btn danger block" id="deleteChar">删除这个角色</button>
       </div>
     </div>
     <div class="drawer-foot">
