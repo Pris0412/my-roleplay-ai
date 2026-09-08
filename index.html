@@ -1540,7 +1540,7 @@
       </div>
     </div>
     <div class="modal-foot" style="justify-content:flex-end">
-      <div class="right"><button class="btn primary" id="ctxDone">关闭</button></div>
+      <div class="right"><button class="btn" id="ctxSave">保存设置</button><button class="btn primary" id="ctxDone">关闭</button></div>
     </div>
   </div>
 </div>
@@ -5967,8 +5967,9 @@
     try { { const scl = sceneNpcs(c); buildTurns(c, undefined, scl.length ? scl[0].id : null, !!scl.length, scl.map((n) => n.id)); } } catch (e) { return; }
     const r = lastReport;
     if (!r) return;
-    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}${r.dropped ? ` · 丢了 ${r.dropped} 楼` : ""}`;
-    btn.classList.toggle("warn", r.dropped > 0);
+    const tight = r.dropped > 0 && r.floors < 8; // only alarming when almost nothing fits
+    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}${r.dropped ? (tight ? ` · 只塞得下 ${r.floors} 条` : ` · 按上限裁到 ${r.floors} 条`) : ""}`;
+    btn.classList.toggle("warn", tight);
     updateStats();
   }
   function openContext() {
@@ -6047,7 +6048,9 @@
     add("对话历史", `${r.floors} 楼（第 ${r.firstFloor}–${r.lastFloor} 楼）${r.retrieved ? ` · 检索带入 ${r.retrieved} 楼` : ""}${r.hidden ? ` · 已隐藏 ${r.hidden} 楼` : ""}${r.trimmedByMem ? ` · 被「带入消息数」截掉 ${r.trimmedByMem} 楼` : ""}`);
     const adv = $("ctxAdvice");
     adv.hidden = !r.dropped;
-    if (r.dropped) adv.textContent = `最早的 ${r.dropped} 楼这次没带上（超出接口能接受的长度）。建议先做「记忆总结」，再隐藏已总结的楼层。`;
+    if (r.dropped) adv.textContent = r.floors < 8
+      ? `只塞得下 ${r.floors} 条对话：设定、世界书或记忆书太大了。打开上面的「这次发了什么 · 预览」看哪段最大，记忆书多了就「一键大总结」。`
+      : `你设的是最近 ${r.floors + r.dropped} 条，但这张卡回复长，${isCustom() ? "接口上下文" : "页内 Claude 的 64 KB"}只装得下最近 ${r.floors} 条，多出的 ${r.dropped} 条自动裁掉了。这是正常的；想不裁就把「带入上下文的消息数」调到 ${r.floors} 左右，隐藏更早的楼层对这个没帮助。`;
     const ix = ragIndex(c);
     $("ragStat").textContent = `已索引 ${ix.docs.length} 楼 / 共 ${floorCount(c)} 楼 · ${ix.postings.size} 个词项 · 其中隐藏 ${r.hidden} 楼仍可检索`;
   }
@@ -7739,6 +7742,7 @@
   $("ctxClose").onclick = closeContext;
   $("ctxDone").onclick = closeContext;
   $("ctxBack").addEventListener("click", (e) => { if (e.target === $("ctxBack")) closeContext(); });
+  $("ctxSave").onclick = () => { for (const id of ["ragKCustom"]) { const n = $(id); if (document.activeElement === n) n.dispatchEvent(new Event("change")); } save(); renderContextPanel(); toast("设置已保存"); };
   $("ragOn").addEventListener("change", (e) => { state.settings.ragOn = e.target.value === "1"; save(); renderContextPanel(); });
   $("ragK").addEventListener("change", (e) => {
     if (e.target.value === "custom") { $("ragKCustom").hidden = false; $("ragKCustom").focus(); return; }
