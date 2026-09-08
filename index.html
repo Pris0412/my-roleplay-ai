@@ -756,11 +756,6 @@
   .hit .s { color: var(--text); line-height: 1.5; }
   .hit .s mark { background: var(--accent-soft); color: var(--accent-strong); padding: 0 1px; }
   .mem-result { min-height: 160px; }
-  .mem-quick { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
-  .mem-quick .mq { flex: 1; min-width: 0; }
-  .mem-quick .t { font-weight: 600; font-size: 14px; }
-  .mem-quick .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .mem-tidy { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--accent); background: var(--accent-soft); font-size: 13px; }
   .wi-toolbar .spacer { flex: 1; }
   @media (max-width: 760px) { .wi-entry .form .row3 { grid-template-columns: 1fr; } }
   .rx-row {
@@ -1311,68 +1306,57 @@
       <button class="btn ghost icon" id="memClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
-      <div class="mem-quick">
-        <div class="mq">
-          <div class="t" id="memQuickTitle">把新的聊天总结一下</div>
-          <div class="s" id="memHint"></div>
-        </div>
-        <button class="btn primary" id="memGen">总结到现在</button>
-        <button class="btn danger" id="memStop" hidden>停止</button>
+      <div class="field">
+        <label for="memTarget">总结谁的记忆</label>
+        <select id="memTarget"></select>
+        <div class="help">主角按楼层范围总结；NPC 总结的是和 TA 私下的手机消息和当面剧情里还没总结过的部分。</div>
       </div>
-      <div class="mem-tidy" id="memTidy" hidden>
-        <span id="memTidyText"></span>
-        <span class="spacer" style="flex:1"></span>
-        <button class="btn" id="memTidyBtn">整理成一条</button>
+      <div class="field">
+        <label for="memMode">做什么</label>
+        <select id="memMode">
+          <option value="new">总结新的内容</option>
+          <option value="merge">合并已有的记忆条目（大总结）</option>
+        </select>
       </div>
+      <div class="stat" id="memStat"></div>
       <div id="memMergeBox" hidden>
         <div class="rx-list" id="memMergeList"></div>
         <div class="help">勾选的条目会被压成一条大总结；旧条目停用并标「已合并」，不会删，想反悔可以在世界书里重新启用。</div>
       </div>
-      <div class="field">
-        <label for="memResult">总结（可以改）</label>
-        <textarea id="memResult" class="mem-result" placeholder="点上面的按钮，结果会出现在这里。也可以自己写。"></textarea>
+      <div class="row" id="memRangeRow">
+        <div class="field">
+          <label for="memFrom">起始楼</label>
+          <input id="memFrom" type="number" min="1" class="mono">
+        </div>
+        <div class="field">
+          <label for="memTo">结束楼</label>
+          <input id="memTo" type="number" min="1" class="mono">
+        </div>
       </div>
-      <details class="adv" id="memAdv">
-        <summary>高级 · 总结谁 / 楼号范围 / 谁知道 / 合并 / 提示词</summary>
+      <details class="adv">
+        <summary>总结提示词（可自定义）</summary>
         <div class="inner">
-          <div class="row">
-            <div class="field">
-              <label for="memTarget">总结谁的记忆</label>
-              <select id="memTarget"></select>
-            </div>
-            <div class="field">
-              <label for="memMode">做什么</label>
-              <select id="memMode">
-                <option value="new">总结新的内容</option>
-                <option value="merge">合并已有的记忆条目（大总结）</option>
-              </select>
-            </div>
-          </div>
-          <div class="help">主角按楼层范围总结；NPC 总结的是和 TA 私下的手机消息和当面剧情里还没总结过的部分。</div>
-          <div class="stat" id="memStat"></div>
-          <div class="row" id="memRangeRow">
-            <div class="field">
-              <label for="memFrom">起始楼</label>
-              <input id="memFrom" type="number" min="1" class="mono">
-            </div>
-            <div class="field">
-              <label for="memTo">结束楼</label>
-              <input id="memTo" type="number" min="1" class="mono">
-            </div>
-          </div>
           <div class="field">
-            <label for="memScope">谁知道这条记忆</label>
-            <select id="memScope"></select>
-            <div class="help">默认只有本人知道。「公开」适合群像戏、大家都在场的事。存进世界书后也能在条目里改。</div>
-          </div>
-          <div class="field">
-            <label for="memPrompt">提示词模板</label>
-            <textarea id="memPrompt" style="min-height:160px" class="mono"></textarea>
+            <textarea id="memPrompt" style="min-height:180px" class="mono"></textarea>
             <div class="help">可用占位符：{{char}} {{user}} {{range}}（如 1-20）{{messages}}（这段楼层的原文）{{previous}}（此前的记忆摘要）；NPC 私聊总结另有一套模板，多一个 {{npc}}；合并模式用 {{entries}}（勾选的条目原文）。三套模板分别保存。</div>
           </div>
           <button class="btn ghost" id="memPromptReset">恢复默认提示词</button>
         </div>
       </details>
+      <div class="wi-toolbar">
+        <button class="btn primary" id="memGen">生成总结</button>
+        <button class="btn danger" id="memStop" hidden>停止</button>
+        <span class="stat" id="memHint"></span>
+      </div>
+      <div class="field">
+        <label for="memResult">总结（可以改）</label>
+        <textarea id="memResult" class="mem-result" placeholder="点「生成总结」，结果会出现在这里。也可以自己写。"></textarea>
+      </div>
+      <div class="field">
+        <label for="memScope">谁知道这条记忆</label>
+        <select id="memScope"></select>
+        <div class="help">存进世界书后也能在条目里改。「公开」适合群像戏、大家都在场的事。</div>
+      </div>
     </div>
     <div class="modal-foot">
       <span class="stat" id="memBook"></span>
@@ -3992,7 +3976,7 @@
     $("memMergeBox").hidden = memMode !== "merge";
     $("memPrompt").value = memTemplateFor(memMode);
     $("memResult").value = "";
-    $("memGen").textContent = memMode === "merge" ? "生成大总结" : "总结到现在";
+    $("memGen").textContent = memMode === "merge" ? "生成大总结" : "生成总结";
     $("memSave").textContent = memMode === "merge" ? "存为合并后的记忆" : "存为记忆条目";
     if (memMode === "merge") renderMergeList(c);
     memUpdateHint();
@@ -4068,7 +4052,7 @@
     const c = active();
     if (!c || busy || !npc) return;
     memNpc = npc;
-    memMode = "new"; $("memMode").value = "new"; $("memMergeBox").hidden = true; $("memGen").textContent = "总结到现在"; $("memSave").textContent = "存为记忆条目";
+    memMode = "new"; $("memMode").value = "new"; $("memMergeBox").hidden = true; $("memGen").textContent = "生成总结"; $("memSave").textContent = "存为记忆条目";
     fillMemTarget(c, "npc:" + npc.id);
     fillMemScope(c, npc);
     $("memTitle").textContent = `记忆总结 · ${npc.name}`;
@@ -4762,19 +4746,6 @@
     return `记忆世界书：${book.name} · ${live} 条常驻 · 约 ${tok} token${tok > MEM_BOOK_WARN_TOKENS ? " · 建议合并成大总结" : ""}`;
   }
   function memUpdateHint() {
-    memUpdateHintCore();
-    const c = active();
-    if (!c) return;
-    const who = memNpc ? memNpc.name : c.name;
-    $("memQuickTitle").textContent = memMode === "merge" ? `把 ${who} 的记忆合并成一条` : memNpc ? `把和 ${memNpc.name} 的新私聊总结一下` : "把新的聊天总结一下";
-    const book = memBookFor(c);
-    const tok = memBookTokens(book);
-    const live = book ? book.entries.filter((e) => e.enabled && !(e.extensions && e.extensions.memory_archived)).length : 0;
-    const heavy = memMode === "new" && (tok > MEM_BOOK_WARN_TOKENS || live >= 6);
-    $("memTidy").hidden = !heavy;
-    if (heavy) $("memTidyText").textContent = `${who} 的记忆有点多了：${live} 条常驻，约 ${tok} token。合并成一条能省下不少上下文。`;
-  }
-  function memUpdateHintCore() {
     const c = active();
     if (!c) return;
     if (memMode === "merge") {
@@ -4796,8 +4767,12 @@
     }
     const { from, to, n } = memRange();
     $("memFrom").value = from; $("memTo").value = to;
-    const chars = chatRange(c, from, to).reduce((s, m) => s + m.content.length, 0);
-    $("memHint").textContent = `第 ${from}–${to} 楼，${to - from + 1} 条，约 ${chars} 字`;
+    const rng = chatRange(c, from, to).filter((m) => m.kind !== "divider");
+    const chars = rng.reduce((s, m) => s + m.content.length, 0);
+    const npcFloors = rng.filter((m) => m.npc);
+    const names = [...new Set(npcFloors.map((m) => npcName(c, m.npc)))];
+    const note = !rng.length ? "" : npcFloors.length === rng.length ? ` · 这段全是和 ${names.join("、")} 的独处，${c.name} 不在场；要总结它请在「总结谁的记忆」里选 ${names[0]}` : npcFloors.length ? ` · 其中 ${npcFloors.length} 条是和 ${names.join("、")} 的独处，不会进 ${c.name} 的总结` : "";
+    $("memHint").textContent = `第 ${from}–${to} 楼，${rng.length} 条，约 ${chars} 字${note}`;
     $("memStat").textContent = `共 ${n} 楼 · 已总结到第 ${c.memory.lastFloor || 0} 楼`;
     $("memBook").textContent = memBookLine(c, memoryBook(c, false), c.name);
   }
@@ -4827,7 +4802,7 @@
     const c = active();
     if (!c || busy) return;
     memNpc = null;
-    memMode = "new"; $("memMode").value = "new"; $("memMergeBox").hidden = true; $("memGen").textContent = "总结到现在"; $("memSave").textContent = "存为记忆条目";
+    memMode = "new"; $("memMode").value = "new"; $("memMergeBox").hidden = true; $("memGen").textContent = "生成总结"; $("memSave").textContent = "存为记忆条目";
     fillMemTarget(c, "char");
     fillMemScope(c, null);
     $("memTitle").textContent = "记忆总结";
@@ -4887,7 +4862,7 @@
     } finally {
       memCtl = null;
       $("memGen").hidden = false; $("memStop").hidden = true;
-      out.placeholder = "点上面的按钮，结果会出现在这里。也可以自己写。";
+      out.placeholder = "点「生成总结」，结果会出现在这里。也可以自己写。";
     }
   }
   function memSave() {
@@ -6205,7 +6180,6 @@
     save();
   };
   $("memMode").addEventListener("change", (e) => setMemMode(e.target.value));
-  $("memTidyBtn").onclick = () => setMemMode("merge");
   $("memFrom").addEventListener("change", memUpdateHint);
   $("memTo").addEventListener("change", memUpdateHint);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("memBack").hidden && !confirmResolve) { e.stopPropagation(); closeMemory(); } }, true);
