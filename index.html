@@ -1132,7 +1132,6 @@
         <div class="stat" id="chatStat"></div>
         <button class="btn block" id="memBtn2">记忆总结</button>
         <div class="checks">
-          <label><input type="checkbox" id="sMemTrim"> 带入上下文时跳过已总结的楼层（保留最近 4 条）</label>
         </div>
         <div class="help">总结会存进自动创建的「记忆 · 角色名」世界书，条目按楼层范围命名，常驻带入。提示词可在总结窗口里改。</div>
         <button class="btn danger block" id="deleteChar">删除这个角色</button>
@@ -2127,7 +2126,7 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
-      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memTrim: false, memPrompt: "", ragOn: true, ragK: 10, backend: "claude", htmlMode: "inline" },
+      settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memPrompt: "", ragOn: true, ragK: 10, backend: "claude", htmlMode: "inline" },
       api: { url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true },
       regex: [],
       books: [],
@@ -3199,7 +3198,6 @@
     $("sMemCustom").value = memVal;
     $("sVoice").value = state.settings.voice || "strict";
     $("sHtmlMode").value = state.settings.htmlMode === "iframe" ? "iframe" : "inline";
-    $("sMemTrim").checked = !!state.settings.memTrim;
   }
 
   function updateStats() {
@@ -3579,10 +3577,6 @@
     const mem = parseInt(state.settings.mem, 10) || 40;
     // the character never sees NPC private threads; an NPC only sees its own thread
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto).filter((m) => npc ? visibleToNpc(c, m, npc.id) : visibleToChar(c, m));
-    if (!npc && state.settings.memTrim && c.memory && c.memory.lastFloor > 0) {
-      const cut = Math.min(idxAfterFloor(c, c.memory.lastFloor), Math.max(0, history.length - 4));
-      history = history.slice(cut);
-    }
     const kept = history.filter((m) => !m.error && !m.hidden).slice(-mem);
     const keptIds = new Set(kept.map((m) => m.id));
     // retrieval: floors not in context that match the latest exchange
@@ -7401,7 +7395,6 @@
   $("sHtmlMode").addEventListener("change", (e) => { state.settings.htmlMode = e.target.value; save(); renderMessages(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
-  $("sMemTrim").addEventListener("change", (e) => { state.settings.memTrim = e.target.checked; save(); refreshContextMeter(); });
   function openLib(tab) {
     if (tab) switchLibTab(tab);
     renderGlobalBooks(); renderPresetSelect(); refreshGlobalRx();
