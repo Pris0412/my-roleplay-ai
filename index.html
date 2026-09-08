@@ -498,6 +498,22 @@
   .scene-opt:hover { border-color: var(--line-strong); }
   .scene-opt.on { border-color: var(--accent); background: var(--accent-soft); }
   @media (max-width: 520px) { .scene-opts { grid-template-columns: 1fr; } }
+  .pmg { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; max-width: 100%; border-radius: 12px; }
+  .pmg.me { align-items: flex-end; }
+  .pmg + .pmg, .pm.sys + .pmg, .pmg + .pm.sys { margin-top: 6px; }
+  .pmg.hid .pm.me, .pmg.hid .pm.them { opacity: 0.45; border: 1px dashed rgba(0,0,0,0.25); }
+  .pmg .pm { cursor: pointer; }
+  .pm-acts { display: none; gap: 2px; flex-wrap: wrap; padding: 3px 2px; }
+  .pmg.sel .pm-acts { display: flex; }
+  .pm-acts button, .pm-edit button { border: 0; background: transparent; color: #0a84ff; font-size: 12px; padding: 2px 7px; border-radius: 6px; cursor: pointer; }
+  .pm-acts button:hover, .pm-edit button:hover { background: rgba(10,132,255,0.12); }
+  .pm-acts button.warn { color: #ff3b30; }
+  .pm-acts button:disabled { opacity: 0.4; cursor: default; }
+  .pm-acts .tag { font-size: 11px; color: #8e8e93; padding: 2px 4px; }
+  .pm-edit { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+  .pm-edit textarea { width: 100%; min-height: 72px; resize: vertical; padding: 8px 12px; border-radius: 14px; border: 1px solid #0a84ff; background: #fff; color: #111; font-size: 15px; line-height: 1.35; }
+  .phone.dark .pm-edit textarea { background: #1c1c1e; color: #f2f2f7; }
+  .pm-edit .row { display: flex; gap: 4px; justify-content: flex-end; }
   .pm.typing { align-self: flex-start; background: #e9e9eb; color: #8e8e93; padding: 10px 14px; }
   .phone.dark .pm.typing { background: #262629; }
   .pm .tm { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; text-align: right; }
@@ -1948,6 +1964,21 @@
     return changed;
   }
   function statusSnapshot(c) { return JSON.parse(JSON.stringify({ fields: c.status.fields, voice: c.status.voice })); }
+  // delete everything after chat[index]; phone mode and the status panel follow what remains
+  async function truncateAfter(c, index) {
+    const removed = c.chat.slice(index + 1);
+    c.chat = c.chat.slice(0, index + 1);
+    if (c.phone) c.phone.open = phoneStillOpen(c);
+    save(); renderMessages(); renderCharList();
+    if (!$("phoneBack").hidden) renderPhone();
+    await rollbackStatusAfterDelete(c, removed);
+  }
+  async function deleteFloor(c, m) {
+    c.chat = c.chat.filter((x) => x.id !== m.id);
+    save(); renderMessages(); renderCharList();
+    if (!$("phoneBack").hidden) renderPhone();
+    await rollbackStatusAfterDelete(c, [m]);
+  }
   const markStatusManual = (c) => { if (c && c.status) c.status.manualTs = Date.now(); };
   // After floors are deleted: if any of them carried a status snapshot, the panel came from them,
   // so roll it back to the newest snapshot that is still in the chat (or the initial values).
@@ -2595,7 +2626,7 @@
 
     if (!m.greeting || c.chat.length > 1) {
       const bDel = el("button", "btn ghost danger", "删除");
-      bDel.onclick = async () => { if (busy) return; c.chat = c.chat.filter((x) => x.id !== m.id); save(); renderMessages(); renderCharList(); await rollbackStatusAfterDelete(c, [m]); };
+      bDel.onclick = async () => { if (busy) return; await deleteFloor(c, m); };
       actions.appendChild(bDel);
     }
     if (!isLast) {
@@ -2605,11 +2636,7 @@
       bBack.onclick = async () => {
         if (busy) return;
         if (!(await askConfirm(`回溯到第 ${floorOf(c, index)} 楼？之后的 ${later} 条会被删除。`, "回溯", true))) return;
-        const removed = c.chat.slice(index + 1);
-        c.chat = c.chat.slice(0, index + 1);
-        if (c.phone) c.phone.open = phoneStillOpen(c);
-        save(); renderMessages(); renderCharList();
-        await rollbackStatusAfterDelete(c, removed);
+        await truncateAfter(c, index);
       };
       actions.appendChild(bBack);
     }
@@ -3430,7 +3457,7 @@
     $("phoneBack").hidden = false;
     $("phoneInput").focus();
   }
-  function closePhoneView() { $("phoneBack").hidden = true; }
+  function closePhoneView() { $("phoneBack").hidden = true; phoneSel = null; phoneEdit = null; }
   function exitPhone(rerender) {
     const c = active();
     if (!c || !(c.phone && c.phone.open)) { closePhoneView(); return; }
@@ -3440,6 +3467,46 @@
     save();
     closePhoneView();
     if (rerender !== false) { renderMessages(); renderCharList(); }
+  }
+  let phoneSel = null;   // message id whose action row is open
+  let phoneEdit = null;  // message id being edited inline
+  function phoneActsNode(m, i, c, isLast) {
+    const acts = el("div", "pm-acts");
+    if (m.hidden) acts.appendChild(el("span", "tag", "已隐藏 · 不进上下文"));
+    if (m.stopped) acts.appendChild(el("span", "tag", "已停止"));
+    const mk = (label, fn, cls) => { const b = el("button", cls || null, label); b.onclick = async (e) => { e.stopPropagation(); if (busy) return; await fn(); }; acts.appendChild(b); return b; };
+    mk("编辑", () => { phoneEdit = m.id; phoneSel = null; renderPhone(); setTimeout(() => { const t = $("phoneBody").querySelector(".pm-edit textarea"); if (t) { t.focus(); t.style.height = Math.min(240, t.scrollHeight) + "px"; } }, 0); });
+    if (!mine(m) && isLast && !m.greeting) mk("重新生成", () => { phoneSel = null; generate(c, m); });
+    mk(m.hidden ? "取消隐藏" : "隐藏", () => { m.hidden = !m.hidden; save(); renderMessages(); renderPhone(); });
+    mk("删除", async () => { phoneSel = null; await deleteFloor(c, m); }, "warn");
+    if (!isLast) mk("回溯到此", async () => {
+      const later = c.chat.length - 1 - i;
+      if (!(await askConfirm(`回溯到这条消息？之后的 ${later} 条会被删除。`, "回溯", true))) return;
+      phoneSel = null; await truncateAfter(c, i);
+    }, "warn");
+    return acts;
+  }
+  const mine = (m) => m.role === "user";
+  function phoneEditNode(m, c) {
+    const box = el("div", "pm-edit");
+    const ta = document.createElement("textarea");
+    ta.value = m.content;
+    ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(240, ta.scrollHeight) + "px"; });
+    const row = el("div", "row");
+    const cancel = el("button", null, "取消"); const ok = el("button", null, "保存");
+    const done = () => { phoneEdit = null; renderPhone(); };
+    const commit = () => {
+      const v = ta.value.trim();
+      if (!v) { toast("内容不能为空；想去掉就用「删除」", true); return; }
+      m.content = v; if (m.swipes) m.swipes[m.si] = v;
+      save(); renderMessages(); done();
+    };
+    cancel.onclick = (e) => { e.stopPropagation(); done(); };
+    ok.onclick = (e) => { e.stopPropagation(); commit(); };
+    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); commit(); } if (e.key === "Escape") { e.stopPropagation(); done(); } });
+    row.append(cancel, ok);
+    box.append(ta, row);
+    return box;
   }
   function renderPhone(streaming) {
     const c = active();
@@ -3451,20 +3518,34 @@
     const body = $("phoneBody");
     const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
     body.innerHTML = "";
-    for (const { m } of phoneMsgs(c)) {
+    const lastMsg = c.chat[c.chat.length - 1];
+    for (const { m, i } of phoneMsgs(c)) {
       if (m.kind === "divider") { body.appendChild(el("div", "pm sys", sub(m.content, c).replace(/^📱\s*/, ""))); continue; }
       const txt = stripStatus(stripReasoning(sub(m.content, c)));
       if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
-      if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
-      const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
-      lines.forEach((line, li) => {
-        if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { body.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
-        const b = el("div", "pm " + (m.role === "user" ? "me" : "them"));
-        b.textContent = line.replace(/^\[?撤回\]?$/, "撤回了一条消息");
-        if (li === lines.length - 1) b.appendChild(el("span", "tm", fmtTime(m.ts)));
-        body.appendChild(b);
-      });
-      if (m.role === "user" && m === c.chat[c.chat.length - 1] && !busy) body.appendChild(el("div", "pm read", "已送达"));
+      const mine = m.role === "user";
+      const g = el("div", "pmg " + (mine ? "me" : "them") + (phoneSel === m.id ? " sel" : "") + (m.hidden ? " hid" : ""));
+      g.dataset.id = m.id;
+      if (phoneEdit === m.id) {
+        g.appendChild(phoneEditNode(m, c));
+        body.appendChild(g);
+        continue;
+      }
+      if (m.role === "assistant" && txt.trim() === "[不回复]") g.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`));
+      else {
+        const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+        lines.forEach((line, li) => {
+          if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { g.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
+          const b = el("div", "pm " + (mine ? "me" : "them"));
+          b.textContent = line.replace(/^\[?撤回\]?$/, "撤回了一条消息");
+          if (li === lines.length - 1) b.appendChild(el("span", "tm", fmtTime(m.ts)));
+          g.appendChild(b);
+        });
+      }
+      if (mine && m === lastMsg && !busy) g.appendChild(el("div", "pm read", "已送达"));
+      g.appendChild(phoneActsNode(m, i, c, m === lastMsg));
+      g.onclick = (e) => { if (busy || e.target.closest("button, textarea, input")) return; phoneSel = phoneSel === m.id ? null : m.id; renderPhone(); };
+      body.appendChild(g);
     }
     if (!phoneMsgs(c).some((x) => x.m.channel === "phone")) body.appendChild(el("div", "pm sys", "还没有消息。你先发一条，或者点「让 TA 先开口」。"));
     if (atBottom || streaming) body.scrollTop = body.scrollHeight;
