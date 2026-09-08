@@ -689,6 +689,7 @@
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
   .stat.warn { color: var(--danger); }
+  #chatStat { white-space: pre-line; line-height: 1.6; }
   .ctx-grp .inner { gap: 6px; }
   .ctx-item { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--raised); }
   .ctx-item summary { cursor: pointer; padding: 7px 0; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; list-style: none; }
@@ -3208,14 +3209,13 @@
       const pend = c.chat.slice(idxAfterFloor(c, last)).filter((m) => m.kind !== "divider" && !m.error && !m.npc && !m.group);
       const pendChars = pend.reduce((n, m) => n + m.content.length, 0), pendTok = pend.reduce((n, m) => n + estTokens(m.content), 0);
       const r = lastReport && lastReport.charId === c.id ? lastReport : null;
-      const parts = [`${total} 楼 · 共 ${chars} 字`];
-      parts.push(last ? `主线已总结到第 ${last} 楼` : "主线还没总结过");
-      parts.push(pend.length ? `主线未总结 ${pend.length} 楼 ≈${pendChars} 字 / ≈${fmtTok(pendTok)} tok` : "主线没有未总结的楼层");
-      const npcPend = [...c.npcs, ...c.groups.map((g) => groupAsNpc(c, g))].map((n) => ({ n, k: npcUnsummarized(c, n).filter((m) => m.kind !== "divider").length })).filter((x) => x.k);
-      if (npcPend.length) parts.push(`${npcPend.map((x) => `${x.n.isGroup ? "群「" + x.n.name + "」" : x.n.name} 未总结 ${x.k} 条`).join("，")}`);
+      const lines = [`${total} 楼 · 共 ${chars} 字`];
+      lines.push(`主线：${last ? `已总结到第 ${last} 楼` : "还没总结过"} · ${pend.length ? `未总结 ${pend.length} 楼 ≈${pendChars} 字 / ≈${fmtTok(pendTok)} tok` : "没有未总结的楼层"}`);
+      const npcPend = [...c.npcs, ...c.groups.map((g) => groupAsNpc(c, g))].map((n) => ({ n, k: npcUnsummarized(c, n).filter((m) => m.kind !== "divider").length })).filter((x) => x.k).sort((a, b) => b.k - a.k);
+      if (npcPend.length) lines.push(`其他未总结：${npcPend.slice(0, 3).map((x) => `${x.n.isGroup ? "群「" + x.n.name + "」" : x.n.name} ${x.k} 条`).join(" · ")}${npcPend.length > 3 ? ` 等 ${npcPend.length} 处` : ""}`);
       const scl = sceneNpcs(c);
-      if (r && r.floors) parts.push(`这次带入 ${r.floors} 条（第 ${r.firstFloor}–${r.lastFloor} 楼之间${scl.length ? `，${namesOf(scl)} 的视角` : c.phone && c.phone.open ? "，手机模式" : ""}）≈${fmtTok(r.tokens)} tok`);
-      $("chatStat").textContent = parts.join(" · ");
+      if (r && r.floors) lines.push(`这次带入：${r.floors} 条（第 ${r.firstFloor}–${r.lastFloor} 楼之间${scl.length ? ` · ${namesOf(scl)} 的视角` : c.phone && c.phone.open ? " · 手机模式" : ""}）≈${fmtTok(r.tokens)} tok`);
+      $("chatStat").textContent = lines.join("\n");
     }
     try {
       const bytes = new Blob([localStorage.getItem(LS_KEY) || ""]).size;
