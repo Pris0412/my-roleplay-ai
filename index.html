@@ -1393,7 +1393,7 @@
     </div>
     <div class="modal-body">
       <div class="rx-list" id="memOverview"></div>
-      <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
+      <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
       <div class="field">
         <label for="memTarget">总结谁的记忆</label>
         <select id="memTarget"></select>
@@ -2008,7 +2008,14 @@
       <button class="btn ghost icon" id="rebuildClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
-      <div class="help">会先自动存一份档；然后删掉勾选对象的旧总结、取消所有隐藏楼层，把楼层按「谁在场」切成每段最多 20 楼，一段一段重新总结存进各自的记忆书。有别人在场或有朋友圈的段存成「公开」，只有主角和你的段存成「只有主角知道」。</div>
+      <div class="help" id="rebuildHelp"></div>
+      <div class="row" id="rebuildLenRow">
+        <div class="field">
+          <label for="rebuildLen">每段几楼</label>
+          <input id="rebuildLen" type="number" min="5" max="200" class="mono" style="width:100px">
+        </div>
+        <div class="help" style="align-self:end;flex:1">默认 20。页内 Claude 单次最多 64 KB 输入，一段超过 40 KB 会自动再切；自定义大上下文接口可以填 30–40。</div>
+      </div>
       <div class="rx-list" id="rebuildList"></div>
       <div class="stat" id="rebuildEst"></div>
       <div class="book-note" id="rebuildProg"></div>
@@ -5216,23 +5223,24 @@
     const ids = new Set([...$("memMergeList").querySelectorAll("input[type=checkbox]:checked")].map((x) => x.dataset.id));
     return book.entries.filter((e) => ids.has(String(e.id)));
   }
-  function buildMergePrompt(c) {
+  function buildMergePrompt(c, pickedOpt, npcOpt, templateOpt) {
     const u = state.persona.name || "用户";
-    const picked = mergeSelected(c);
+    const picked = pickedOpt || mergeSelected(c);
+    const npc = pickedOpt ? npcOpt : memNpc;
     const text = picked.map((e) => `【${e.comment || "记忆"}】${e.content.trim()}`).join("\n\n");
-    let prompt = $("memPrompt").value || DEFAULT_MERGE_PROMPT;
+    let prompt = templateOpt || $("memPrompt").value || DEFAULT_MERGE_PROMPT;
     prompt = prompt
-      .replace(/\{\{npcline\}\}/g, memNpc ? `，这些是「${memNpc.name}」和「${u}」私下相处的记忆` : "")
-      .replace(/\{\{npc\}\}/g, memNpc ? memNpc.name : "")
+      .replace(/\{\{npcline\}\}/g, npc ? `，这些是「${npc.name}」和「${u}」私下相处的记忆` : "")
+      .replace(/\{\{npc\}\}/g, npc ? npc.name : "")
       .replace(/\{\{entries\}\}/g, () => text);
     prompt = sub(prompt, c);
     while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
     return prompt;
   }
-  function memSaveMerge(c, text) {
-    const book = memBookFor(c);
-    const picked = mergeSelected(c);
-    if (!book || picked.length < 2) { toast("至少勾选两条记忆再合并", true); return; }
+  function memSaveMerge(c, text, pickedOpt, bookOpt, scopeOpt, silent) {
+    const book = bookOpt || memBookFor(c);
+    const picked = pickedOpt || mergeSelected(c);
+    if (!book || picked.length < 2) { if (!silent) toast("至少勾选两条记忆再合并", true); return; }
     const e = newEntry(book);
     const first = picked[0].comment || "", last = picked[picked.length - 1].comment || "";
     e.comment = `合并 · ${first}${last && last !== first ? ` ~ ${last}` : ""}`;
@@ -5241,12 +5249,14 @@
     e.position = "after_char";
     e.insertion_order = Math.min(...picked.map((x) => x.insertion_order || 100));
     e.extensions = { ...(e.extensions || {}), memory_merged: picked.map((x) => x.id) };
-    const sc = $("memScope").value;
-    if (sc && sc !== "char") e.extensions.lantern_scope = sc;
+    const sc = scopeOpt != null ? scopeOpt : $("memScope").value;
+    if (sc && sc !== "char" && !sc.startsWith("share:")) e.extensions.lantern_scope = sc;
+    if (sc && sc.startsWith("share:")) e.extensions.memory_shared = sc.slice(6).split(",").filter(Boolean);
     for (const x of picked) { x.enabled = false; x.extensions = { ...(x.extensions || {}), memory_archived: true }; }
     const at = book.entries.indexOf(picked[0]);
     book.entries.splice(at < 0 ? book.entries.length : at, 0, e);
     save();
+    if (silent) return;
     closeMemory();
     toast(`已把 ${picked.length} 条记忆合并成一条，旧条目已停用并标「已合并」`);
     updateStats();
@@ -6016,7 +6026,7 @@
       if (m.kind === "divider") continue;
       fl++;
       if (covered(fl) || m.error || m.npc || m.group) continue;
-      rows.push({ floor: fl, moments: isMoment(m), cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : floorCast(c, m) });
+      rows.push({ floor: fl, bytes: utf8.enc.encode(m.content || "").length, moments: isMoment(m), cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : floorCast(c, m) });
     }
     if (!rows.length) return [];
     // an NPC stays "present" for two more floors after the last mention, so a floor without the name doesn't split the scene
@@ -6026,21 +6036,28 @@
       for (let k = 1; k <= 2 && i - k >= 0; k++) for (const id of rows[i - k].cast) cast.add(id);
       const key = rows[i].moments ? "public" : [...cast].sort().join(",");
       const last = segs[segs.length - 1];
-      if (last && last.key === key) { last.to = rows[i].floor; last.n++; last.moments += rows[i].moments ? 1 : 0; last.floors.push(rows[i].floor); }
-      else segs.push({ key, from: rows[i].floor, to: rows[i].floor, n: 1, cast: [...cast], moments: rows[i].moments ? 1 : 0, floors: [rows[i].floor] });
+      if (last && last.key === key) { last.to = rows[i].floor; last.n++; last.moments += rows[i].moments ? 1 : 0; last.floors.push(rows[i].floor); last.sizes.push(rows[i].bytes); }
+      else segs.push({ key, from: rows[i].floor, to: rows[i].floor, n: 1, cast: [...cast], moments: rows[i].moments ? 1 : 0, floors: [rows[i].floor], sizes: [rows[i].bytes] });
     }
     // fold tiny segments into the previous one so the list doesn't turn into confetti
     const out = [];
     for (const s of segs) {
       const prev = out[out.length - 1];
-      if (prev && s.n < 3) { prev.to = s.to; prev.n += s.n; prev.moments += s.moments; prev.cast = [...new Set([...prev.cast, ...s.cast])]; prev.floors.push(...s.floors); prev.key = prev.moments || s.key === "public" ? "public" : prev.cast.sort().join(","); }
-      else out.push({ ...s, cast: s.cast.slice(), floors: s.floors.slice() });
+      if (prev && s.n < 3) { prev.to = s.to; prev.n += s.n; prev.moments += s.moments; prev.cast = [...new Set([...prev.cast, ...s.cast])]; prev.floors.push(...s.floors); prev.sizes.push(...s.sizes); prev.key = prev.moments || s.key === "public" ? "public" : prev.cast.sort().join(","); }
+      else out.push({ ...s, cast: s.cast.slice(), floors: s.floors.slice(), sizes: s.sizes.slice() });
     }
-    // long stretches get cut into bites of at most `maxLen` floors so one summary never swallows half the story
+    // long stretches get cut into bites: at most `maxLen` floors, and never more than ~40 KB of text (the in-page model takes 64 KB per call)
+    const BYTE_CAP = 40000;
     const fin = [];
     for (const s of out) {
-      if (!maxLen || s.n <= maxLen) { fin.push(s); continue; }
-      for (let i = 0; i < s.floors.length; i += maxLen) { const fl = s.floors.slice(i, i + maxLen); fin.push({ ...s, from: fl[0], to: fl[fl.length - 1], n: fl.length, floors: fl }); }
+      if (!maxLen) { fin.push(s); continue; }
+      let fl = [], bytes = 0;
+      const flush = () => { if (fl.length) fin.push({ ...s, from: fl[0], to: fl[fl.length - 1], n: fl.length, floors: fl }); fl = []; bytes = 0; };
+      for (let i = 0; i < s.floors.length; i++) {
+        if (fl.length && (fl.length >= maxLen || bytes + s.sizes[i] > BYTE_CAP)) flush();
+        fl.push(s.floors[i]); bytes += s.sizes[i];
+      }
+      flush();
     }
     // suggestion: nobody else around → only the character; anyone else around or moments → public (simple beats precise)
     for (const s of fin) s.scope = s.key === "public" || s.cast.length ? "public" : "char";
@@ -7603,6 +7620,7 @@
   // ============================================================
   const isSummaryEntry = (e) => !!(e.extensions && (e.extensions.memory_range || e.extensions.memory_msgs || e.extensions.memory_merged || e.extensions.memory_archived));
   let rebuildCtl = null;
+  let rebuildMode = "rebuild"; // "rebuild" | "merge"
   function rebuildTargets(c) {
     const out = { char: c.chat.some((m) => m.kind !== "divider" && !m.npc && !m.group && !m.error), npcs: [], groups: [] };
     for (const n of c.npcs) { const k = c.chat.filter((m) => msgHasNpc(m, n.id) && m.kind !== "divider" && !m.error).length; if (k) out.npcs.push({ id: n.id, name: n.name, n: k }); }
@@ -7624,10 +7642,86 @@
     for (const n of t.npcs) mk("npc:" + n.id, `${n.name} 的私聊`, `${n.n} 条`, true);
     for (const g of t.groups) mk("group:" + g.id, `群「${g.name}」`, `${g.n} 条`, true);
     if (!box.children.length) box.appendChild(el("div", "rx-empty", "还没有可以总结的内容。"));
+    rebuildMode = "rebuild";
+    $("rebuildTitle").textContent = "🧹 重建记忆"; $("rebuildHelp").textContent = "会先自动存一份档；然后删掉勾选对象的旧总结、取消所有隐藏楼层，把楼层按「谁在场」切段，一段一段重新总结存进各自的记忆书。有别人在场或有朋友圈的段存成「公开」，只有主角和你的段存成「只有主角知道」。";
+    $("rebuildLenRow").hidden = false; $("rebuildLen").value = state.settings.rebuildLen || 20;
+    $("rebuildStart").textContent = "开始重建";
     $("rebuildProg").textContent = "";
     $("rebuildStart").hidden = false; $("rebuildStop").hidden = true; $("rebuildStart").disabled = !chatReady() || !box.children.length;
-    $("rebuildEst").textContent = chatReady() ? "预计调用次数会在开始后显示；每段最多 20 楼，一段一次。" : "接口未就绪，不能重建。";
+    $("rebuildEst").textContent = chatReady() ? "段数会在开始后显示，一段一次调用。" : "接口未就绪，不能重建。";
     $("rebuildBack").hidden = false;
+  }
+  // 一键大总结: every memory book's live entries → one merged entry (per scope, so private and public don't get mixed)
+  function mergeAllTargets(c) {
+    const out = [];
+    for (const b of c.books) {
+      if (!b.memory) continue;
+      const live = b.entries.filter((e) => e.enabled && e.content.trim() && !(e.extensions && e.extensions.memory_archived));
+      if (live.length < 2) continue;
+      const groups = new Map();
+      for (const e of live) { const sh = e.extensions && Array.isArray(e.extensions.memory_shared) ? e.extensions.memory_shared : []; const k = sh.length ? "share:" + sh.slice().sort().join(",") : entryScope(e); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); }
+      const npc = b.memoryGroup ? (() => { const g = groupById(c, b.memoryGroup); return g ? groupAsNpc(c, g) : null; })() : b.memoryNpc ? npcById(c, b.memoryNpc) : null;
+      const jobs = [...groups.entries()].filter(([, list]) => list.length >= 2).map(([scope, list]) => ({ book: b, picked: list, scope, npc }));
+      if (jobs.length) out.push({ book: b, live: live.length, jobs, tokens: memBookTokens(b) });
+    }
+    return out;
+  }
+  function openMergeAll() {
+    const c = active(); if (!c || busy || rebuildCtl) return;
+    const t = mergeAllTargets(c);
+    const box = $("rebuildList"); box.innerHTML = "";
+    t.forEach((x, i) => {
+      const row = el("label", "rebuild-row");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true; cb.dataset.key = String(i);
+      row.append(cb, el("span", null, x.book.name), el("small", null, `${x.live} 条 ≈${memBookTokens(x.book)} tok → ${x.jobs.length} 条`));
+      box.appendChild(row);
+    });
+    if (!t.length) box.appendChild(el("div", "rx-empty", "没有能合并的记忆书（每本至少要有两条在用的条目）。"));
+    rebuildMode = "merge";
+    $("rebuildTitle").textContent = "📚 一键大总结"; $("rebuildHelp").textContent = "把每本记忆书里现在在用的条目各自压成一条大总结；范围不同的条目（只有主角知道 / 公开 / 只有某人知道）分开合并，不会混。旧条目停用并标「已合并」，不删。只碰记忆书，角色卡自带的世界书和全局世界书不动。会先自动存档。";
+    $("rebuildLenRow").hidden = true;
+    $("rebuildStart").textContent = "开始合并";
+    $("rebuildProg").textContent = "";
+    $("rebuildStart").hidden = false; $("rebuildStop").hidden = true; $("rebuildStart").disabled = !chatReady() || !t.length;
+    $("rebuildEst").textContent = chatReady() ? `共 ${t.reduce((n, x) => n + x.jobs.length, 0)} 次调用。` : "接口未就绪，不能合并。";
+    $("rebuildBack").hidden = false;
+  }
+  async function mergeAllMemory() {
+    const c = active(); if (!c || busy || rebuildCtl || !chatReady()) return;
+    const keys = new Set([...$("rebuildList").querySelectorAll("input:checked")].map((x) => x.dataset.key));
+    const targets = mergeAllTargets(c).filter((_, i) => keys.has(String(i)));
+    const jobs = targets.flatMap((x) => x.jobs);
+    if (!jobs.length) return toast("先勾选要合并的记忆书", true);
+    if (!(await askConfirm(`会先自动存档，然后把 ${targets.length} 本记忆书各自合并成大总结（共 ${jobs.length} 次调用）。开始？`, "开始合并"))) return;
+    makeSave(c, `自动 · 大总结前（第 ${floorCount(c)} 楼）`, "merge");
+    rebuildCtl = new AbortController();
+    $("rebuildStart").hidden = true; $("rebuildStop").hidden = false;
+    let ok = 0, fail = 0;
+    try {
+      for (let i = 0; i < jobs.length; i++) {
+        const j = jobs[i];
+        $("rebuildProg").textContent = `第 ${i + 1} / ${jobs.length} · ${j.book.name}${j.scope === "public" ? "（公开）" : ""}…`;
+        try {
+          const res = await complete(buildMergePrompt(c, j.picked, j.npc, DEFAULT_MERGE_PROMPT), { signal: rebuildCtl.signal });
+          const text = stripReasoning(res.text).trim();
+          if (!text) { fail++; continue; }
+          memSaveMerge(c, text, j.picked, j.book, j.scope, true);
+          ok++;
+        } catch (e) {
+          if (e && (e.code === "cancelled" || e.name === "AbortError")) throw e;
+          fail++; console.error(e);
+        }
+      }
+      $("rebuildProg").textContent = `完成：合并了 ${ok} 条${fail ? `，失败 ${fail} 条` : ""}。`;
+      toast(`大总结完成：${ok} 条${fail ? `，失败 ${fail} 条` : ""}`);
+    } catch (e) {
+      $("rebuildProg").textContent = `已停止：合并了 ${ok} 条，剩下的没动。`;
+    } finally {
+      rebuildCtl = null;
+      $("rebuildStart").hidden = false; $("rebuildStop").hidden = true;
+      save(); updateStats();
+      if (!$("memBack").hidden) memUpdateHint();
+    }
   }
   async function rebuildMemory() {
     const c = active(); if (!c || busy || rebuildCtl || !chatReady()) return;
@@ -7641,7 +7735,9 @@
     if (keys.includes("char")) {
       const book = memoryBook(c, false); if (book) book.entries = book.entries.filter((e) => !isSummaryEntry(e));
       c.memory.lastFloor = 0;
-      for (const s of memSegments(c, 20)) jobs.push({ kind: "char", from: s.from, to: s.to, scope: s.key === "public" || s.cast.length ? "public" : "char", label: `${c.name} 第 ${s.from}–${s.to} 楼` });
+      const len = Math.max(5, Math.min(200, parseInt($("rebuildLen").value, 10) || 20));
+      state.settings.rebuildLen = len;
+      for (const s of memSegments(c, len)) jobs.push({ kind: "char", from: s.from, to: s.to, scope: s.key === "public" || s.cast.length ? "public" : "char", label: `${c.name} 第 ${s.from}–${s.to} 楼` });
     }
     for (const key of keys) {
       if (key === "char") continue;
@@ -7650,7 +7746,7 @@
       const book = memoryBook(c, false, npc); if (book) book.entries = book.entries.filter((e) => !isSummaryEntry(e));
       npc.memCount = 0; if (!npc.isGroup) npc.memLastId = null;
       for (const m of c.chat) if (npc.isGroup ? m.group === npc.group.id : msgHasNpc(m, npc.id)) delete done[m.id];
-      for (const chunk of chunkMsgs(npcUnsummarized(c, npc), 20)) jobs.push({ kind: "npc", npc, msgs: chunk, label: npc.isGroup ? `群「${npc.name}」` : `${npc.name} 的私聊` });
+      for (const chunk of chunkMsgs(npcUnsummarized(c, npc), Math.max(5, Math.min(200, parseInt($("rebuildLen").value, 10) || 20)))) jobs.push({ kind: "npc", npc, msgs: chunk, label: npc.isGroup ? `群「${npc.name}」` : `${npc.name} 的私聊` });
     }
     save(); renderMessages(); updateStats();
     if (!jobs.length) { toast("没有可以总结的内容", true); return; }
@@ -7686,7 +7782,8 @@
     }
   }
   $("memRebuild").onclick = openRebuild;
-  $("rebuildStart").onclick = rebuildMemory;
+  $("memMergeAll").onclick = openMergeAll;
+  $("rebuildStart").onclick = () => (rebuildMode === "merge" ? mergeAllMemory() : rebuildMemory());
   $("rebuildStop").onclick = () => { if (rebuildCtl) rebuildCtl.abort(); };
   $("rebuildClose").onclick = () => { if (rebuildCtl) { toast("正在重建，先点「停止」", true); return; } $("rebuildBack").hidden = true; };
   $("memClose").onclick = closeMemory;
