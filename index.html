@@ -876,10 +876,11 @@
     .rail.open { transform: none; }
     body { overflow-x: hidden; }
     .stage-head { padding: 10px 12px; }
-    /* header tools scroll sideways inside the header instead of pushing the page wider */
-    .stage-head .tools { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-    .stage-head .tools::-webkit-scrollbar { display: none; }
-    .stage-head .tools .btn { flex-shrink: 0; }
+    /* header: on narrow screens the tool buttons wrap onto their own line so every one stays visible */
+    .stage-head { flex-wrap: wrap; row-gap: 6px; }
+    .stage-head .who { flex: 1 1 160px; }
+    .stage-head .tools { flex: 1 1 100%; flex-wrap: wrap; min-width: 0; justify-content: flex-start; }
+    .stage-head .tools .btn { padding: 4px 8px; font-size: 12px; }
     /* composer: keep the tool pills compact and let the quick-symbol row scroll sideways instead of stacking */
     .composer-bar { gap: 6px; }
     .composer-bar .pill-select select { max-width: 200px; }
