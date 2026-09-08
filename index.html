@@ -420,8 +420,87 @@
   }
   .composer-inner {
     max-width: 860px; margin: 0 auto;
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: end;
   }
+  .plus-wrap { position: relative; }
+  .plus-btn { width: 44px; height: 44px; border-radius: 12px; font-size: 22px; line-height: 1; padding: 0; }
+  .plus-menu {
+    position: absolute; left: 0; bottom: 52px; z-index: 30;
+    min-width: 220px; padding: 6px;
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .plus-item {
+    display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: center; text-align: left;
+    padding: 8px 10px; border-radius: 8px; border: 0; background: transparent; color: var(--text); font-size: 13px;
+  }
+  .plus-item:hover { background: var(--raised); }
+  .plus-item .ic { font-size: 18px; text-align: center; }
+  .plus-item small { display: block; color: var(--faint); font-size: 11px; }
+  .plus-item:disabled { opacity: 0.5; cursor: default; }
+  .mode-banner {
+    max-width: 860px; margin: 0 auto 8px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 12px; border-radius: 10px; border: 1px dashed var(--accent); background: var(--accent-soft); font-size: 13px;
+  }
+  .mode-banner .spacer { flex: 1; }
+  /* folded phone card + dividers in the main chat */
+  .divider-msg { max-width: 860px; width: 100%; margin: 0 auto; text-align: center; }
+  .divider-msg span { display: inline-block; font-size: 12px; color: var(--muted); padding: 3px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+  .phone-card {
+    max-width: 860px; width: 100%; margin: 0 auto;
+    display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px;
+  }
+  .phone-card .pc {
+    border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 10px 14px; cursor: pointer;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  }
+  .phone-card .pc:hover { border-color: var(--accent); }
+  .phone-card .pc .ic { font-size: 22px; }
+  .phone-card .pc .t { font-weight: 600; font-size: 13px; }
+  .phone-card .pc .pv { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .phone-card .pc .n { font-family: var(--font-mono); font-size: 11px; color: var(--faint); white-space: nowrap; }
+  /* phone UI */
+  .phone-back { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 58; padding: 16px; }
+  .phone {
+    width: min(400px, 100%); height: min(760px, 96vh);
+    background: #f2f2f7; color: #111; border-radius: 34px; border: 8px solid #1a1a1c;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Noto Sans SC", sans-serif;
+  }
+  .phone.dark { background: #000; color: #f2f2f7; }
+  .phone-head { display: flex; align-items: center; gap: 10px; padding: 14px 12px 8px; background: rgba(249,249,249,0.94); border-bottom: 1px solid rgba(0,0,0,0.12); }
+  .phone.dark .phone-head { background: rgba(28,28,30,0.94); border-bottom-color: rgba(255,255,255,0.12); }
+  .phone-head .who { flex: 1; min-width: 0; text-align: center; }
+  .phone-head .who .nm { font-weight: 600; font-size: 15px; }
+  .phone-head .who .st { font-size: 11px; color: #8e8e93; }
+  .phone-head .avatar { width: 34px; height: 34px; font-size: 16px; }
+  .phone-head .ib { border: 0; background: transparent; color: #0a84ff; font-size: 14px; padding: 4px 6px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .phone-head .ib:hover { background: rgba(10,132,255,0.12); }
+  .phone-body { flex: 1; overflow-y: auto; padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 3px; }
+  .pm { max-width: 78%; padding: 7px 12px; border-radius: 18px; font-size: 15px; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; position: relative; }
+  .pm.me { align-self: flex-end; background: #0a84ff; color: #fff; border-bottom-right-radius: 5px; }
+  .pm.them { align-self: flex-start; background: #e9e9eb; color: #111; border-bottom-left-radius: 5px; }
+  .phone.dark .pm.them { background: #262629; color: #f2f2f7; }
+  .pm + .pm.me, .pm + .pm.them { margin-top: 1px; }
+  .pm.me + .pm.them, .pm.them + .pm.me { margin-top: 8px; }
+  .pm.sys { align-self: center; background: transparent; color: #8e8e93; font-size: 11px; padding: 6px 0; max-width: 100%; text-align: center; }
+  .pm.read { align-self: flex-end; background: transparent; color: #8e8e93; font-size: 11px; padding: 0 6px; }
+  .pm.typing { align-self: flex-start; background: #e9e9eb; color: #8e8e93; padding: 10px 14px; }
+  .phone.dark .pm.typing { background: #262629; }
+  .pm .tm { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; text-align: right; }
+  .phone-tools { display: flex; gap: 6px; padding: 6px 12px; }
+  .phone-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
+  .phone-foot { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px 14px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.12); }
+  .phone.dark .phone-foot { background: rgba(28,28,30,0.94); border-top-color: rgba(255,255,255,0.12); }
+  .phone-foot textarea {
+    flex: 1; min-height: 36px; max-height: 120px; resize: none; padding: 8px 14px; border-radius: 18px;
+    border: 1px solid rgba(0,0,0,0.15); background: #fff; color: #111; font-size: 15px; line-height: 1.3;
+  }
+  .phone.dark .phone-foot textarea { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.15); }
+  .phone-foot .send { width: 36px; height: 36px; border-radius: 50%; border: 0; background: #0a84ff; color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+  .phone-foot .send:disabled { opacity: 0.5; }
   .composer textarea {
     width: 100%;
     min-height: 48px; max-height: 200px;
@@ -731,7 +810,17 @@
       </div>
       <div class="ideas" id="ideas" hidden></div>
       <div class="snips" id="snips"></div>
+      <div class="mode-banner" id="modeBanner" hidden>
+        <span>📱 现在在手机上和对方聊天。这里发出的内容会当作放下手机后的正文。</span>
+        <span class="spacer"></span>
+        <button class="btn" id="bannerOpenPhone">打开手机</button>
+        <button class="btn ghost" id="bannerExitPhone">放下手机</button>
+      </div>
       <div class="composer-inner">
+        <div class="plus-wrap">
+          <button class="btn plus-btn" id="plusBtn" title="更多玩法" aria-label="更多玩法">＋</button>
+          <div class="plus-menu" id="plusMenu" hidden></div>
+        </div>
         <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
         <div class="send-col">
           <button class="btn primary" id="send">发送</button>
@@ -1539,6 +1628,30 @@
   </div>
 </div>
 
+<div class="phone-back" id="phoneBack" hidden>
+  <div class="phone" id="phone" role="dialog" aria-modal="true" aria-label="手机">
+    <div class="phone-head">
+      <button class="ib" id="phoneClose" title="收起手机（保持手机模式）">‹ 收起</button>
+      <div class="who">
+        <div class="nm" id="phoneName">—</div>
+        <div class="st" id="phoneStatus">在线</div>
+      </div>
+      <button class="ib" id="phoneExit" title="结束手机聊天，回到正文">放下手机</button>
+    </div>
+    <div class="phone-body" id="phoneBody"></div>
+    <div class="phone-tools">
+      <button class="btn" id="phoneNudge" title="根据当前剧情，让对方先发消息">让 TA 先开口</button>
+      <button class="btn ghost" id="phoneWait" title="过一会儿再看：对方可能会继续发消息">过一会儿…</button>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
+    </div>
+    <div class="phone-foot">
+      <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
+      <button class="send" id="phoneSend" aria-label="发送">↑</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -1803,6 +1916,7 @@
     for (const b of c.books) if (b.enabled === undefined) b.enabled = true;
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.status = normalizeStatus(c.status);
+    c.phone = c.phone && typeof c.phone === "object" ? c.phone : { open: false };
     c.worldName = typeof c.worldName === "string" ? c.worldName : (c.extensions && typeof c.extensions.world === "string" ? c.extensions.world : "");
     c.extensions = c.extensions || {};
     c.chat = Array.isArray(c.chat) ? c.chat : [];
@@ -2303,11 +2417,39 @@
     const box = $("messages");
     box.innerHTML = "";
     if (!c) return;
-    c.chat.forEach((m, i) => box.appendChild(messageNode(m, c, i)));
+    let run = null;
+    const flush = () => { if (run) { box.appendChild(phoneCardNode(run, c)); run = null; } };
+    c.chat.forEach((m, i) => {
+      if (m.kind === "divider") { flush(); box.appendChild(dividerNode(m, c)); return; }
+      if (m.channel === "phone") { if (!run) run = []; run.push({ m, i }); return; }
+      flush();
+      box.appendChild(messageNode(m, c, i));
+    });
+    flush();
     box.scrollTop = box.scrollHeight;
+    $("modeBanner").hidden = !(c.phone && c.phone.open);
     if (!busy) refreshContextMeter();
   }
 
+  function dividerNode(m, c) {
+    const d = el("div", "divider-msg");
+    d.dataset.id = m.id;
+    d.appendChild(el("span", null, sub(m.content, c)));
+    return d;
+  }
+  function phoneCardNode(run, c) {
+    const wrap = el("div", "phone-card");
+    wrap.dataset.id = run[run.length - 1].m.id;
+    const av = el("div"); renderAvatar(av, c);
+    const pc = el("div", "pc");
+    const last = run[run.length - 1].m;
+    const who = last.role === "user" ? (state.persona.name || "你") : c.name;
+    const preview = last.pending ? "正在输入…" : `${who}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
+    pc.append(el("span", "ic", "📱"), (() => { const d = el("div"); d.appendChild(el("div", "t", `手机聊天 · ${run.length} 条`)); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${run[0].i + 1}–#${run[run.length - 1].i + 1}`));
+    pc.onclick = () => openPhone(false);
+    wrap.append(av, pc);
+    return wrap;
+  }
   function messageNode(m, c, index) {
     const isUser = m.role === "user";
     const depth = c.chat.length - 1 - index;
@@ -2573,6 +2715,29 @@
   let segments = []; // [{group, label, text}] collected while the prompt is assembled
   const seg = (group, label, text) => { if (text && String(text).trim()) segments.push({ group, label, text: String(text) }); };
 
+  // How a stored message reads in the prompt: phone texts get a [手机 时间] prefix, dividers are scene notes
+  function promptText(m, c) {
+    let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth: 0, c });
+    if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
+    if (m.kind === "divider") return `（${sub(m.content, c)}）`;
+    if (m.channel === "phone") {
+      if (txt.trim() === "[不回复]") return `[手机 ${fmtTime(m.ts)}] ${c.name} 看到了消息，没有回复。`;
+      return `[手机 ${fmtTime(m.ts)}] ${m.role === "user" ? (state.persona.name || "用户") : c.name}：${txt}`;
+    }
+    return txt;
+  }
+  function phoneRules(c, u) {
+    return [
+      "## 手机聊天模式",
+      `现在 ${c.name} 和 ${u} 不在同一个地方，正在用手机发消息。你只输出 ${c.name} 发出的手机消息本身：`,
+      "- 像真人发短信：短句、口语、可以有错别字式的随意，不写 *动作*、不写环境和心理描写，不用引号，不加名字前缀。",
+      "- 可以连发几条，每条消息单独一行；一条通常不超过 40 字。",
+      `- 不要替 ${u} 发消息或猜 ${u} 的回复。`,
+      `- 如果 ${c.name} 此刻不想回、没空或故意晾着对方，只输出一行 [不回复]。`,
+      "- 语气跟着角色此刻的心情、和对方的关系、以及刚才正文里发生的事走；可以用表情符号但别滥用。",
+    ].join("\n");
+  }
+
   let lastReport = null;
   function buildInstruction(c, history, retrieved) {
     const u = state.persona.name || "用户";
@@ -2606,6 +2771,11 @@
     }
     const stIns = statusInstruction(c);
     if (stIns) { parts.push("\n" + stIns); seg("fixed", "状态面板", stIns); }
+    if (c.phone && c.phone.open) {
+      const pr = phoneRules(c, u);
+      parts.push("\n" + pr, `- ${langHint()}`); seg("fixed", "手机聊天规则", pr);
+      return sub(parts.join("\n"), c);
+    }
     parts.push("\n## 规则");
     const ruleLines = [];
     if (!(c.systemPrompt && c.systemPrompt.trim())) ruleLines.push(rules);
@@ -2687,7 +2857,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [[`- ${lengthHint()}`, `- ${langHint()}`, `- ${voiceRule(c, u)}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint(), c) : [`- ${lengthHint()}`, `- ${langHint()}`, `- ${voiceRule(c, u)}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
@@ -2711,11 +2881,9 @@
       if (pr.injection_position === 1) { inChat.push({ depth: pr.injection_depth, role, content }); continue; }
       (afterHistory ? post : pre).push({ role, content });
     }
-    const history = kept.map((m, i) => {
-      const depth = kept.length - 1 - i;
-      let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
-      if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
-      if (ps.namesInContent) txt = `${m.role === "user" ? u : c.name}: ${txt}`;
+    const history = kept.map((m) => {
+      let txt = promptText(m, c);
+      if (ps.namesInContent && m.role !== "system" && m.channel !== "phone") txt = `${m.role === "user" ? u : c.name}: ${txt}`;
       return { role: m.role, content: txt, hist: true };
     }).filter((t) => t.content.trim());
     // in-chat injections: depth d = before the last d history messages
@@ -2726,6 +2894,7 @@
     return [...pre, ...history, ...post];
   }
 
+  let pendingNudge = ""; // one-off user-role instruction appended for the next generation only
   function buildTurns(c, upto) {
     segments = [];
     const mem = parseInt(state.settings.mem, 10) || 40;
@@ -2749,10 +2918,8 @@
       turns = buildTurnsPreset(ps, c, kept, retrieved, upto);
     } else {
       turns = [{ role: "system", content: buildInstruction(c, kept, retrieved) }];
-      kept.forEach((m, i) => {
-        const depth = kept.length - 1 - i;
-        let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth, c });
-        if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
+      kept.forEach((m) => {
+        const txt = promptText(m, c);
         if (txt.trim()) turns.push({ role: m.role, content: txt, hist: true });
       });
       if (c.postHistory && c.postHistory.trim()) turns.push({ role: "system", content: `（提醒：${sub(c.postHistory.trim(), c)}）` });
@@ -2780,7 +2947,7 @@
     }
     const inContext = kept.slice(dropped);
     const u = state.persona.name || "你";
-    for (const m of inContext) seg("history", `#${c.chat.indexOf(m) + 1} ${m.role === "user" ? u : c.name}`, stripStatus(stripReasoning(sub(m.content, c))));
+    for (const m of inContext) seg("history", `#${c.chat.indexOf(m) + 1} ${m.kind === "divider" ? "场景" : (m.channel === "phone" ? "📱 " : "") + (m.role === "user" ? u : c.name)}`, promptText(m, c));
     if (!ps && c.postHistory && c.postHistory.trim()) seg("fixed", "对话后指令", c.postHistory);
     for (let i = 0; i < turns.length; i++) turns[i] = { role: turns[i].role, content: turns[i].content };
     lastReport = {
@@ -2791,7 +2958,8 @@
       capTokens: isCustom() ? Math.max(1000, (state.api.maxContext || 32000) - (samplerParams().max_tokens || state.api.maxTokens || 2048)) : Math.round(CAP / 3),
       segments: segments.map((x) => ({ ...x, chars: x.text.length, tokens: estTokens(x.text) })),
     };
-    if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: "（继续，接着刚才的情节写下去。）" });
+    if (pendingNudge) turns.push({ role: "user", content: pendingNudge });
+    else if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : "（继续，接着刚才的情节写下去。）" });
     return turns;
   }
   // The Claude path has no system role and must start/end on user turns; a custom API takes turns as they are.
@@ -2951,8 +3119,9 @@
     return v;
   }
 
-  async function generate(c, target) {
+  async function generate(c, target, opts) {
     if (!chatReady() || busy) return;
+    opts = opts || {};
     let msg = target;
     if (msg) {
       // a new swipe on an existing reply
@@ -2960,12 +3129,16 @@
       delete msg.stopped; delete msg.error;
     } else {
       msg = { id: uid(), role: "assistant", content: "", swipes: [""], si: 0, ts: Date.now() };
+      if (opts.channel === "phone" || (c.phone && c.phone.open)) msg.channel = "phone";
       c.chat.push(msg);
     }
     msg.pending = true;
+    pendingNudge = opts.nudge || "";
     const turns = buildTurns(c, c.chat.indexOf(msg));
+    pendingNudge = "";
     renderMessages();
-    const node = $("messages").querySelector(`[data-id="${msg.id}"] .bubble`);
+    if (msg.channel === "phone") renderPhone(true);
+    const node = $("messages").querySelector(`[data-id="${msg.id}"] .bubble`) || document.createElement("div");
     node.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
     const box = $("messages");
     const depth = 0;
@@ -2979,6 +3152,7 @@
         signal: ctl.signal,
         onText: ({ text }) => {
           setText(text);
+          if (msg.channel === "phone") { renderPhone(true); return; }
           if (node.querySelector(".dots")) node.innerHTML = "";
           paintBubble(node, text, { c, role: "assistant", depth, streaming: true });
           const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
@@ -3014,6 +3188,7 @@
       save();
       renderMessages();
       renderCharList();
+      if (msg.channel === "phone") renderPhone();
     }
   }
 
@@ -3023,7 +3198,7 @@
     const u = state.persona.name || "我";
     const mem = Math.min(parseInt(state.settings.mem, 10) || 40, 30);
     const history = c.chat.filter((m) => !m.error).slice(-mem);
-    const lines = history.map((m) => `${m.role === "user" ? u : c.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").slice(0, 1500)}`).join("\n\n");
+    const lines = history.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, 1500)}`).join("\n\n");
     const instr = [
       `你是 ${u} 的写手。下面是 ${u} 和 ${c.name} 之间正在进行的角色扮演；${c.name} 的设定和最近的对话都给你了。请替 ${u} 想下一条回复。`,
       "",
@@ -3091,6 +3266,97 @@
     const more = el("button", "idea more", "换一批");
     more.onclick = () => inspire();
     box.appendChild(more);
+  }
+
+  // ---------- ➕ menu ----------
+  const PLUS_ITEMS = [
+    { id: "phone", icon: "📱", label: "手机", hint: "两人不在一处时，用手机聊天", run: () => openPhone(true) },
+  ];
+  function renderPlusMenu() {
+    const m = $("plusMenu");
+    m.innerHTML = "";
+    for (const it of PLUS_ITEMS) {
+      const b = el("button", "plus-item");
+      b.innerHTML = `<span class="ic">${it.icon}</span><span>${it.label}<small>${it.hint}</small></span>`;
+      b.onclick = () => { m.hidden = true; it.run(); };
+      m.appendChild(b);
+    }
+    const more = el("button", "plus-item"); more.disabled = true;
+    more.innerHTML = `<span class="ic">…</span><span>更多玩法<small>陆续加</small></span>`;
+    m.appendChild(more);
+  }
+
+  // ---------- Phone ----------
+  function phoneMsgs(c) { return c.chat.map((m, i) => ({ m, i })).filter((x) => x.m.channel === "phone" || (x.m.kind === "divider" && x.m.phone)); }
+  function openPhone(enter) {
+    const c = active();
+    if (!c || busy) return;
+    if (enter && !(c.phone && c.phone.open)) {
+      c.phone = { open: true };
+      c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: `📱 ${c.name} 和 {{user}} 不在同一个地方，改用手机联系`, ts: Date.now() });
+      save(); renderMessages(); renderCharList();
+    }
+    $("phone").classList.toggle("dark", state.settings.phoneDark === true);
+    renderPhone();
+    $("phoneBack").hidden = false;
+    $("phoneInput").focus();
+  }
+  function closePhoneView() { $("phoneBack").hidden = true; }
+  function exitPhone(rerender) {
+    const c = active();
+    if (!c || !(c.phone && c.phone.open)) { closePhoneView(); return; }
+    c.phone.open = false;
+    c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: "📱 放下手机，回到当面的场景", ts: Date.now() });
+    save();
+    closePhoneView();
+    if (rerender !== false) { renderMessages(); renderCharList(); }
+  }
+  function renderPhone(streaming) {
+    const c = active();
+    if (!c) return;
+    $("phoneName").textContent = c.name;
+    const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
+    $("phoneStatus").textContent = busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone") ? "正在输入…" : (st && st.value ? `在 ${st.value}` : "在线");
+    const body = $("phoneBody");
+    const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+    body.innerHTML = "";
+    for (const { m } of phoneMsgs(c)) {
+      if (m.kind === "divider") { body.appendChild(el("div", "pm sys", sub(m.content, c).replace(/^📱\s*/, ""))); continue; }
+      const txt = stripStatus(stripReasoning(sub(m.content, c)));
+      if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
+      if (m.role === "assistant" && txt.trim() === "[不回复]") { body.appendChild(el("div", "pm sys", `已读 · ${c.name} 没有回复`)); continue; }
+      const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+      lines.forEach((line, li) => {
+        const b = el("div", "pm " + (m.role === "user" ? "me" : "them"));
+        b.textContent = line.replace(/^\[?撤回\]?$/, "撤回了一条消息");
+        if (li === lines.length - 1) b.appendChild(el("span", "tm", fmtTime(m.ts)));
+        body.appendChild(b);
+      });
+      if (m.role === "user" && m === c.chat[c.chat.length - 1] && !busy) body.appendChild(el("div", "pm read", "已送达"));
+    }
+    if (!phoneMsgs(c).some((x) => x.m.channel === "phone")) body.appendChild(el("div", "pm sys", "还没有消息。你先发一条，或者点「让 TA 先开口」。"));
+    if (atBottom || streaming) body.scrollTop = body.scrollHeight;
+  }
+  async function phoneSend() {
+    const c = active();
+    const ta = $("phoneInput");
+    const text = ta.value.trim();
+    if (!c || busy || !text || !chatReady()) return;
+    if (!(c.phone && c.phone.open)) { c.phone = { open: true }; }
+    c.chat.push({ id: uid(), role: "user", channel: "phone", content: text, ts: Date.now() });
+    ta.value = ""; ta.style.height = "auto";
+    save(); renderMessages(); renderPhone(true);
+    await generate(c, null, { channel: "phone" });
+  }
+  async function phoneNudge(kind) {
+    const c = active();
+    if (!c || busy || !chatReady()) return;
+    if (!(c.phone && c.phone.open)) c.phone = { open: true };
+    const u = state.persona.name || "用户";
+    const nudge = kind === "wait"
+      ? `（过了一会儿。${c.name} 也许会接着发消息，也许不会——按 ${c.name} 此刻的心情和刚才的对话决定。要发就直接发消息，不发就只输出 [不回复]。）`
+      : `（${u} 还没有发消息。由 ${c.name} 主动先给 ${u} 发消息：结合刚才正文里发生的事、此刻的心情和两人的关系，决定发什么、发几条。）`;
+    await generate(c, null, { channel: "phone", nudge });
   }
 
   // ---------- Status strip + panel ----------
@@ -3561,7 +3827,7 @@
   function buildMemPrompt(c) {
     const { from, to } = memRange();
     const u = state.persona.name || "用户";
-    const lines = c.chat.slice(from - 1, to).map((m, i) => `#${from + i} ${m.role === "user" ? u : c.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n\n");
+    const lines = c.chat.slice(from - 1, to).map((m, i) => m.kind === "divider" ? `#${from + i} （${sub(m.content, c)}）` : `#${from + i} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`).join("\n\n");
     const book = memoryBook(c, false);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
     let prompt = $("memPrompt").value || DEFAULT_MEM_PROMPT;
@@ -3628,6 +3894,7 @@
     $("resetChat").disabled = on;
     $("inspire").disabled = on;
     $("memBtn").disabled = on;
+    $("phoneSend").disabled = on; $("phoneNudge").disabled = on; $("phoneWait").disabled = on;
   }
 
   async function send() {
@@ -3640,6 +3907,7 @@
       if (c.chat.length && c.chat[c.chat.length - 1].role === "assistant") return generate(c);
       return;
     }
+    if (c.phone && c.phone.open) exitPhone(false);
     c.chat.push({ id: uid(), role: "user", content: text, ts: Date.now() });
     ta.value = "";
     $("ideas").hidden = true; $("ideas").innerHTML = "";
@@ -4777,6 +5045,21 @@
     }
     if (e.key === "Escape" && !$("snipBack").hidden && !confirmResolve) { e.stopPropagation(); $("snipBack").hidden = true; }
   }, true);
+  renderPlusMenu();
+  $("plusBtn").onclick = (e) => { e.stopPropagation(); $("plusMenu").hidden = !$("plusMenu").hidden; };
+  document.addEventListener("click", (e) => { if (!$("plusMenu").hidden && !e.target.closest(".plus-wrap")) $("plusMenu").hidden = true; });
+  $("bannerOpenPhone").onclick = () => openPhone(false);
+  $("bannerExitPhone").onclick = () => exitPhone(true);
+  $("phoneClose").onclick = closePhoneView;
+  $("phoneExit").onclick = () => exitPhone(true);
+  $("phoneBack").addEventListener("click", (e) => { if (e.target === $("phoneBack")) closePhoneView(); });
+  $("phoneSend").onclick = phoneSend;
+  $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
+  $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
+  $("phoneNudge").onclick = () => phoneNudge("first");
+  $("phoneWait").onclick = () => phoneNudge("wait");
+  $("phoneTheme").onclick = () => { state.settings.phoneDark = !(state.settings.phoneDark === true); save(); $("phone").classList.toggle("dark", state.settings.phoneDark === true); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("phoneBack").hidden && !confirmResolve) { e.stopPropagation(); closePhoneView(); } }, true);
   $("statusBtn").onclick = openStatus;
   $("statusStrip").onclick = openStatus;
   $("stClose").onclick = () => { $("stBack").hidden = true; };
