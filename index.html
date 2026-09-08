@@ -868,6 +868,7 @@
         <span id="modeBannerText">📱 现在在手机上和对方聊天。这里发出的内容会当作放下手机后的正文。</span>
         <span class="spacer"></span>
         <button class="btn" id="bannerOpenPhone">打开手机</button>
+        <button class="btn" id="bannerPeople" hidden>在场的人</button>
         <button class="btn ghost" id="bannerExitPhone">放下手机</button>
       </div>
       <div class="composer-inner">
@@ -1306,6 +1307,7 @@
       <button class="btn ghost icon" id="memClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
+      <div class="rx-list" id="memOverview"></div>
       <div class="field">
         <label for="memTarget">总结谁的记忆</label>
         <select id="memTarget"></select>
@@ -1785,6 +1787,25 @@
   </div>
 </div>
 
+<div class="modal-back" id="sceneBack" hidden style="z-index:59">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sceneTitle" style="width:min(440px,100%)">
+    <div class="modal-head">
+      <span id="sceneTitle">🚶 谁在场</span>
+      <button class="btn ghost icon" id="sceneClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help">勾选和你单独在一起的人（主角不在场）。可以多选，这段剧情会同时算进每个人的记忆。</div>
+      <div class="rx-list" id="sceneList"></div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <div class="right">
+        <button class="btn" id="sceneCancel">取消</button>
+        <button class="btn primary" id="sceneGo">开始独处</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="tellBack" hidden style="z-index:59">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tellTitle" style="width:min(520px,100%)">
     <div class="modal-head">
@@ -2097,31 +2118,62 @@
   // face-to-face NPC scene: the newest scene divider still in the chat decides whether one is open
   function sceneFromDividers(c) {
     const d = [...c.chat].reverse().find((m) => m.kind === "divider" && m.scene);
-    return d && d.sceneEnter ? { npc: d.npc } : null;
+    return d && d.sceneEnter ? { npcs: msgNpcs(d) } : null;
   }
-  const sceneNpc = (c) => (c && c.scene && c.scene.npc ? npcById(c, c.scene.npc) : null);
-  function enterScene(npcId) {
+  // which NPCs a message belongs to: `npc` is the primary one, `npcs` lists everyone present in a group scene
+  const msgNpcs = (m) => (Array.isArray(m.npcs) && m.npcs.length ? m.npcs : m.npc ? [m.npc] : []);
+  const msgHasNpc = (m, id) => m.npc === id || (Array.isArray(m.npcs) && m.npcs.includes(id));
+  const sceneNpcs = (c) => (c && c.scene && Array.isArray(c.scene.npcs) ? c.scene.npcs.map((id) => npcById(c, id)).filter(Boolean) : []);
+  const sceneNpc = (c) => sceneNpcs(c)[0] || null;
+  const namesOf = (list) => list.map((n) => n.name).join("、");
+  function enterScene(npcIds) {
     const c = active();
-    const npc = c ? npcById(c, npcId) : null;
-    if (!c || !npc || busy) return;
+    if (!c || busy) return;
+    const ids = [...new Set((Array.isArray(npcIds) ? npcIds : [npcIds]).filter((id) => npcById(c, id)))];
+    if (!ids.length) return;
     closePhoneView();
     if (c.phone && c.phone.open) exitPhone(false);
-    if (c.scene && c.scene.npc !== npcId) exitScene(false);
-    if (!(c.scene && c.scene.npc === npcId)) {
-      c.scene = { npc: npcId };
-      c.chat.push({ id: uid(), role: "system", kind: "divider", scene: true, sceneEnter: true, npc: npcId, content: `🚶 和 ${npc.name} 单独在一起，${c.name} 不在场`, ts: Date.now() });
+    const same = c.scene && c.scene.npcs.length === ids.length && ids.every((id) => c.scene.npcs.includes(id));
+    if (c.scene && !same) exitScene(false);
+    if (!same) {
+      c.scene = { npcs: ids };
+      const names = namesOf(ids.map((id) => npcById(c, id)));
+      c.chat.push({ id: uid(), role: "system", kind: "divider", scene: true, sceneEnter: true, npc: ids[0], npcs: ids, content: `🚶 和 ${names} 单独在一起，${c.name} 不在场`, ts: Date.now() });
     }
     save(); renderMessages(); renderCharList();
     $("input").focus();
   }
   function exitScene(rerender) {
     const c = active();
-    const npc = sceneNpc(c);
     if (!c || !c.scene) return;
-    c.chat.push({ id: uid(), role: "system", kind: "divider", scene: true, npc: c.scene.npc, content: `🚶 和 ${npc ? npc.name : "TA"} 的独处结束`, ts: Date.now() });
+    const list = sceneNpcs(c);
+    c.chat.push({ id: uid(), role: "system", kind: "divider", scene: true, npc: c.scene.npcs[0], npcs: c.scene.npcs.slice(), content: `🚶 和 ${list.length ? namesOf(list) : "TA"} 的独处结束`, ts: Date.now() });
     c.scene = null;
     save();
     if (rerender !== false) { renderMessages(); renderCharList(); }
+  }
+  // ----- scene chooser: who is present -----
+  function openSceneChooser(preselect) {
+    const c = active();
+    if (!c || busy) return;
+    if (!c.npcs.length) { toast("先在联系人里加几个人", true); return; }
+    const cur = new Set(preselect && preselect.length ? preselect : (c.scene ? c.scene.npcs : []));
+    const list = $("sceneList"); list.innerHTML = "";
+    for (const n of c.npcs) {
+      const row = el("label", "rx-row");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.value = n.id; cb.checked = cur.has(n.id);
+      const nm = el("span", "nm", n.name); if (n.brief) nm.appendChild(el("small", null, n.brief));
+      row.append(cb, nm, el("span"), el("span"));
+      list.appendChild(row);
+    }
+    $("sceneGo").textContent = c.scene ? "换成这些人" : "开始独处";
+    $("sceneBack").hidden = false;
+  }
+  function sceneChooserGo() {
+    const ids = [...$("sceneList").querySelectorAll("input:checked")].map((x) => x.value);
+    if (!ids.length) { toast("至少选一个人", true); return; }
+    $("sceneBack").hidden = true;
+    enterScene(ids);
   }
   async function truncateAfter(c, index) {
     const removed = c.chat.slice(index + 1);
@@ -2170,7 +2222,9 @@
   function normalizeChar(c) {
     c.tags = Array.isArray(c.tags) ? c.tags : [];
     c.npcs = Array.isArray(c.npcs) ? c.npcs.map(normalizeNpc).filter(Boolean) : [];
-    c.scene = c.scene && typeof c.scene === "object" && c.scene.npc ? { npc: String(c.scene.npc) } : null;
+    c.scene = c.scene && typeof c.scene === "object" ? (Array.isArray(c.scene.npcs) && c.scene.npcs.length ? { npcs: c.scene.npcs.map(String) } : c.scene.npc ? { npcs: [String(c.scene.npc)] } : null) : null;
+    c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
+    c.memory.npcDone = c.memory.npcDone && typeof c.memory.npcDone === "object" ? c.memory.npcDone : {};
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
     c.creatorNotes = c.creatorNotes || "";
     c.creator = c.creator || "";
@@ -2708,11 +2762,13 @@
     });
     flush();
     box.scrollTop = box.scrollHeight;
-    const sc = sceneNpc(c);
+    const scl = sceneNpcs(c);
+    const sc = scl[0] || null;
     $("modeBanner").hidden = !(c.phone && c.phone.open) && !sc;
     $("bannerOpenPhone").hidden = !!sc;
+    $("bannerPeople").hidden = !sc;
     $("bannerExitPhone").textContent = sc ? "结束独处" : "放下手机";
-    if (sc) $("modeBannerText").textContent = `🚶 现在和 ${sc.name} 单独在一起，${c.name} 不在场。这里写的剧情算 ${sc.name} 的，${c.name} 不会知道。`;
+    if (sc) $("modeBannerText").textContent = `🚶 现在和 ${namesOf(scl)} 单独在一起，${c.name} 不在场。这里写的剧情算 ${namesOf(scl)} 的，${c.name} 不会知道。`;
     else if (c.phone && c.phone.open) $("modeBannerText").textContent = phoneBannerText(c);
     if (!busy) refreshContextMeter();
   }
@@ -2976,7 +3032,8 @@
             // the character's memory book: entries are for the character unless marked public or for one NPC;
             // an NPC's memory book: entries are for that NPC unless marked public
             const sc = entryScope(e);
-            const ok = sc === "public" ? true : book.memoryNpc ? audience === book.memoryNpc : audience ? sc === "npc:" + audience : sc === "char";
+            const shared = e.extensions && Array.isArray(e.extensions.memory_shared) ? e.extensions.memory_shared : [];
+            const ok = sc === "public" ? true : book.memoryNpc ? (audience === book.memoryNpc || (!!audience && shared.includes(audience))) : audience ? sc === "npc:" + audience : sc === "char";
             if (!ok) continue;
           }
           let hit = e.constant;
@@ -3214,12 +3271,13 @@
   }
 
   let pendingNudge = ""; // one-off user-role instruction appended for the next generation only
-  function buildTurns(c, upto, npcId, sceneMode) {
+  function buildTurns(c, upto, npcId, sceneMode, npcIds) {
     segments = [];
     const npc = npcId ? npcById(c, npcId) : null;
+    const others = npc ? (npcIds || []).filter((id) => id !== npc.id).map((id) => npcById(c, id)).filter(Boolean) : [];
     const mem = parseInt(state.settings.mem, 10) || 40;
     // the character never sees NPC private threads; an NPC only sees its own thread
-    let history = c.chat.slice(0, upto == null ? c.chat.length : upto).filter((m) => npc ? m.npc === npc.id : !m.npc);
+    let history = c.chat.slice(0, upto == null ? c.chat.length : upto).filter((m) => npc ? msgHasNpc(m, npc.id) : !m.npc);
     if (!npc && state.settings.memTrim && c.memory && c.memory.lastFloor > 0) {
       const cut = Math.min(idxAfterFloor(c, c.memory.lastFloor), Math.max(0, history.length - 4));
       history = history.slice(cut);
@@ -3231,14 +3289,14 @@
     if (state.settings.ragOn !== false && state.settings.ragOn !== "0") {
       const lastUser = [...kept].reverse().find((m) => m.role === "user");
       const q = lastUser ? sub(lastUser.content, c) : "";
-      if (q.trim()) retrieved = ragSearch(c, q, Math.max(1, Math.min(100, parseInt(state.settings.ragK, 10) || 10)), (m) => !keptIds.has(m.id) && (npc ? m.npc === npc.id : !m.npc) && (upto == null || c.chat.indexOf(m) < upto));
+      if (q.trim()) retrieved = ragSearch(c, q, Math.max(1, Math.min(100, parseInt(state.settings.ragK, 10) || 10)), (m) => !keptIds.has(m.id) && (npc ? msgHasNpc(m, npc.id) : !m.npc) && (upto == null || c.chat.indexOf(m) < upto));
     }
     const ps = npc ? null : activePreset();
     let turns;
     if (ps) {
       turns = buildTurnsPreset(ps, c, kept, retrieved, upto);
     } else {
-      turns = [{ role: "system", content: npc ? buildNpcInstruction(c, npc, kept, retrieved, sceneMode) : buildInstruction(c, kept, retrieved) }];
+      turns = [{ role: "system", content: npc ? buildNpcInstruction(c, npc, kept, retrieved, sceneMode, others) : buildInstruction(c, kept, retrieved) }];
       kept.forEach((m) => {
         const txt = promptText(m, c);
         if (txt.trim()) turns.push({ role: m.role, content: txt, hist: true });
@@ -3281,6 +3339,7 @@
     };
     if (pendingNudge) turns.push({ role: "user", content: pendingNudge });
     else if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: npc && !sceneMode ? `（${npc.name} 接着发消息。）` : !npc && c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : "（继续，接着刚才的情节写下去。）" });
+    if (npc && others.length) segments.forEach((x) => { if (x.label === "开场指令") x.label = "开场指令（多人独处）"; });
     return turns;
   }
   // The Claude path has no system role and must start/end on user turns; a custom API takes turns as they are.
@@ -3450,13 +3509,13 @@
       delete msg.stopped; delete msg.error;
     } else {
       msg = { id: uid(), role: "assistant", content: "", swipes: [""], si: 0, ts: Date.now() };
-      if (opts.npc) { msg.npc = opts.npc; msg.channel = opts.channel === "scene" ? "scene" : "phone"; }
+      if (opts.npc) { msg.npc = opts.npc; if (opts.npcs && opts.npcs.length > 1) msg.npcs = opts.npcs.slice(); msg.channel = opts.channel === "scene" ? "scene" : "phone"; }
       else if (opts.channel === "phone" || (c.phone && c.phone.open)) msg.channel = "phone";
       c.chat.push(msg);
     }
     msg.pending = true;
     pendingNudge = opts.nudge || "";
-    const turns = buildTurns(c, c.chat.indexOf(msg), msg.npc || null, msg.channel === "scene");
+    const turns = buildTurns(c, c.chat.indexOf(msg), msg.npc || null, msg.channel === "scene", msgNpcs(msg));
     pendingNudge = "";
     renderMessages();
     if (msg.channel === "phone") renderPhone(true);
@@ -3519,15 +3578,16 @@
   function buildInspireTurns(c, hint) {
     const u = state.persona.name || "我";
     const mem = Math.min(parseInt(state.settings.mem, 10) || 40, 30);
-    const sc = sceneNpc(c);
-    const name = sc ? sc.name : c.name;
-    const history = c.chat.filter((m) => !m.error && (sc ? m.npc === sc.id : !m.npc)).slice(-mem);
+    const scl = sceneNpcs(c);
+    const sc = scl[0] || null;
+    const name = sc ? namesOf(scl) : c.name;
+    const history = c.chat.filter((m) => !m.error && (sc ? msgHasNpc(m, sc.id) : !m.npc)).slice(-mem);
     const lines = history.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, 1500)}`).join("\n\n");
     const instr = [
       `你是 ${u} 的写手。下面是 ${u} 和 ${name} 之间正在进行的角色扮演；${name} 的设定和最近的对话都给你了。请替 ${u} 想下一条回复。`,
       "",
       `## ${name}`,
-      sc ? [sc.brief, sc.desc].filter(Boolean).join("\n").slice(0, 1500) : (c.description || "").slice(0, 1500),
+      sc ? scl.map((n) => `${n.name}：${[n.brief, n.desc].filter(Boolean).join("\n")}`).join("\n\n").slice(0, 1500) : (c.description || "").slice(0, 1500),
       !sc && c.scenario ? `场景：${c.scenario.slice(0, 600)}` : "",
       "",
       `## ${u}（你要扮演的人）`,
@@ -3693,18 +3753,23 @@
     }
     return false;
   }
-  function npcThreadLast(c, id) { for (let i = c.chat.length - 1; i >= 0; i--) if (c.chat[i].npc === id) return c.chat[i]; return null; }
+  function npcThreadLast(c, id) { for (let i = c.chat.length - 1; i >= 0; i--) if (c.chat[i].kind !== "divider" && msgHasNpc(c.chat[i], id)) return c.chat[i]; return null; }
   function booksFor(c) {
     const bound = c && c.worldName ? (state.books || []).filter((b) => b && b.name === c.worldName) : [];
     const globals = (state.books || []).filter((b) => b && b.enabled !== false && !bound.includes(b));
     const own = c ? (c.books || []).filter((b) => b.enabled !== false) : [];
     return [...own, ...bound, ...globals].filter((b) => b && b.entries && b.entries.length);
   }
-  function buildNpcInstruction(c, npc, history, retrieved, sceneMode) {
+  function buildNpcInstruction(c, npc, history, retrieved, sceneMode, others) {
     const u = state.persona.name || "用户";
     const parts = [];
+    others = others || [];
+    const everyone = [npc, ...others];
+    const all = namesOf(everyone);
     const intro = sceneMode
-      ? `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 单独相处的一段当面剧情；「${c.name}」不在场，也不知道这里发生的事。`
+      ? (others.length
+        ? `这是一个沉浸式角色扮演。你从现在起同时扮演「${all}」这 ${everyone.length} 个人，用户扮演「${u}」。这是他们和 ${u} 单独相处的一段当面剧情；「${c.name}」不在场，也不知道这里发生的事。每个人按各自的设定说话行事，谁开口就写谁，不要把几个人写成一个声音。`
+        : `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 单独相处的一段当面剧情；「${c.name}」不在场，也不知道这里发生的事。`)
       : `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 之间的手机私聊；「${c.name}」不在场，也不知道这段对话的内容。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
     const lore = activeLore(c, history || c.chat, npc.id);
@@ -3714,7 +3779,12 @@
     if (desc) { parts.push(desc); seg("char", `${npc.name} 的设定`, desc); }
     else parts.push("（没有更多设定，按名字、世界设定和聊天记录合理推断这个人的身份和性格。）");
     if (npc.aliases && npc.aliases.length) parts.push(`别名：${npc.aliases.join("、")}`);
-    const aboutChar = `${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}。${npc.name} 只知道关于 ${c.name} 的公开信息，不知道 ${c.name} 和 ${u} 私下发生的事，除非 ${u} 在这段私聊里说了。`;
+    for (const o of others) {
+      const od = [o.brief, o.desc].filter((x) => x && x.trim()).join("\n") || "（没有更多设定，按名字和上下文合理推断。）";
+      parts.push(`\n## ${o.name} 的设定`, od); seg("char", `${o.name} 的设定`, od);
+      if (o.aliases && o.aliases.length) parts.push(`别名：${o.aliases.join("、")}`);
+    }
+    const aboutChar = `${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}。${all} 只知道关于 ${c.name} 的公开信息，不知道 ${c.name} 和 ${u} 私下发生的事，除非 ${u} 在这段私聊里说了。`;
     parts.push(`\n## 关于 ${c.name}`, aboutChar); seg("char", `关于 ${c.name}`, aboutChar);
     if (state.persona.desc && state.persona.desc.trim()) { parts.push(`\n## ${u} 的人设`, state.persona.desc); seg("char", "用户人设", state.persona.desc); }
     if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", `世界书（后）条目 ${i + 1}`, t)); }
@@ -3727,7 +3797,7 @@
     const rel = met ? `${npc.name} 和 ${u} 在故事里已经打过交道，按两人现有的熟悉程度说话。` : `这是 ${npc.name} 第一次直接和 ${u} 说话，按初次接触的分寸来，不要自来熟。`;
     parts.push("", rel); seg("fixed", "关系", rel);
     if (sceneMode) {
-      const rules = [defaultRules({ name: npc.name }, u), `- ${lengthHint()}`, `- ${langHint()}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].join("\n");
+      const rules = [defaultRules({ name: all }, u), `- ${lengthHint()}`, `- ${langHint()}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].join("\n");
       parts.push("\n## 规则", rules); seg("fixed", "回复规则", rules);
     } else {
       const pr = phoneRulesFor(npc.name, u, false, "");
@@ -3783,7 +3853,7 @@
       t.appendChild(el("div", "sb", last ? `${last.role === "user" ? u : n.name}：${sub(last.content, c).split("\n")[0].slice(0, 40)}` : (n.brief || "还没聊过")));
       const right = el("div"); right.style.cssText = "display:flex;align-items:center;gap:4px";
       right.appendChild(el("span", "tg" + (npcAppeared(c, n) ? " on" : ""), npcAppeared(c, n) ? "已出场" : "未出场"));
-      const meet = el("button", "ed", "当面"); meet.title = `和 ${n.name} 单独走一段当面剧情，${c.name} 不在场`; meet.onclick = (e) => { e.stopPropagation(); enterScene(n.id); };
+      const meet = el("button", "ed", "当面"); meet.title = `和 ${n.name} 单独走一段当面剧情，${c.name} 不在场（可以再多选几个人）`; meet.onclick = (e) => { e.stopPropagation(); openSceneChooser([n.id]); };
       const ed = el("button", "ed", "✎"); ed.title = "编辑"; ed.onclick = (e) => { e.stopPropagation(); openNpcEditor(n); };
       right.append(meet, ed);
       row.append(a, t, right);
@@ -3824,13 +3894,14 @@
   }
   async function deleteNpc() {
     const c = active(); const n = npcEditing; if (!c || !n) return;
-    const floors = c.chat.filter((m) => m.npc === n.id).length;
-    if (!(await askConfirm(`删除联系人「${n.name}」？${floors ? `和 TA 的 ${floors} 条私聊也会一起删除。` : ""}`, "删除", true))) return;
-    c.chat = c.chat.filter((m) => m.npc !== n.id);
+    const solo = c.chat.filter((m) => msgHasNpc(m, n.id) && msgNpcs(m).length === 1).length;
+    if (!(await askConfirm(`删除联系人「${n.name}」？${solo ? `和 TA 单独的 ${solo} 条记录也会一起删除；多人独处的记录会留给其他在场的人。` : ""}`, "删除", true))) return;
+    c.chat = c.chat.filter((m) => !(msgHasNpc(m, n.id) && msgNpcs(m).length === 1));
+    for (const m of c.chat) if (msgHasNpc(m, n.id)) { const rest = msgNpcs(m).filter((id) => id !== n.id); m.npcs = rest.length > 1 ? rest : undefined; m.npc = rest[0]; }
     c.npcs = c.npcs.filter((x) => x.id !== n.id);
     c.books = c.books.filter((b) => !(b.memory && b.memoryNpc === n.id));
     if (phoneWith === n.id) { phoneWith = null; phoneView = "contacts"; }
-    if (c.scene && c.scene.npc === n.id) c.scene = null;
+    if (c.scene) { c.scene.npcs = c.scene.npcs.filter((id) => id !== n.id); if (!c.scene.npcs.length) c.scene = null; }
     save(); closeNpcEditor(); renderPhone(); renderMessages(); renderCharList();
   }
   // ----- scan: ask the model who the people are -----
@@ -3931,7 +4002,7 @@
   function scopeLabel(c, e, book) {
     const sc = entryScope(e);
     if (sc === "public") return "公开";
-    if (book && book.memoryNpc) return "";
+    if (book && book.memoryNpc) { const sh = e.extensions && Array.isArray(e.extensions.memory_shared) ? e.extensions.memory_shared : []; return sh.length ? `+ ${sh.map((id) => npcName(c, id)).join("、")}` : ""; }
     if (sc.startsWith("npc:")) return `仅 ${npcName(c, sc.slice(4))}`;
     return "";
   }
@@ -4042,11 +4113,17 @@
     toast(`已把 ${picked.length} 条记忆合并成一条，旧条目已停用并标「已合并」`);
     updateStats();
   }
+  // messages of this NPC (solo or shared) that no summary has covered yet; `memory.npcDone` remembers covered ids
   function npcUnsummarized(c, npc) {
-    const all = c.chat.filter((m) => m.npc === npc.id && !m.error);
-    if (!npc.memLastId) return all;
-    const at = all.findIndex((m) => m.id === npc.memLastId);
-    return at < 0 ? all : all.slice(at + 1);
+    const all = c.chat.filter((m) => msgHasNpc(m, npc.id) && !m.error);
+    const done = c.memory.npcDone || (c.memory.npcDone = {});
+    if (npc.memLastId) {
+      // older data tracked "summarised up to this message"; fold it into the id set once
+      const at = all.findIndex((m) => m.id === npc.memLastId);
+      if (at >= 0) for (const m of all.slice(0, at + 1)) done[m.id] = true;
+      npc.memLastId = null;
+    }
+    return all.filter((m) => !done[m.id]);
   }
   function openMemoryForNpc(npc) {
     const c = active();
@@ -4093,14 +4170,18 @@
     e.constant = true;
     e.position = "after_char";
     e.insertion_order = 100 + book.entries.length;
+    const shared = [...new Set(msgs.flatMap((m) => msgNpcs(m)).filter((id) => id !== npc.id && npcById(c, id)))];
     e.extensions = { ...(e.extensions || {}), memory_npc: npc.id, memory_msgs: msgs.length ? [msgs[0].id, msgs[msgs.length - 1].id] : [] };
+    if (shared.length) e.extensions.memory_shared = shared;
     if ($("memScope").value === "public") e.extensions.lantern_scope = "public";
     book.entries.push(e);
     npc.memCount = k;
-    if (msgs.length) npc.memLastId = msgs[msgs.length - 1].id;
+    const done = c.memory.npcDone || (c.memory.npcDone = {});
+    for (const m of msgs) done[m.id] = true;
     save();
     closeMemory();
-    toast(created ? `已创建「${book.name}」并存入第 ${k} 段私聊记忆（只有 ${npc.name} 看得到）` : `已存入「${book.name}」（共 ${book.entries.length} 条）`);
+    const sharedNames = shared.map((id) => npcName(c, id)).join("、");
+    toast(created ? `已创建「${book.name}」并存入第 ${k} 段私聊记忆${shared.length ? `（${sharedNames} 也在场，同样能看到）` : `（只有 ${npc.name} 看得到）`}` : `已存入「${book.name}」（共 ${book.entries.length} 条）${shared.length ? ` · ${sharedNames} 也能看到` : ""}`);
     updateStats();
     if (!$("phoneBack").hidden) renderPhone();
   }
@@ -4111,7 +4192,7 @@
     const npc = phoneWith ? npcById(c, phoneWith) : null;
     if (!c || !npc || busy || !chatReady()) return;
     const u = state.persona.name || "用户";
-    const all = c.chat.filter((m) => m.npc === npc.id && !m.error && m.kind !== "divider");
+    const all = c.chat.filter((m) => msgHasNpc(m, npc.id) && !m.error && m.kind !== "divider");
     let msgs = all;
     if (npc.toldLastId) { const at = all.findIndex((m) => m.id === npc.toldLastId); if (at >= 0) msgs = all.slice(at + 1); }
     if (!msgs.length) msgs = all.slice(-20);
@@ -4592,7 +4673,7 @@
     const c = active();
     const btn = $("ctxBtn");
     if (!c) { btn.textContent = "🧠 上下文 —"; return; }
-    try { { const sc = sceneNpc(c); buildTurns(c, undefined, sc ? sc.id : null, !!sc); } } catch (e) { return; }
+    try { { const scl = sceneNpcs(c); buildTurns(c, undefined, scl.length ? scl[0].id : null, !!scl.length, scl.map((n) => n.id)); } } catch (e) { return; }
     const r = lastReport;
     if (!r) return;
     const pct = r.total / r.cap;
@@ -4655,7 +4736,7 @@
   function renderContextPanel() {
     const c = active();
     if (!c) return;
-    { const sc = sceneNpc(c); buildTurns(c, undefined, sc ? sc.id : null, !!sc); }
+    { const scl = sceneNpcs(c); buildTurns(c, undefined, scl.length ? scl[0].id : null, !!scl.length, scl.map((n) => n.id)); }
     const r = lastReport;
     const showTok = state.settings.tokShow === true;
     $("tokBody").hidden = !showTok;
@@ -4748,6 +4829,7 @@
   function memUpdateHint() {
     const c = active();
     if (!c) return;
+    renderMemOverview(c);
     if (memMode === "merge") {
       const picked = mergeSelected(c);
       const chars = picked.reduce((n, e) => n + e.content.length, 0);
@@ -4783,6 +4865,32 @@
       : [["char", `只有 ${c.name} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"], ...c.npcs.map((n) => ["npc:" + n.id, `只有 ${n.name} 知道`])];
     for (const [v, t] of opts) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
     sel.value = "char";
+  }
+  function renderMemOverview(c) {
+    const box = $("memOverview"); box.innerHTML = "";
+    const total = floorCount(c);
+    const charUnsum = c.chat.filter((m) => !m.npc && m.kind !== "divider" && !m.error).length - c.chat.slice(0, idxAfterFloor(c, c.memory.lastFloor || 0)).filter((m) => !m.npc && m.kind !== "divider" && !m.error).length;
+    const mkRow = (label, text, flag, isCur, go) => {
+      const row = el("div", "rx-row" + (isCur ? "" : ""));
+      row.style.gridTemplateColumns = "auto minmax(0,1fr) auto auto";
+      row.appendChild(el("span", null, isCur ? "▶" : "·"));
+      const nm = el("span", "nm", label); nm.appendChild(el("small", null, text)); row.appendChild(nm);
+      row.appendChild(el("span", "stat", flag || ""));
+      const b = el("button", "btn ghost", "去总结"); b.style.cssText = "padding:3px 8px;font-size:12px"; b.onclick = go; row.appendChild(b);
+      box.appendChild(row);
+    };
+    const cb = memoryBook(c, false);
+    mkRow(c.name, `聊到第 ${total} 楼 · 总结到第 ${c.memory.lastFloor || 0} 楼 · 未总结 ${Math.max(0, charUnsum)} 楼 · 记忆书 ${cb ? cb.entries.filter((e) => e.enabled).length : 0} 条${cb ? ` ≈${memBookTokens(cb)} tok` : ""}`,
+      charUnsum >= 20 ? "该总结了" : (cb && memBookTokens(cb) > MEM_BOOK_WARN_TOKENS ? "建议合并" : ""), !memNpc, () => openMemory());
+    for (const n of c.npcs) {
+      const mine = c.chat.filter((m) => msgHasNpc(m, n.id) && m.kind !== "divider" && !m.error);
+      if (!mine.length) continue;
+      const first = floorOf(c, c.chat.indexOf(mine[0]));
+      const pending = npcUnsummarized(c, n).filter((m) => m.kind !== "divider").length;
+      const nb = memoryBook(c, false, n);
+      mkRow(n.name, `从第 ${first} 楼开始 · 共 ${mine.length} 条 · 未总结 ${pending} 条 · 记忆书 ${nb ? nb.entries.filter((e) => e.enabled).length : 0} 条${nb ? ` ≈${memBookTokens(nb)} tok` : ""}`,
+        pending >= 10 ? "该总结了" : (nb && memBookTokens(nb) > MEM_BOOK_WARN_TOKENS ? "建议合并" : ""), memNpc === n, () => openMemoryForNpc(n));
+    }
   }
   function fillMemTarget(c, value) {
     const sel = $("memTarget"); sel.innerHTML = "";
@@ -4907,21 +5015,23 @@
     const ta = $("input");
     const text = ta.value.trim();
     if (!c || busy) return;
-    const sc = sceneNpc(c);
+    const scl = sceneNpcs(c);
+    const sc = scl[0] || null;
+    const sceneOpts = sc ? { npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene" } : {};
     if (!text) {
       // empty send with an assistant message last = "continue"
-      if (c.chat.length && c.chat[c.chat.length - 1].role === "assistant") return generate(c, null, sc ? { npc: sc.id, channel: "scene" } : {});
+      if (c.chat.length && c.chat[c.chat.length - 1].role === "assistant") return generate(c, null, sceneOpts);
       return;
     }
     if (c.phone && c.phone.open) exitPhone(false);
-    c.chat.push(sc ? { id: uid(), role: "user", npc: sc.id, channel: "scene", content: text, ts: Date.now() } : { id: uid(), role: "user", content: text, ts: Date.now() });
+    c.chat.push(sc ? { id: uid(), role: "user", npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", content: text, ts: Date.now() } : { id: uid(), role: "user", content: text, ts: Date.now() });
     ta.value = "";
     $("ideas").hidden = true; $("ideas").innerHTML = "";
     autosize(ta);
     save();
     renderMessages();
     renderCharList();
-    await generate(c, null, sc ? { npc: sc.id, channel: "scene" } : {});
+    await generate(c, null, sceneOpts);
   }
 
   function regenerate() {
@@ -6064,6 +6174,11 @@
   document.addEventListener("click", (e) => { if (!$("plusMenu").hidden && !e.target.closest(".plus-wrap")) $("plusMenu").hidden = true; });
   $("bannerOpenPhone").onclick = () => openPhone(false);
   $("bannerExitPhone").onclick = () => { const c = active(); if (c && c.scene) exitScene(true); else exitPhone(true); };
+  $("bannerPeople").onclick = () => openSceneChooser();
+  $("sceneClose").onclick = () => { $("sceneBack").hidden = true; };
+  $("sceneCancel").onclick = () => { $("sceneBack").hidden = true; };
+  $("sceneGo").onclick = sceneChooserGo;
+  $("sceneBack").addEventListener("click", (e) => { if (e.target === $("sceneBack")) $("sceneBack").hidden = true; });
   $("phoneClose").onclick = () => { if (phoneView === "contacts") closePhoneView(); else { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); } };
   $("phoneContacts").onclick = () => { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); };
   $("phoneMemo").onclick = () => { const c = active(); const n = c && phoneWith ? npcById(c, phoneWith) : null; if (n) openMemoryForNpc(n); };
