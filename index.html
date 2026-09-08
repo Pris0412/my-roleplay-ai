@@ -662,7 +662,7 @@
   .ctx-item { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--raised); }
   .ctx-item summary { cursor: pointer; padding: 7px 0; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; list-style: none; }
   .ctx-item summary > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-  details.adv .ctx-item summary::after { content: none; }
+  details.adv .ctx-item summary::after { content: none !important; }
   .ctx-item summary .stat { flex: none; }
   .ctx-item summary::before { content: "▸ "; color: var(--faint); }
   .ctx-item[open] summary::before { content: "▾ "; }
