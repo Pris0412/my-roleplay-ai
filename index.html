@@ -821,11 +821,20 @@
       z-index: 40; box-shadow: var(--shadow);
     }
     .rail.open { transform: none; }
-    .stage-head { padding: 10px 12px; }
+    .stage-head { padding: 10px 12px; flex-wrap: wrap; row-gap: 6px; }
+    /* the tool buttons scroll inside their own strip instead of pushing the page sideways */
+    .stage-head .tools { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; justify-content: flex-start; scrollbar-width: none; padding-bottom: 2px; }
+    .stage-head .tools::-webkit-scrollbar { display: none; }
+    .stage-head .tools .btn { flex-shrink: 0; }
+    .stage-head .tools #openDrawer { position: sticky; right: 0; margin-left: auto; background: var(--surface); box-shadow: -8px 0 8px var(--surface); }
     .messages { padding: 14px 12px 8px; }
     .composer { padding: 10px 12px 12px; }
     .row { grid-template-columns: 1fr; }
   }
+  /* nothing in the app may widen the page: side panels are overlays below 1080px / 760px, the stage clips */
+  .app { max-width: 100vw; overflow: hidden; }
+  .stage { overflow: hidden; }
+  .status-strip, .composer-bar, .snips, .mode-banner { max-width: 100%; }
   .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 39; }
 </style>
 
@@ -2805,7 +2814,7 @@
       const txt = el("div");
       txt.appendChild(el("div", "name", c.name));
       const last = c.chat[c.chat.length - 1];
-      txt.appendChild(el("div", "sub", c.tag || (last ? sub(last.content, c).replace(/\*/g, "").slice(0, 40) : "")));
+      txt.appendChild(el("div", "sub", plainTag(c.tag) || (last ? sub(last.content, c).replace(/\*/g, "").replace(/<[^>]+>/g, "").slice(0, 40) : "")));
       const del = el("button", "del", "✕");
       del.title = `删除「${c.name}」`;
       del.setAttribute("aria-label", `删除 ${c.name}`);
@@ -2818,6 +2827,7 @@
     }
   }
 
+  const plainTag = (t) => String(t || "").replace(/<!-{2}[\s\S]*?-{2}>/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   function renderHead() {
     const c = active();
     if (!c) return;
@@ -2825,7 +2835,7 @@
     renderStatusStrip();
     renderAvatar($("headAvatar"), c, "sm");
     $("headName").textContent = c.name;
-    $("headScene").textContent = sub(c.scenario || c.tag || "", c);
+    $("headScene").textContent = plainTag(sub(c.scenario || c.tag || "", c));
   }
 
   function renderMessages() {
