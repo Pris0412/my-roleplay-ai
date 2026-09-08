@@ -1785,6 +1785,11 @@
     </div>
     <div class="modal-body">
       <div class="help">从这个角色的世界书、记忆书和最近的聊天里找出来的人。勾选的会进联系人；已经在联系人里的只更新别名和简介。</div>
+      <div class="wi-toolbar">
+        <button class="btn ghost" id="npcScanAll">全选</button>
+        <button class="btn ghost" id="npcScanNone">全不选</button>
+        <span class="stat" id="npcScanCount"></span>
+      </div>
       <div class="rx-list" id="npcScanList"></div>
     </div>
     <div class="modal-foot" style="justify-content:flex-end">
@@ -4253,7 +4258,7 @@
         const withChar = p.withChar && typeof p.withChar === "object" && (p.withChar.rel || p.withChar.aff != null) ? { rel: String(p.withChar.rel || ""), aff: Number(p.withChar.aff), note: String(p.withChar.note || "") } : null;
         return { name, aliases, brief: String(p.brief || "").slice(0, 60), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
       }).filter(Boolean);
-      if (focus) scanFound = scanFound.filter((x) => !x.existing);
+      if (focus) scanFound = scanFound.filter((x) => !x.existing).map((x) => ({ ...x, preselect: true }));
       if (!scanFound.length) toast(focus ? "最近这几楼没有新人物" : "没有找到别的人物");
       else openScanResults();
     } catch (e) {
@@ -4268,7 +4273,8 @@
     const list = $("npcScanList"); list.innerHTML = "";
     scanFound.forEach((p, i) => {
       const row = el("label", "scan-row" + (p.existing ? " old" : ""));
-      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !p.existing; cb.dataset.i = i;
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!p.preselect; cb.dataset.i = i;
+      cb.addEventListener("change", updateScanCount);
       const t = el("div");
       const nm = el("div", "nm", p.name);
       if (p.aliases.length) nm.appendChild(el("small", null, p.aliases.join(" / ")));
@@ -4278,7 +4284,14 @@
       row.append(cb, t, el("span", "stat", p.met ? "已出场" : "未出场"));
       list.appendChild(row);
     });
+    updateScanCount();
     $("npcScanBack").hidden = false;
+  }
+  function updateScanCount() {
+    const boxes = [...$("npcScanList").querySelectorAll("input[type=checkbox]")];
+    const n = boxes.filter((x) => x.checked).length;
+    $("npcScanCount").textContent = `已勾选 ${n} / ${boxes.length}`;
+    $("npcScanAdd").disabled = !n;
   }
   function applyScanResults() {
     const c = active(); if (!c) return;
@@ -6503,6 +6516,8 @@
   $("npcScanClose").onclick = () => { $("npcScanBack").hidden = true; };
   $("npcScanCancel").onclick = () => { $("npcScanBack").hidden = true; };
   $("npcScanAdd").onclick = applyScanResults;
+  $("npcScanAll").onclick = () => { $("npcScanList").querySelectorAll("input[type=checkbox]:not(:disabled)").forEach((x) => { x.checked = true; }); updateScanCount(); };
+  $("npcScanNone").onclick = () => { $("npcScanList").querySelectorAll("input[type=checkbox]").forEach((x) => { x.checked = false; }); updateScanCount(); };
   $("npcScanBack").addEventListener("click", (e) => { if (e.target === $("npcScanBack")) $("npcScanBack").hidden = true; });
   $("phoneSceneClose").onclick = closePhoneScene;
   $("phoneSceneCancel").onclick = closePhoneScene;
