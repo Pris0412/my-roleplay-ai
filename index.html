@@ -768,6 +768,16 @@
   .rel-card .ln .lb { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rel-card .ln input { width: 100%; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 13px; }
   .rel-card .ln .ro { font-size: 13px; }
+  .rel-ln { display: flex; flex-direction: column; gap: 5px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
+  .rel-ln:last-child { border-bottom: 0; padding-bottom: 0; }
+  .rel-meta { display: flex; align-items: center; gap: 8px; padding-left: 84px; }
+  .rel-meta .stage { color: #fff; font-size: 11px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .rel-meta .bar { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .rel-meta .bar span { display: block; height: 100%; }
+  .rel-ln input.note { margin-left: 84px; width: calc(100% - 84px); padding: 5px 9px; border-radius: 8px; border: 1px dashed var(--line-strong); background: transparent; font-size: 12px; color: var(--muted); }
+  .rel-ln input.note:focus { border-style: solid; color: var(--text); }
+  .rel-log { margin-left: 84px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); display: flex; flex-direction: column; gap: 2px; }
+  @media (max-width: 520px) { .rel-meta, .rel-log { padding-left: 0; margin-left: 0; } .rel-ln input.note { margin-left: 0; width: 100%; } }
   @media (max-width: 520px) { .rel-card .ln { grid-template-columns: 64px minmax(0, 1fr) 56px; } }
   .wi-toolbar .spacer { flex: 1; }
   @media (max-width: 760px) { .wi-entry .form .row3 { grid-template-columns: 1fr; } }
@@ -1698,7 +1708,10 @@
         <div class="checks">
           <label>每 <input id="relAuto" type="number" min="0" max="500" class="mono" style="width:64px;padding:4px 6px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"> 楼自动让模型重新评估一次「和主角」的关系（0 = 关）</label>
         </div>
-        <div class="help">「和你」那一列在 NPC 私聊和独处时会随每次回复自动更新，和状态面板同一套机制。</div>
+        <div class="checks">
+          <label style="flex:1;min-width:0">阶段阈值 <input id="relStages" class="mono" placeholder="20 疏远, 45 认识, 70 朋友, 90 亲近, 100 亲密" style="width:100%;padding:4px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"></label>
+        </div>
+        <div class="help">「和你」在 NPC 私聊和独处时随每次回复自动更新；每次变动都记在「轨迹」里（第几楼、从多少到多少、原因）。</div>
       </div>
       <div id="stTabPanel">
       <div class="checks">
@@ -3849,8 +3862,35 @@
   }
   // ---------- Relationship graph: you ↔ NPC, character ↔ NPC (you ↔ character lives in the status panel) ----------
   const relKey = (side, npcId) => `${side}:${npcId}`; // side: "u" (with you) | "c" (with the character)
-  function relGet(c, side, npcId) { const r = c.rels && c.rels[relKey(side, npcId)]; return r ? { rel: String(r.rel || ""), aff: Math.max(0, Math.min(100, Number(r.aff) || 0)), set: true } : { rel: "", aff: 50, set: false }; }
-  function relSet(c, side, npcId, rel, aff) { c.rels = c.rels || {}; c.rels[relKey(side, npcId)] = { rel: String(rel || "").trim().slice(0, 40), aff: Math.max(0, Math.min(100, Math.round(Number(aff) || 0))) }; }
+  function relGet(c, side, npcId) {
+    const r = c.rels && c.rels[relKey(side, npcId)];
+    return r ? { rel: String(r.rel || ""), aff: Math.max(0, Math.min(100, Number(r.aff) || 0)), note: String(r.note || ""), log: Array.isArray(r.log) ? r.log : [], set: true } : { rel: "", aff: 50, note: "", log: [], set: false };
+  }
+  // update a relation; every real change is appended to its log (floor, old → new, reason)
+  function relSet(c, side, npcId, rel, aff, note, why) {
+    c.rels = c.rels || {};
+    const prev = relGet(c, side, npcId);
+    const next = { rel: String(rel == null ? prev.rel : rel).trim().slice(0, 40), aff: Math.max(0, Math.min(100, Math.round(Number(aff == null ? prev.aff : aff) || 0))), note: String(note == null ? prev.note : note).trim().slice(0, 120), log: prev.log.slice() };
+    const changed = !prev.set || prev.rel !== next.rel || prev.aff !== next.aff;
+    if (changed) {
+      next.log.push({ floor: floorCount(c), ts: Date.now(), from: prev.set ? prev.aff : null, to: next.aff, rel: next.rel, why: String(why || "").trim().slice(0, 80) });
+      if (next.log.length > 30) next.log = next.log.slice(-30);
+    }
+    c.rels[relKey(side, npcId)] = next;
+    return changed;
+  }
+  const DEFAULT_REL_STAGES = [[20, "疏远"], [45, "认识"], [70, "朋友"], [90, "亲近"], [100, "亲密"]];
+  function relStages() {
+    const raw = state.settings.relStages;
+    if (typeof raw === "string" && raw.trim()) {
+      const parsed = raw.split(/[,，;；\n]/).map((x) => x.trim()).filter(Boolean).map((x) => { const m = x.match(/^(\d+)\s*(.*)$/); return m ? [Math.min(100, Number(m[1])), m[2] || ""] : null; }).filter((x) => x && x[1]).sort((a, b) => a[0] - b[0]);
+      if (parsed.length) { if (parsed[parsed.length - 1][0] < 100) parsed.push([100, parsed[parsed.length - 1][1]]); return parsed; }
+    }
+    return DEFAULT_REL_STAGES;
+  }
+  function relStage(aff) { const st = relStages(); for (const [max, label] of st) if (aff <= max) return label; return st[st.length - 1][1]; }
+  function relStageColor(aff) { const t = Math.max(0, Math.min(100, aff)) / 100; return `hsl(${Math.round(15 + 110 * t)}, 60%, 45%)`; }
+  const relTrend = (r) => { const last = r.log[r.log.length - 1]; if (!last || last.from == null) return ""; return last.to > last.from ? "↑" : last.to < last.from ? "↓" : ""; };
   function charUserRel(c) {
     const st = c.status;
     const relF = st && st.fields.find((f) => f.key === "关系");
@@ -3866,34 +3906,49 @@
       const list = [forNpc, ...(others || [])];
       for (const n of list) {
         const a = relGet(c, "u", n.id), b = relGet(c, "c", n.id);
-        if (a.set) lines.push(`${n.name} 和 ${u}：${a.rel || "（未定）"}（好感 ${a.aff}/100）`);
-        if (b.set) lines.push(`${n.name} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100）`);
+        if (a.set) lines.push(`${n.name} 和 ${u}：${a.rel || "（未定）"}（好感 ${a.aff}/100，${relStage(a.aff)}）${a.note ? ` · ${a.note}` : ""}`);
+        if (b.set) lines.push(`${n.name} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100，${relStage(b.aff)}）${b.note ? ` · ${b.note}` : ""}`);
       }
     } else {
       for (const n of c.npcs) {
         const a = relGet(c, "u", n.id), b = relGet(c, "c", n.id);
-        if (b.set) lines.push(`${c.name} 和 ${n.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100）`);
-        if (a.set) lines.push(`${u} 和 ${n.name}：${a.rel || "（未定）"}（好感 ${a.aff}/100）`);
+        if (b.set) lines.push(`${c.name} 和 ${n.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100，${relStage(b.aff)}）${b.note ? ` · ${b.note}` : ""}`);
+        if (a.set) lines.push(`${u} 和 ${n.name}：${a.rel || "（未定）"}（好感 ${a.aff}/100，${relStage(a.aff)}）${a.note ? ` · ${a.note}` : ""}`);
       }
     }
     if (!lines.length) return "";
-    return `## 人际关系\n${lines.map((x) => "- " + x).join("\n")}\n（好感 0 厌恶，50 普通，100 极亲近；按这些关系来把握态度和距离。）`;
+    const st = relStages().map(([m, l]) => `${l}≤${m}`).join(" ");
+    return `## 人际关系\n${lines.map((x) => "- " + x).join("\n")}\n（好感 0 厌恶，50 普通，100 极亲近；阶段：${st}。按这些关系来把握态度和距离。）`;
   }
   // ----- relationship table -----
   function relLine(c, side, n, label) {
     const r = relGet(c, side, n.id);
+    const box = el("div", "rel-ln");
     const ln = el("div", "ln");
     ln.appendChild(el("div", "lb", label));
     const t = document.createElement("input"); t.value = r.rel; t.placeholder = r.set ? "关系" : "未设定";
     const num = document.createElement("input"); num.type = "number"; num.min = 0; num.max = 100; num.value = r.set ? r.aff : ""; num.placeholder = "—"; num.className = "mono";
-    const commit = () => {
-      if (!t.value.trim() && num.value === "") { if (c.rels) delete c.rels[relKey(side, n.id)]; }
-      else relSet(c, side, n.id, t.value, num.value === "" ? 50 : num.value);
-      save(); if (!$("phoneBack").hidden) renderPhone();
-    };
-    t.addEventListener("change", commit); num.addEventListener("change", commit);
     ln.append(t, num);
-    return ln;
+    const meta = el("div", "rel-meta");
+    const chip = el("span", "stage", r.set ? `${relStage(r.aff)} ${relTrend(r)}`.trim() : "未设定"); chip.style.background = r.set ? relStageColor(r.aff) : "var(--line-strong)";
+    const bar = el("div", "bar"); const fill = el("span"); fill.style.width = (r.set ? r.aff : 0) + "%"; fill.style.background = r.set ? relStageColor(r.aff) : "transparent"; bar.appendChild(fill);
+    const note = document.createElement("input"); note.value = r.note; note.placeholder = "现状一句话（模型评估时会写，也可以自己填）"; note.className = "note";
+    const last = r.log[r.log.length - 1];
+    const lg = el("button", "btn ghost", r.log.length ? `轨迹 ${r.log.length}` : "轨迹"); lg.style.cssText = "padding:2px 8px;font-size:11px"; lg.disabled = !r.log.length;
+    meta.append(chip, bar, lg);
+    const logBox = el("div", "rel-log"); logBox.hidden = true;
+    if (r.log.length) for (const e of r.log.slice().reverse()) logBox.appendChild(el("div", null, `第 ${e.floor} 楼 · ${e.from == null ? "设为" : `${e.from} → `}${e.to}${e.rel ? ` · ${e.rel}` : ""}${e.why ? ` · ${e.why}` : ""}`));
+    lg.onclick = () => { logBox.hidden = !logBox.hidden; };
+    const commit = (why) => {
+      if (!t.value.trim() && num.value === "" && !note.value.trim()) { if (c.rels) delete c.rels[relKey(side, n.id)]; }
+      else relSet(c, side, n.id, t.value, num.value === "" ? 50 : num.value, note.value, why);
+      save(); if (!$("phoneBack").hidden) renderPhone();
+      renderRelTable(c);
+    };
+    t.addEventListener("change", () => commit("手动修改")); num.addEventListener("change", () => commit("手动修改")); note.addEventListener("change", () => commit(""));
+    box.append(ln, meta, note, logBox);
+    if (last && last.why) meta.title = `最近：第 ${last.floor} 楼 ${last.why}`;
+    return box;
   }
   function renderRelTable(c) {
     const u = state.persona.name || "你";
@@ -3923,6 +3978,7 @@
     }
     if (!c.npcs.length) box.appendChild(el("div", "rx-empty", "还没有人物。点「扫描人物」从世界书和剧情里找，或「＋ 新建」。"));
     $("relAuto").value = state.settings.relAuto == null ? 20 : state.settings.relAuto;
+    $("relStages").value = typeof state.settings.relStages === "string" ? state.settings.relStages : "";
   }
   // NPC replies carry a small status block for the NPC ↔ you relation, same mechanism as the character's panel
   function npcStatusInstruction(c, npc, others) {
@@ -3930,8 +3986,8 @@
     const all = [npc, ...(others || [])];
     const cur = all.map((n) => { const r = relGet(c, "u", n.id); return `${n.name} 和 ${u}：${r.set ? `${r.rel || "（未定）"}（好感 ${r.aff}/100）` : "还没有明确关系（按初次接触算）"}`; }).join("；");
     const example = all.length > 1
-      ? JSON.stringify(Object.fromEntries(all.map((n) => [n.name, { "关系": relGet(c, "u", n.id).rel || "…", "好感度": relGet(c, "u", n.id).set ? relGet(c, "u", n.id).aff : 50 }])))
-      : JSON.stringify({ "关系": relGet(c, "u", npc.id).rel || "…", "好感度": relGet(c, "u", npc.id).set ? relGet(c, "u", npc.id).aff : 50 });
+      ? JSON.stringify(Object.fromEntries(all.map((n) => [n.name, { "关系": relGet(c, "u", n.id).rel || "…", "好感度": relGet(c, "u", n.id).set ? relGet(c, "u", n.id).aff : 50, "原因": "变化原因，没变就省略" }])))
+      : JSON.stringify({ "关系": relGet(c, "u", npc.id).rel || "…", "好感度": relGet(c, "u", npc.id).set ? relGet(c, "u", npc.id).aff : 50, "原因": "变化原因，没变就省略" });
     return [
       "## 关系变化",
       `目前：${cur}。`,
@@ -3954,7 +4010,9 @@
       const rel = typeof o["关系"] === "string" ? o["关系"] : cur.rel;
       const affRaw = o["好感度"] != null ? Number(String(o["好感度"]).replace(/[^\d.-]/g, "")) : NaN;
       const aff = Number.isNaN(affRaw) ? (cur.set ? cur.aff : 50) : affRaw;
-      relSet(c, "u", n.id, rel, aff); changed = true;
+      const why = typeof o["原因"] === "string" && !/没变|省略/.test(o["原因"]) ? o["原因"] : "";
+      const note = typeof o["现状"] === "string" ? o["现状"] : undefined;
+      relSet(c, "u", n.id, rel, aff, note, why); changed = true;
     };
     const byName = list.filter((n) => obj[n.name] && typeof obj[n.name] === "object");
     if (byName.length) byName.forEach((n) => applyOne(n, obj[n.name]));
@@ -3980,7 +4038,7 @@
       return th.length ? `### ${n.name} 与 ${u} 私下（${c.name} 不在场）\n${th.map((m) => `${m.role === "user" ? u : n.name}：${clip(m, 240)}`).join("\n")}` : "";
     }).filter(Boolean);
     const mems = c.books.filter((b) => b.memory).flatMap((b) => b.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${b.name} · ${e.comment}】${e.content.trim().slice(0, 300)}`));
-    const cur = c.npcs.map((n) => { const a = relGet(c, "u", n.id), b = relGet(c, "c", n.id); return `${n.name}：与 ${u} ${a.set ? `${a.rel} ${a.aff}` : "未设定"}；与 ${c.name} ${b.set ? `${b.rel} ${b.aff}` : "未设定"}`; });
+    const cur = c.npcs.map((n) => { const a = relGet(c, "u", n.id), b = relGet(c, "c", n.id); return `${n.name}：与 ${u} ${a.set ? `${a.rel} ${a.aff}${a.note ? `（${a.note}）` : ""}` : "未设定"}；与 ${c.name} ${b.set ? `${b.rel} ${b.aff}${b.note ? `（${b.note}）` : ""}` : "未设定"}`; });
     const prompt = [
       `这是一场角色扮演的资料。主角「${c.name}」${c.tag ? `（${sub(c.tag, c)}）` : ""}，用户「${u}」。请根据资料判断每个 NPC 现在和 ${u}、和 ${c.name} 的关系。`,
       "",
@@ -3999,7 +4057,7 @@
       priv.join("\n\n"),
       "",
       "只输出 JSON：",
-      `{"relations":[{"npc":"名字","withUser":{"rel":"关系词（2 到 6 个字）","aff":0到100},"withChar":{"rel":"关系词","aff":0到100}}]}`,
+      `{"relations":[{"npc":"名字","withUser":{"rel":"关系词（2 到 6 个字）","aff":0到100,"note":"现状一句话（20 字内）","why":"这次变化的原因（15 字内，没变就空）"},"withChar":{"rel":"关系词","aff":0到100,"note":"现状一句话","why":"变化原因"}}]}`,
       `好感：0 厌恶，30 疏远，50 普通，70 亲近，90 以上极亲近。资料里没有依据的一项就省略那一项。`,
     ].join("\n");
     relCtl = new AbortController();
@@ -4012,8 +4070,8 @@
         const name = String(r && r.npc || "").trim();
         const npc = c.npcs.find((x) => x.name === name || x.aliases.includes(name));
         if (!npc) continue;
-        if (r.withUser && typeof r.withUser === "object" && (r.withUser.rel || r.withUser.aff != null)) { relSet(c, "u", npc.id, r.withUser.rel, r.withUser.aff); n++; }
-        if (r.withChar && typeof r.withChar === "object" && (r.withChar.rel || r.withChar.aff != null)) { relSet(c, "c", npc.id, r.withChar.rel, r.withChar.aff); n++; }
+        if (r.withUser && typeof r.withUser === "object" && (r.withUser.rel || r.withUser.aff != null)) { relSet(c, "u", npc.id, r.withUser.rel, r.withUser.aff, r.withUser.note, r.withUser.why || "模型评估"); n++; }
+        if (r.withChar && typeof r.withChar === "object" && (r.withChar.rel || r.withChar.aff != null)) { relSet(c, "c", npc.id, r.withChar.rel, r.withChar.aff, r.withChar.note, r.withChar.why || "模型评估"); n++; }
       }
       c.relsUpdated = { ts: Date.now(), floor: floorCount(c) };
       save();
@@ -4168,7 +4226,7 @@
       `## 角色简介\n${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}\n${(c.description || "").slice(0, 600)}`,
       "",
       "只输出 JSON，格式：",
-      `{"people":[{"name":"名字","aliases":["别名"],"brief":"一句话身份（20 字内）","entry":条目编号或null,"met":true或false,"withChar":{"rel":"和${c.name}的关系词（2 到 6 字）","aff":0到100}}]}`,
+      `{"people":[{"name":"名字","aliases":["别名"],"brief":"一句话身份（20 字内）","entry":条目编号或null,"met":true或false,"withChar":{"rel":"和${c.name}的关系词（2 到 6 字）","aff":0到100,"note":"现状一句话（20 字内）"}}]}`,
       `entry 填这个人主要来自哪条世界书条目的编号，没有就 null。met 表示 ${u} 在聊天记录里已经和这个人说过话或见过面。withChar 是这个人和 ${c.name} 的关系，资料里看不出来就省略。不要编造资料里没有的人，最多 30 个。`,
     ].join("\n");
     scanning = new AbortController();
@@ -4183,7 +4241,7 @@
         const aliases = Array.isArray(p.aliases) ? p.aliases.map((x) => String(x).trim()).filter((x) => x && x !== name) : [];
         const ent = Number.isInteger(p.entry) ? entries.find((x) => x.n === p.entry) : null;
         const existing = c.npcs.find((x) => x.name === name || x.aliases.includes(name) || aliases.includes(x.name));
-        const withChar = p.withChar && typeof p.withChar === "object" && (p.withChar.rel || p.withChar.aff != null) ? { rel: String(p.withChar.rel || ""), aff: Number(p.withChar.aff) } : null;
+        const withChar = p.withChar && typeof p.withChar === "object" && (p.withChar.rel || p.withChar.aff != null) ? { rel: String(p.withChar.rel || ""), aff: Number(p.withChar.aff), note: String(p.withChar.note || "") } : null;
         return { name, aliases, brief: String(p.brief || "").slice(0, 60), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
       }).filter(Boolean);
       if (!scanFound.length) toast("没有找到别的人物");
@@ -4222,12 +4280,12 @@
         for (const a of p.aliases) if (!p.existing.aliases.includes(a) && a !== p.existing.name) p.existing.aliases.push(a);
         if (!p.existing.brief && p.brief) p.existing.brief = p.brief;
         if (!p.existing.desc && p.entry) { p.existing.desc = p.entry.content.trim(); p.existing.entryId = p.entry.id; }
-        if (p.withChar && !relGet(c, "c", p.existing.id).set) relSet(c, "c", p.existing.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff);
+        if (p.withChar && !relGet(c, "c", p.existing.id).set) relSet(c, "c", p.existing.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff, p.withChar.note, "扫描世界书");
         updated++;
       } else {
         const n = normalizeNpc({ name: p.name, aliases: p.aliases, brief: p.brief, desc: p.entry ? p.entry.content.trim() : "", entryId: p.entry ? p.entry.id : null });
         c.npcs.push(n);
-        if (p.withChar) relSet(c, "c", n.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff);
+        if (p.withChar) relSet(c, "c", n.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff, p.withChar.note, "扫描世界书");
         added++;
       }
     });
@@ -5546,6 +5604,8 @@
       worldName: d.extensions && typeof d.extensions.world === "string" ? d.extensions.world : "",
       extensions: d.extensions && typeof d.extensions === "object" ? d.extensions : {},
       regex: d.extensions && Array.isArray(d.extensions.regex_scripts) ? d.extensions.regex_scripts.map(normalizeScript).filter(Boolean) : [],
+      npcs: d.extensions && d.extensions.lantern && Array.isArray(d.extensions.lantern.npcs) ? d.extensions.lantern.npcs : [],
+      rels: d.extensions && d.extensions.lantern && d.extensions.lantern.rels && typeof d.extensions.lantern.rels === "object" ? d.extensions.lantern.rels : {},
       chat: [],
       createdAt: Date.now(),
     });
@@ -5577,6 +5637,7 @@
     };
     if (c.regex && c.regex.length) data.extensions.regex_scripts = c.regex; else delete data.extensions.regex_scripts;
     if (c.worldName) data.extensions.world = c.worldName; else delete data.extensions.world;
+    if ((c.npcs && c.npcs.length) || (c.rels && Object.keys(c.rels).length)) data.extensions.lantern = { ...(data.extensions.lantern || {}), npcs: c.npcs || [], rels: c.rels || {} }; else if (data.extensions.lantern) { delete data.extensions.lantern.npcs; delete data.extensions.lantern.rels; }
     if (!data.character_book) delete data.character_book;
     const v2 = { spec: "chara_card_v2", spec_version: "2.0", data };
     const v3 = {
@@ -6453,6 +6514,7 @@
   $("relRefresh").onclick = () => relRefresh(false);
   $("relScan").onclick = scanNpcs;
   $("relAdd").onclick = () => openNpcEditor(null);
+  $("relStages").addEventListener("change", (e) => { state.settings.relStages = e.target.value.trim(); save(); const c = active(); if (c) renderRelTable(c); });
   $("relAuto").addEventListener("change", (e) => { state.settings.relAuto = Math.max(0, Math.min(500, parseInt(e.target.value, 10) || 0)); e.target.value = state.settings.relAuto; save(); });
   $("statusStrip").onclick = openStatus;
   $("stClose").onclick = () => { $("stBack").hidden = true; };
