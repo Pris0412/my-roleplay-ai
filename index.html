@@ -756,12 +756,19 @@
   .hit .s { color: var(--text); line-height: 1.5; }
   .hit .s mark { background: var(--accent-soft); color: var(--accent-strong); padding: 0 1px; }
   .mem-result { min-height: 160px; }
-  .rel-table { min-width: 560px; }
-  .rel-table th, .rel-table td { white-space: nowrap; }
-  .rel-table td:first-child { min-width: 96px; max-width: 160px; white-space: normal; }
-  .rel-table td:first-child small { display: block; color: var(--muted); font-size: 11px; }
-  .rel-table td:nth-child(2), .rel-table td:nth-child(3) { min-width: 200px; }
-  .rel-table td:nth-child(4) { color: var(--faint); font-size: 12px; }
+  .rel-cards { display: flex; flex-direction: column; gap: 8px; }
+  .rel-card { border: 1px solid var(--line); border-radius: 12px; background: var(--raised); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .rel-card .hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .rel-card .hd b { font-size: 14px; }
+  .rel-card .hd small { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rel-card .hd .tg { font-size: 10px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+  .rel-card .hd .ops { display: flex; gap: 2px; margin-left: auto; }
+  .rel-card .hd .ops .btn { padding: 3px 8px; font-size: 12px; }
+  .rel-card .ln { display: grid; grid-template-columns: 76px minmax(0, 1fr) 64px; gap: 8px; align-items: center; }
+  .rel-card .ln .lb { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rel-card .ln input { width: 100%; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 13px; }
+  .rel-card .ln .ro { font-size: 13px; }
+  @media (max-width: 520px) { .rel-card .ln { grid-template-columns: 64px minmax(0, 1fr) 56px; } }
   .wi-toolbar .spacer { flex: 1; }
   @media (max-width: 760px) { .wi-entry .form .row3 { grid-template-columns: 1fr; } }
   .rx-row {
@@ -1687,7 +1694,7 @@
           <button class="btn primary" id="relRefresh">让模型更新关系</button>
           <span class="stat" id="relMeta"></span>
         </div>
-        <div style="overflow-x:auto"><table class="tok rel-table" id="relTable"></table></div>
+        <div class="rel-cards" id="relTable"></div>
         <div class="checks">
           <label>每 <input id="relAuto" type="number" min="0" max="500" class="mono" style="width:64px;padding:4px 6px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"> 楼自动让模型重新评估一次「和主角」的关系（0 = 关）</label>
         </div>
@@ -3873,40 +3880,48 @@
     return `## 人际关系\n${lines.map((x) => "- " + x).join("\n")}\n（好感 0 厌恶，50 普通，100 极亲近；按这些关系来把握态度和距离。）`;
   }
   // ----- relationship table -----
-  function relInput(c, side, n) {
+  function relLine(c, side, n, label) {
     const r = relGet(c, side, n.id);
-    const wrap = el("div"); wrap.style.cssText = "display:flex;gap:6px;align-items:center;min-width:200px;max-width:260px";
+    const ln = el("div", "ln");
+    ln.appendChild(el("div", "lb", label));
     const t = document.createElement("input"); t.value = r.rel; t.placeholder = r.set ? "关系" : "未设定";
-    t.style.cssText = "flex:1;min-width:80px;padding:5px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised);font-size:13px";
     const num = document.createElement("input"); num.type = "number"; num.min = 0; num.max = 100; num.value = r.set ? r.aff : ""; num.placeholder = "—"; num.className = "mono";
-    num.style.cssText = "width:58px;padding:5px 6px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised);font-size:13px";
     const commit = () => {
       if (!t.value.trim() && num.value === "") { if (c.rels) delete c.rels[relKey(side, n.id)]; }
       else relSet(c, side, n.id, t.value, num.value === "" ? 50 : num.value);
       save(); if (!$("phoneBack").hidden) renderPhone();
     };
     t.addEventListener("change", commit); num.addEventListener("change", commit);
-    wrap.append(t, num);
-    return wrap;
+    ln.append(t, num);
+    return ln;
   }
   function renderRelTable(c) {
     const u = state.persona.name || "你";
-    const tb = $("relTable"); tb.innerHTML = "";
-    const tr = (cells, cls) => { const r = document.createElement("tr"); if (cls) r.className = cls; for (const cell of cells) { const td = document.createElement(typeof cell === "string" && cell.startsWith("th:") ? "th" : "td"); if (typeof cell === "string") td.textContent = cell.replace(/^th:/, ""); else td.appendChild(cell); r.appendChild(td); } tb.appendChild(r); return r; };
-    tr([`th:人物`, `th:和 ${u}`, `th:和 ${c.name}`, "th:出场", "th:"]);
+    const box = $("relTable"); box.innerHTML = "";
+    // the character ↔ you card reads the status panel
     const cu = charUserRel(c);
-    const cuCell = el("span", null, `${cu.rel || "（未填）"}${cu.aff != null ? ` · ${cu.aff}` : ""}`); cuCell.title = "在「状态面板」页签里改";
-    const goSt = el("button", "btn ghost", "状态面板"); goSt.style.cssText = "padding:3px 8px;font-size:12px"; goSt.onclick = () => showStatusTab("panel");
-    tr([(() => { const d = el("div"); d.appendChild(el("b", null, c.name)); d.appendChild(el("small", null, " 主角")); return d; })(), cuCell, el("span", "stat", "—"), el("span", "stat", "—"), goSt]);
+    const cc = el("div", "rel-card");
+    const chd = el("div", "hd"); chd.appendChild(el("b", null, c.name)); chd.appendChild(el("span", "tg", "主角"));
+    const ops0 = el("div", "ops"); const goSt = el("button", "btn ghost", "状态面板"); goSt.onclick = () => showStatusTab("panel"); ops0.appendChild(goSt); chd.appendChild(ops0);
+    cc.appendChild(chd);
+    const l0 = el("div", "ln"); l0.appendChild(el("div", "lb", `和 ${u}`)); l0.appendChild(el("div", "ro", `${cu.rel || "（未填）"}${cu.aff != null ? ` · 好感 ${cu.aff}` : ""}`)); l0.appendChild(el("span", "stat", "")); cc.appendChild(l0);
+    box.appendChild(cc);
     for (const n of c.npcs) {
-      const nameCell = el("div"); nameCell.appendChild(el("b", null, n.name)); if (n.brief) nameCell.appendChild(el("small", null, n.brief));
-      const ops = el("div"); ops.style.cssText = "display:flex;gap:2px;white-space:nowrap";
-      const ed = el("button", "btn ghost", "编辑"); ed.style.cssText = "padding:3px 8px;font-size:12px"; ed.onclick = () => openNpcEditor(n);
-      const del = el("button", "btn ghost danger", "删除"); del.style.cssText = "padding:3px 8px;font-size:12px"; del.onclick = async () => { npcEditing = n; await deleteNpc(); renderRelTable(c); };
-      ops.append(ed, del);
-      tr([nameCell, relInput(c, "u", n), relInput(c, "c", n), el("span", "stat", npcAppeared(c, n) ? "已出场" : "未出场"), ops]);
+      const card = el("div", "rel-card");
+      const hd = el("div", "hd");
+      hd.appendChild(el("b", null, n.name));
+      hd.appendChild(el("small", null, n.brief || ""));
+      hd.appendChild(el("span", "tg", npcAppeared(c, n) ? "已出场" : "未出场"));
+      const ops = el("div", "ops");
+      const ed = el("button", "btn ghost", "编辑"); ed.onclick = () => openNpcEditor(n);
+      const del = el("button", "btn ghost danger", "删除"); del.onclick = async () => { npcEditing = n; await deleteNpc(); renderRelTable(c); };
+      ops.append(ed, del); hd.appendChild(ops);
+      card.appendChild(hd);
+      card.appendChild(relLine(c, "u", n, `和 ${u}`));
+      card.appendChild(relLine(c, "c", n, `和 ${c.name}`));
+      box.appendChild(card);
     }
-    if (!c.npcs.length) { const r = tr([el("span", "rx-empty", "还没有人物。点「扫描人物」从世界书和剧情里找，或「＋ 新建」。"), "", "", "", ""]); r.firstChild.colSpan = 5; while (r.children.length > 1) r.removeChild(r.lastChild); }
+    if (!c.npcs.length) box.appendChild(el("div", "rx-empty", "还没有人物。点「扫描人物」从世界书和剧情里找，或「＋ 新建」。"));
     $("relAuto").value = state.settings.relAuto == null ? 20 : state.settings.relAuto;
   }
   // NPC replies carry a small status block for the NPC ↔ you relation, same mechanism as the character's panel
