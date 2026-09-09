@@ -1094,6 +1094,17 @@
 
       <div class="section">
         <div class="section-title">你的人设</div>
+        <div class="avatar-row" style="margin-bottom:10px">
+          <div class="avatar lg" id="pAvatar"></div>
+          <div class="controls">
+            <div class="line">
+              <label class="btn" for="pImage">上传照片</label>
+              <input type="file" id="pImage" accept="image/*" hidden>
+              <button class="btn ghost" id="pClearImage">用首字</button>
+            </div>
+            <div class="help">你的头像，显示在对话、手机和朋友圈里。只存在这个浏览器。</div>
+          </div>
+        </div>
         <div class="field">
           <label for="pName">你的名字（{{user}}）</label>
           <input id="pName" placeholder="例如：旅人">
@@ -1970,6 +1981,16 @@
       <button class="btn ghost icon" id="npcClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
+      <div class="avatar-row" style="margin-bottom:10px">
+        <div class="avatar lg" id="npcAvatar"></div>
+        <div class="controls">
+          <div class="line">
+            <label class="btn" for="npcImage">上传照片</label>
+            <input type="file" id="npcImage" accept="image/*" hidden>
+            <button class="btn ghost" id="npcClearImage">用首字</button>
+          </div>
+        </div>
+      </div>
       <div class="row">
         <div class="field">
           <label for="npcName">名字</label>
@@ -3396,10 +3417,18 @@
   }
   function userAvatarNode() {
     const n = el("div", "avatar");
-    n.style.background = "var(--accent-soft)";
     n.style.borderColor = "var(--accent)";
-    n.textContent = (state.persona.name || "你").slice(0, 1);
+    if (state.persona.image) { const img = document.createElement("img"); img.src = state.persona.image; img.alt = state.persona.name || "你"; n.appendChild(img); }
+    else { n.style.background = "var(--accent-soft)"; n.textContent = (state.persona.name || "你").slice(0, 1); }
     return n;
+  }
+  const personaAv = () => ({ image: state.persona.image || "", name: state.persona.name || "你", color: "var(--accent-soft)" });
+  // small round avatar used in the phone (contacts, moments): photo if there is one, else an initial
+  function avFill(node, obj) {
+    node.innerHTML = "";
+    if (obj && obj.image) { const img = document.createElement("img"); img.src = obj.image; img.alt = obj.name || ""; node.appendChild(img); }
+    else node.textContent = (obj && (obj.emoji || (obj.name || "?").slice(0, 1))) || "?";
+    return node;
   }
 
   // ============================================================
@@ -3496,7 +3525,7 @@
     const wrap = el("div", "phone-card");
     wrap.dataset.id = run[run.length - 1].m.id;
     const av = el("div");
-    if (npc) { av.className = "avatar"; av.textContent = npc.name[0]; } else renderAvatar(av, c);
+    renderAvatar(av, npc || c);
     const pc = el("div", "pc" + (npcId ? " npc" : ""));
     const last = run[run.length - 1].m;
     const who = last.role === "user" ? (state.persona.name || "你") : (npc ? npc.name : npcId ? "某人" : c.name);
@@ -3529,7 +3558,7 @@
     const npc = m.npc ? npcById(c, m.npc) : null;
     const wrap = el("div", "msg " + (isUser ? "user" : "char") + (m.error ? " error" : "") + (m.hidden ? " hidden-floor" : "") + (m.npc ? " scene" : "") + (m.narration ? " narration" : ""));
     wrap.dataset.id = m.id;
-    const av = m.narration ? el("div", "avatar", "📣") : isUser ? userAvatarNode() : m.npc ? (() => { const n = el("div", "avatar", npc ? npc.name[0] : "?"); return n; })() : (() => { const n = el("div"); renderAvatar(n, c); return n; })();
+    const av = m.narration ? el("div", "avatar", "📣") : isUser ? userAvatarNode() : m.npc ? (() => { const n = el("div"); renderAvatar(n, npc || { name: "?" }); return n; })() : (() => { const n = el("div"); renderAvatar(n, c); return n; })();
     const body = el("div", "body");
     const meta = el("div", "meta");
     meta.appendChild(el("span", "who", m.narration ? "旁白" : isUser ? (state.persona.name || "你") : m.npc ? (npc ? npc.name : "某人") : c.name));
@@ -3652,6 +3681,7 @@
   function renderSettings() {
     $("pName").value = state.persona.name || "";
     $("pDesc").value = state.persona.desc || "";
+    renderAvatar($("pAvatar"), personaAv(), "lg");
     $("sTier").value = state.settings.tier;
     $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" ? state.settings.len : "medium";
     $("sLenMin").value = state.settings.lenMin || 600;
@@ -4596,7 +4626,7 @@
     if (!n || typeof n !== "object" || !n.name) return null;
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
-      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
       memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
   }
@@ -5012,7 +5042,7 @@
     }
     list.appendChild(el("div", "ct-h", "角色"));
     const rowChar = el("button", "ct-row");
-    const av = el("div", "av"); if (c.image) { const img = document.createElement("img"); img.src = c.image; av.appendChild(img); } else av.textContent = c.emoji || c.name[0];
+    const av = avFill(el("div", "av"), c);
     const tx = el("div"); tx.appendChild(el("div", "nm", c.name)); tx.appendChild(el("div", "sb", c.phone && c.phone.open ? "手机模式进行中" : "当面场景中 · 点开拿出手机"));
     rowChar.append(av, tx, el("span", "tg on", "主角"));
     rowChar.onclick = () => selectContact(null);
@@ -5021,7 +5051,7 @@
     if (!c.npcs.length) list.appendChild(el("div", "ct-empty", "还没有联系人。点「扫描人物」让模型从世界书和剧情里找出可以联系的人，或者手动新建一个。"));
     for (const n of c.npcs) {
       const row = el("button", "ct-row");
-      const a = el("div", "av", n.name[0]);
+      const a = avFill(el("div", "av"), n);
       const t = el("div"); t.appendChild(el("div", "nm", n.name));
       const last = npcThreadLast(c, n.id);
       const ru = relGet(c, "u", n.id);
@@ -5061,10 +5091,14 @@
   }
   // ----- NPC editor -----
   let npcEditing = null;
+  let npcImageDraft = "";
+  const renderNpcAvatar = () => renderAvatar($("npcAvatar"), { image: npcImageDraft, name: $("npcName").value.trim() || "?" }, "lg");
   function openNpcEditor(n) {
     npcEditing = n;
+    npcImageDraft = n ? n.image || "" : "";
     $("npcTitle").textContent = n ? `编辑 · ${n.name}` : "新建联系人";
     $("npcName").value = n ? n.name : "";
+    renderNpcAvatar();
     $("npcAliases").value = n ? n.aliases.join(", ") : "";
     $("npcBrief").value = n ? n.brief : "";
     $("npcDesc").value = n ? n.desc : "";
@@ -5082,7 +5116,7 @@
     if (!name) { toast("名字不能为空", true); $("npcName").focus(); return; }
     const aliases = $("npcAliases").value.split(/[,，、]/).map((x) => x.trim()).filter((x) => x && x !== name);
     if (c.npcs.some((x) => x !== npcEditing && x.name === name)) { toast("已经有同名的联系人了", true); return; }
-    const fields = { name, aliases, brief: $("npcBrief").value.trim(), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim() };
+    const fields = { name, aliases, brief: $("npcBrief").value.trim(), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), image: npcImageDraft };
     if (npcEditing) Object.assign(npcEditing, fields);
     else c.npcs.push(normalizeNpc(fields));
     save(); closeNpcEditor(); renderPhone(); renderMessages();
@@ -5612,7 +5646,7 @@
     for (const p of posts) {
       const card = el("div", "mo-post"); card.dataset.id = p.id;
       const head = el("div", "mo-head");
-      const av = el("div", "av"); if (p.author === "char") renderAvatar(av, c); else if (p.author === "user") av.textContent = u[0]; else av.textContent = momentAuthorName(c, p.author)[0];
+      const av = el("div", "av"); if (p.author === "char") renderAvatar(av, c); else if (p.author === "user") avFill(av, personaAv()); else avFill(av, npcById(c, p.author) || { name: momentAuthorName(c, p.author) });
       const meta = el("div"); meta.appendChild(el("div", "nm", momentAuthorName(c, p.author))); meta.appendChild(el("div", "tm", `${fmtTime(p.ts)} · #${floorOf(c, c.chat.indexOf(p))}`));
       const del = el("button", "mo-x", "×"); del.title = "删除这条动态"; del.onclick = () => momentDelete(c, p);
       head.append(av, meta, del);
@@ -7926,7 +7960,14 @@
   });
   $("edClearImage").onclick = () => { if (editing) { editing.draft.image = ""; renderEditorAvatar(); } };
 
-  $("pName").addEventListener("input", (e) => { state.persona.name = e.target.value; save(); renderMessages(); renderHead(); });
+  $("pName").addEventListener("input", (e) => { state.persona.name = e.target.value; save(); renderMessages(); renderHead(); renderAvatar($("pAvatar"), personaAv(), "lg"); });
+  $("pImage").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try { state.persona.image = await readImage(f); save(); renderAvatar($("pAvatar"), personaAv(), "lg"); renderMessages(); renderPhone(); toast("头像已更新"); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+    e.target.value = "";
+  });
+  $("pClearImage").onclick = () => { state.persona.image = ""; save(); renderAvatar($("pAvatar"), personaAv(), "lg"); renderMessages(); renderPhone(); };
   $("pDesc").addEventListener("input", (e) => { state.persona.desc = e.target.value; save(); });
   $("sTier").addEventListener("change", (e) => { state.settings.tier = e.target.value; save(); });
   $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); });
@@ -8022,6 +8063,14 @@
   $("groupClose").onclick = closeGroupEditor; $("groupCancel").onclick = closeGroupEditor; $("groupSave").onclick = saveGroup; $("groupDelete").onclick = deleteGroup;
   $("groupBack").addEventListener("click", (e) => { if (e.target === $("groupBack")) closeGroupEditor(); });
   $("npcClose").onclick = closeNpcEditor; $("npcCancel").onclick = closeNpcEditor; $("npcSave").onclick = saveNpc; $("npcDelete").onclick = deleteNpc;
+  $("npcName").addEventListener("input", () => { if (!$("npcBack").hidden) renderNpcAvatar(); });
+  $("npcImage").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try { npcImageDraft = await readImage(f); renderNpcAvatar(); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+    e.target.value = "";
+  });
+  $("npcClearImage").onclick = () => { npcImageDraft = ""; renderNpcAvatar(); };
   $("npcBack").addEventListener("click", (e) => { if (e.target === $("npcBack")) closeNpcEditor(); });
   $("npcScanClose").onclick = () => { $("npcScanBack").hidden = true; };
   $("npcScanCancel").onclick = () => { $("npcScanBack").hidden = true; };
@@ -8383,11 +8432,14 @@
       if (c.image) { const b = c.image.length; counted += b; add("头像", "图片", b, async () => { if (!(await askConfirm(`删掉 ${c.name} 的头像图片？`, "删除", true))) return false; c.image = ""; return true; }); }
       if (c.bg && c.bg.image) { const b = c.bg.image.length; counted += b; add("聊天背景图", "图片", b, () => { c.bg.image = ""; return true; }); }
       for (const bk of c.books) { const b = bytesOf(bk); counted += b; add(`${bk.memory ? "记忆书" : "角色世界书"} · ${bk.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉「${bk.name}」整本（${bk.entries.length} 条）？`, "删除", true))) return false; c.books = c.books.filter((x) => x !== bk); return true; }); }
+      const npcImg = c.npcs.filter((n) => n.image);
+      if (npcImg.length) { const b = npcImg.reduce((n, x) => n + x.image.length, 0); counted += b; add("联系人头像", `${npcImg.length} 张`, b, async () => { if (!(await askConfirm(`删掉 ${c.name} 这边 ${npcImg.length} 位联系人的头像照片？`, "删除", true))) return false; for (const n of npcImg) n.image = ""; return true; }); }
       const misc = bytesOf({ n: c.npcs, r: c.rels, g: c.groups, s: c.status }); counted += misc;
       add("NPC、群、关系、状态", `${c.npcs.length} 位联系人 · ${c.groups.length} 个群`, misc, null);
     }
     owner = null;
     if (state.bg && state.bg.image) { const b = state.bg.image.length; counted += b; add("聊天背景图 · 全局", "图片", b, () => { state.bg.image = ""; return true; }); }
+    if (state.persona.image) { const b = state.persona.image.length; counted += b; add("你的头像", "图片", b, () => { state.persona.image = ""; return true; }); }
     for (const bk of state.books) { const b = bytesOf(bk); counted += b; add(`全局世界书 · ${bk.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉全局世界书「${bk.name}」（${bk.entries.length} 条）？`, "删除", true))) return false; state.books = state.books.filter((x) => x !== bk); return true; }); }
     for (const ps of state.presets) { const b = bytesOf(ps); counted += b; add(`预设 · ${ps.name}`, "", b, () => { state.presets = state.presets.filter((x) => x !== ps); if (state.activePreset === ps.id) state.activePreset = ""; return true; }); }
     const total = lastBytes || bytesOf(state);
