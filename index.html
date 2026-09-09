@@ -8910,14 +8910,15 @@
     { comment: "顶奢 · 住与生活方式", keys: ["住", "家里", "老宅", "公寓", "别墅", "管家", "阿姨", "私厨", "会所", "俱乐部", "马场", "庄园"], content: "【顶奢居住与生活方式参考（仅供参考，不限于此）】\n住：城中老宅、顶层复式、半山别墅、郊外庄园、海边度假屋，不止一处，在哪住看心情和日程。\n人：管家、司机、阿姨 / 保姆、私厨、园丁、家庭医生、家庭律师、私人助理、贴身保镖（视家族）。\n去处：私人会所、马场、高尔夫、私人健身房、老字号私房菜、酒店行政酒廊、艺术拍卖、赛车场；不去奶茶店排队、不逛平价商场。\n吃：私厨做、外面订，或临时飞去某地吃某一家；对某一样东西有偏执（只喝某个牌子的水、只吃某家的某道菜）。\n钱：不看价格、不比价、不记得花了多少；卡是家里给的或自己公司的；送东西随手，收礼物反而认真。" },
     { comment: "富人写法规则", keys: ["有钱", "豪门", "世家", "富", "继承人", "老钱", "新贵", "财团", "集团", "千金", "少爷", "公子", "会所", "司机", "管家"], content: "【怎么写有钱人（写作规则，所有富裕角色适用）】\n1. 有钱通过细节和习惯表现，不通过台词：他不说「我有钱」，他说「让司机送你」「这个不用还」「我让人去办」。\n2. 不自己做饭、不自己洗衣、不自己找车位、不排队、不比价、不记得价格；出门有司机，家里有人打理。真要自己下厨是为了某个人，且写成生疏或郑重的事，不是日常。\n3. 衣服必须有牌子、料子或定制来历，禁止「简单的白衬衫」「普通的黑色外套」；手表按场合换；东西随手放、随手送、随手借，不心疼。\n4. 场景跟着身份走：约人去会所包厢、自家马场、老宅、私厨，不是奶茶店和路边摊。\n5. 老钱与新贵分开写：老钱低调、看料子和出身、不露 logo、规矩多；新贵张扬、看 logo 和价格、喜欢让人知道。\n6. 对钱没有概念，对品质和某几样东西有偏执；不炫耀，也不假装自己普通。\n7. 不写成暴发户式的炫富，也不写成扣扣搜搜的精打细算。\n8. 家境一般或穷的角色反过来：东西具体但便宜，写出「不贵但有品味」，不写得寒酸可怜。" },
   ];
-  function ensureLuxuryBook() {
-    if ((state.books || []).some((b) => b && b.name === LUX_BOOK_NAME)) return;
-    const b = newBook(LUX_BOOK_NAME);
-    b.enabled = true; b.description = "内置：顶奢品牌与富人生活参考。按关键词触发，随便加牌子、改规则。";
-    for (const src of LUX_ENTRIES) { const e = newEntry(b); e.comment = src.comment; e.keys = src.keys.slice(); e.content = src.content; e.constant = false; e.position = "after_char"; e.insertion_order = 50 + b.entries.length; b.entries.push(e); }
-    state.books.push(b); save();
+  // The built-in book used to be created on boot; an untouched copy is removed again, an edited one is left alone.
+  function dropBuiltinLuxuryBook() {
+    const b = (state.books || []).find((x) => x && x.name === LUX_BOOK_NAME);
+    if (!b) return;
+    const untouched = b.entries.length === LUX_ENTRIES.length && b.entries.every((e, i) => e.content === LUX_ENTRIES[i].content);
+    if (untouched) { state.books = state.books.filter((x) => x !== b); save(); }
   }
-  const luxuryText = () => { const b = (state.books || []).find((x) => x && x.name === LUX_BOOK_NAME); return b ? b.entries.filter((e) => e.enabled).map((e) => e.content).join("\n\n") : LUX_ENTRIES.map((e) => e.content).join("\n\n"); };
+  // the card wizard keeps this reference in its own prompt only; it is not a world book any more
+  const luxuryText = () => LUX_ENTRIES.map((e) => e.content).join("\n\n");
 
   const WIZ_DEFAULT_PREFS = [
     "- 外貌默认干净：无疤、无痣、无纹身、无胎记，除非用户自己写了。",
@@ -9008,7 +9009,6 @@ npcs（${npcLine}）：每个：
     return wizCommonHead(seeds) + `\n\n## 任务：只重写 ${who} 的「${key}」这一栏\n给一个和现在明显不同、但和其他部分自洽的新版本，格式和长度与现在一致${key === "外貌" && seeds.look && seeds.look !== "随机" && kind === "char" ? `，外貌类型仍是 ${seeds.look}` : ""}。\n\n其他部分摘要：${ctx}\n现在这一栏：${JSON.stringify(cur)}\n\n只输出 JSON：{"value": "新内容"}（原来是数组就给数组）`;
   }
   function openWizard() {
-    ensureLuxuryBook();
     const chips = (box, list, cur) => { box.innerHTML = ""; for (const v of list) { const b = el("button", "btn ghost wz-chip" + (v === cur ? " on" : ""), v); b.type = "button"; b.dataset.v = v; b.onclick = () => { box.querySelectorAll(".wz-chip").forEach((x) => x.classList.toggle("on", x === b)); const inp = box.id === "wzLooks" ? $("wzLookCustom") : box.id === "wzGenres" ? $("wzGenreCustom") : null; if (inp) { inp.hidden = v !== "自定义"; if (v === "自定义") inp.focus(); } }; box.appendChild(b); } const inp0 = box.id === "wzLooks" ? $("wzLookCustom") : box.id === "wzGenres" ? $("wzGenreCustom") : null; if (inp0) inp0.hidden = true; };
     chips($("wzGenres"), WIZ_GENRES, "随机");
     const looks = () => chips($("wzLooks"), $("wzGender").value === "女" ? WIZ_LOOK_F : WIZ_LOOK_M, "随机");
@@ -9374,7 +9374,7 @@ npcs（${npcLine}）：每个：
   // Boot
   // ============================================================
   bootStorage().then(() => {
-  try { ensureLuxuryBook(); } catch (e) { console.error(e); }
+  try { dropBuiltinLuxuryBook(); } catch (e) { console.error(e); }
   if (!inArtifact() && state.settings.backend !== "custom") { state.settings.backend = "custom"; save(); }
   renderAll();
   { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
