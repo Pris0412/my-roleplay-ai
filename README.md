@@ -1,5 +1,7 @@
 # Side Story（番外）
 
+> 本项目仅供个人学习和游玩，未经作者同意不得修改后再发布或用于商业用途。
+
 曾用名「提灯酒馆 / Lantern Tavern」。内部存储键和备份文件里的标识符仍为 `lantern-tavern`，老备份可以直接导入。
 
 一个类似 SillyTavern 的 AI 角色扮演聊天页面，作为 claude.ai Artifact 发布。
