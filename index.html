@@ -711,6 +711,17 @@
   .ctx-skip b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rebuild-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
   .rebuild-row small { color: var(--faint); font-family: var(--font-mono); font-size: 11px; margin-left: auto; }
+  .msg.narration .bubble { background: transparent; border: 1px dashed var(--line-strong); font-style: italic; color: var(--muted); }
+  .msg.narration .avatar { background: var(--raised); color: var(--muted); }
+  .ev-card .inner { gap: 8px; }
+  .ev-desc { font-size: 13px; line-height: 1.6; }
+  .ev-acts { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .ev-plot { border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: var(--raised); }
+  .ev-plot.sweet { border-left-color: #e0729a; } .ev-plot.daily { border-left-color: #6aa86a; } .ev-plot.twist { border-left-color: #d9a441; } .ev-plot.angst { border-left-color: #7a6bd6; }
+  .ev-plot-h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .ev-plot-h .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; }
+  .ev-hook { font-size: 13px; line-height: 1.55; }
+  .ev-plot-acts { display: flex; gap: 4px; flex-wrap: wrap; }
   .opt-btn { display: block; width: 100%; height: auto; white-space: normal; text-align: left; padding: 10px 12px; line-height: 1.45; }
   .opt-btn b { display: block; font-size: 14px; }
   .opt-btn small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -2049,6 +2060,45 @@
   </div>
 </div>
 
+<div class="modal-back" id="narrBack" hidden style="z-index:62">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="narrTitle" style="width:min(480px,100%)">
+    <div class="modal-head">
+      <span id="narrTitle">📣 旁白</span>
+      <button class="btn ghost icon" id="narrClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help">以叙述者的身份插一句剧情事实，不算你说的，也不算主角说的。模型会当作真的发生了接着演。</div>
+      <textarea id="narrText" rows="3" placeholder="例如：外面突然下起大雨。/ 门口来了个不速之客。/ 三天后，舞会的邀请函送到了。"></textarea>
+      <label class="rebuild-row" style="margin-top:8px"><input type="checkbox" id="narrCont" checked> 插入后让 TA 接着演一段</label>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end"><div class="right"><button class="btn primary" id="narrGo">插入</button></div></div>
+  </div>
+</div>
+
+<div class="modal-back" id="evBack" hidden style="z-index:62">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="evTitle" style="width:min(680px,100%)">
+    <div class="modal-head">
+      <span id="evTitle">📜 剧情灵感</span>
+      <button class="btn ghost icon" id="evClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="evTone" style="font-size:12px;padding:4px 8px;border-radius:999px">
+          <option value="any">基调：随便</option>
+          <option value="甜">基调：甜</option>
+          <option value="日常">基调：日常</option>
+          <option value="误会">基调：误会</option>
+          <option value="悬念">基调：悬念</option>
+          <option value="虐">基调：虐</option>
+        </select>
+        <button class="btn" id="evGen" style="font-size:12px;padding:4px 10px">✨ 换一批</button>
+        <span class="help" style="margin:0">按世界观、人设、关系和最近剧情想的。卡片不进上下文，用了的那条才会变成楼层。</span>
+      </div>
+      <div class="rx-list" id="evList"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="castBack" hidden style="z-index:62">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="castTitle" style="width:min(440px,100%)">
     <div class="modal-head">
@@ -3224,12 +3274,12 @@
     const isUser = m.role === "user";
     const depth = c.chat.length - 1 - index;
     const npc = m.npc ? npcById(c, m.npc) : null;
-    const wrap = el("div", "msg " + (isUser ? "user" : "char") + (m.error ? " error" : "") + (m.hidden ? " hidden-floor" : "") + (m.npc ? " scene" : ""));
+    const wrap = el("div", "msg " + (isUser ? "user" : "char") + (m.error ? " error" : "") + (m.hidden ? " hidden-floor" : "") + (m.npc ? " scene" : "") + (m.narration ? " narration" : ""));
     wrap.dataset.id = m.id;
-    const av = isUser ? userAvatarNode() : m.npc ? (() => { const n = el("div", "avatar", npc ? npc.name[0] : "?"); return n; })() : (() => { const n = el("div"); renderAvatar(n, c); return n; })();
+    const av = m.narration ? el("div", "avatar", "📣") : isUser ? userAvatarNode() : m.npc ? (() => { const n = el("div", "avatar", npc ? npc.name[0] : "?"); return n; })() : (() => { const n = el("div"); renderAvatar(n, c); return n; })();
     const body = el("div", "body");
     const meta = el("div", "meta");
-    meta.appendChild(el("span", "who", isUser ? (state.persona.name || "你") : m.npc ? (npc ? npc.name : "某人") : c.name));
+    meta.appendChild(el("span", "who", m.narration ? "旁白" : isUser ? (state.persona.name || "你") : m.npc ? (npc ? npc.name : "某人") : c.name));
     meta.appendChild(el("span", "time", fmtTime(m.ts)));
     meta.appendChild(el("span", "floor", "#" + floorOf(c, index)));
     if (m.greeting) meta.appendChild(el("span", "tag", "开场白"));
@@ -3560,6 +3610,7 @@
     let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth: 0, c });
     if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
     if (m.kind === "divider") return `（${sub(m.content, c)}）`;
+    if (m.narration) return `[旁白] ${txt}`;
     if (m.channel === "moments") return momentLine(c, m);
     if (m.group) { const g = groupById(c, m.group); return `[群聊·${g ? g.name : "群"} ${fmtTime(m.ts)}] ${groupSpeakerName(c, m)}：${txt}`; }
     if (m.channel === "phone") {
@@ -4153,6 +4204,8 @@
   // ---------- ➕ menu ----------
   const PLUS_ITEMS = [
     { id: "phone", icon: "📱", label: "手机", hint: "朋友圈、主角、联系人私聊、群聊都在里面；会回到上次停的那一页", run: () => openPhoneHome() },
+    { id: "events", icon: "📜", label: "剧情灵感", hint: "按世界观和最近剧情想几个事件，附可玩的点和推荐剧情", run: () => openEvents() },
+    { id: "narration", icon: "📣", label: "旁白", hint: "以叙述者身份插一句：突然下雨了、门口来了个人……", run: () => openNarration() },
   ];
   function renderPlusMenu() {
     const m = $("plusMenu");
@@ -6386,6 +6439,7 @@
       if (m.kind === "divider") return `（${sub(m.content, c)}）`;
       fl++;
       if (m.channel === "moments") return `#${fl} ${momentLine(c, m)}`;
+      if (m.narration) return `#${fl} 旁白：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`;
       return `#${fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`;
     }).filter(Boolean).join("\n\n");
     const book = memoryBook(c, false);
@@ -8302,6 +8356,130 @@
     renderCastChip();
     toast(d ? d.content.replace(/^👥 /, "") : "在场名单没有变化");
   };
+  // ============================================================
+  // 旁白 (narration floors) + 📜 剧情灵感 (event cards)
+  // ============================================================
+  function addNarration(c, text, andContinue) {
+    const scl = sceneNpcs(c), sc = scl[0] || null;
+    const m = { id: uid(), role: "user", narration: true, content: text, ts: Date.now() };
+    if (sc) { m.npc = sc.id; m.npcs = scl.map((n) => n.id); m.channel = "scene"; }
+    c.chat.push(m);
+    save(); renderMessages(); renderCharList();
+    if (andContinue) continueStory();
+  }
+  function openNarration() {
+    const c = active(); if (!c || busy) return;
+    if (c.phone && c.phone.open) return toast("手机模式里不用旁白，先放下手机", true);
+    $("narrText").value = "";
+    $("narrBack").hidden = false;
+    $("narrText").focus();
+  }
+  $("narrClose").onclick = () => { $("narrBack").hidden = true; };
+  $("narrGo").onclick = () => { const c = active(); const t = $("narrText").value.trim(); if (!c || !t) return; $("narrBack").hidden = true; addNarration(c, t, $("narrCont").checked); };
+  $("narrText").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); $("narrGo").click(); } });
+
+  let eventCards = [];
+  let eventBusy = false;
+  function buildEventPrompt(c, tone) {
+    const u = state.persona.name || "用户";
+    const parts = [];
+    parts.push(`你是一场沉浸式角色扮演的「剧情策划」。用户扮演 ${u}，主角是「${c.name}」。请根据世界观、人设、当前关系和最近剧情，想 4 个可以推动故事的「事件」。事件要像这个世界里真实存在的活动或状况（节日、比赛、家族安排、突发状况、日常里的小机会……），不要脱离世界观。`);
+    const lore = activeLore(c, c.chat.filter((m) => !m.npc).slice(-8), null);
+    if (lore.before.length) parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`);
+    parts.push(`\n## ${c.name}`, [c.tag ? sub(c.tag, c) : "", (c.description || "").slice(0, 900), c.personality ? `性格：${c.personality.slice(0, 300)}` : "", c.scenario ? `场景：${c.scenario.slice(0, 300)}` : ""].filter(Boolean).join("\n"));
+    if (state.persona.desc && state.persona.desc.trim()) parts.push(`\n## ${u}`, state.persona.desc.slice(0, 500));
+    if (c.npcs.length) parts.push(`\n## 其他人物\n${c.npcs.map((n) => `- ${n.name}${n.brief ? `：${n.brief}` : ""}`).join("\n")}`);
+    const rel = []; const cu = charUserRel(c);
+    if (cu.rel || cu.aff != null) rel.push(`${c.name} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100）` : ""}`);
+    for (const n of c.npcs) { const a = relGet(c, "u", n.id); if (a.set) rel.push(`${n.name} 和 ${u}：${a.rel || "（未定）"}（好感 ${a.aff}/100）`); }
+    if (rel.length) parts.push(`\n## 人际关系\n${rel.map((x) => "- " + x).join("\n")}`);
+    if (lore.after.length) parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`);
+    const st = c.status && c.status.enabled ? c.status.fields.filter((f) => f.value !== "" && f.value != null).map((f) => `${f.key}：${f.value}`).join(" · ") : "";
+    if (st) parts.push(`\n## ${c.name} 现在的状态\n${st}`);
+    const p = presentNow(c);
+    if (p && p.ids.length) parts.push(`\n此刻在场：${p.ids.map((id) => npcName(c, id)).join("、")}`);
+    const recent = c.chat.filter((m) => !m.npc && !m.group && !isMoment(m) && m.kind !== "divider" && !m.error && !m.hidden).slice(-20);
+    if (recent.length) parts.push(`\n## 最近的剧情\n${recent.map((m) => `${m.narration ? "旁白" : m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").slice(0, 200)}`).join("\n")}`);
+    const toneLine = tone && tone !== "any" ? `这批事件的基调偏「${tone}」。` : "四个事件的基调要分开：至少一个甜、一个日常、一个带点误会或悬念。";
+    parts.push(`\n## 要求\n${toneLine}每个事件给：\n- title：事件名（4–8 字）\n- summary：一句话是什么\n- description：这个事件在这个世界里的来历和样子，2–4 句，像世界书条目那样写（谁办的、什么时候、有什么讲究、大家怎么看它）\n- activities：在这个事件里可以做的 3–5 件事，短语\n- plots：2–3 条推荐剧情，每条 {title: 标题(4–8字), hook: 一两句钩子（写清楚 ${c.name} 和 ${u} 各自的处境或动作，留一个悬念）, who: 涉及的人名（主角、${u} 之外的用名字）, tone: 甜|日常|误会|悬念|虐}\n\n只输出 JSON：{"events":[{"title":"","summary":"","description":"","activities":[""],"plots":[{"title":"","hook":"","who":"","tone":""}]}]}`);
+    parts.push(`\n${langHint()}`);
+    return sub(parts.join("\n"), c);
+  }
+  function openEvents() {
+    const c = active(); if (!c) return;
+    $("evTitle").textContent = `📜 剧情灵感 · ${c.name}`;
+    renderEvents();
+    $("evBack").hidden = false;
+    if (!eventCards.length && chatReady()) generateEvents();
+  }
+  async function generateEvents() {
+    const c = active(); if (!c || eventBusy || !chatReady()) return;
+    eventBusy = true; $("evGen").disabled = true; $("evGen").textContent = "想着呢…";
+    $("evList").innerHTML = ""; $("evList").appendChild(el("div", "rx-empty", "正在按世界观和最近剧情想事件…"));
+    try {
+      const v = await completeJson(buildEventPrompt(c, $("evTone").value), { tier: state.settings.tier });
+      const list = v && Array.isArray(v.events) ? v.events : Array.isArray(v) ? v : [];
+      eventCards = list.filter((e) => e && e.title).map((e) => ({ title: String(e.title), summary: String(e.summary || ""), description: String(e.description || ""), activities: Array.isArray(e.activities) ? e.activities.map(String) : [], plots: (Array.isArray(e.plots) ? e.plots : []).filter((p) => p && (p.hook || p.title)).map((p) => ({ title: String(p.title || ""), hook: String(p.hook || ""), who: String(p.who || ""), tone: String(p.tone || "") })) }));
+      if (!eventCards.length) toast("没想出来，再试一次", true);
+    } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
+    finally { eventBusy = false; $("evGen").disabled = false; $("evGen").textContent = "✨ 换一批"; renderEvents(); }
+  }
+  const TONE_CLS = { "甜": "sweet", "日常": "daily", "误会": "twist", "悬念": "twist", "虐": "angst" };
+  function renderEvents() {
+    const c = active(); const box = $("evList"); box.innerHTML = "";
+    if (!c) return;
+    if (!eventCards.length) { box.appendChild(el("div", "rx-empty", chatReady() ? "点「换一批」让模型想几个事件。" : "接口未就绪。")); return; }
+    const u = state.persona.name || "你";
+    eventCards.forEach((ev, i) => {
+      const d = document.createElement("details"); d.className = "adv ev-card"; d.open = i === 0;
+      const sm = document.createElement("summary"); sm.append(el("span", null, ev.title), el("span", "stat", ev.summary.slice(0, 40))); d.appendChild(sm);
+      const inner = el("div", "inner");
+      if (ev.description) { const p = el("div", "ev-desc", ev.description); inner.appendChild(p); }
+      if (ev.activities.length) { const a = el("div", "ev-acts"); a.appendChild(el("b", null, "可以玩什么：")); a.appendChild(document.createTextNode(ev.activities.join(" · "))); inner.appendChild(a); }
+      const saveBtn = el("button", "btn ghost", "📖 存进世界书"); saveBtn.style.cssText = "font-size:12px;padding:3px 8px;align-self:flex-start";
+      saveBtn.title = "把「这是什么」存成这个角色世界书里的一条，以后模型一直记得这个世界有这个事件";
+      saveBtn.onclick = () => { saveEventToBook(c, ev); saveBtn.textContent = "已存进世界书"; saveBtn.disabled = true; };
+      inner.appendChild(saveBtn);
+      if (ev.plots.length) {
+        inner.appendChild(el("div", "help", "推荐剧情"));
+        for (const pl of ev.plots) {
+          const row = el("div", "ev-plot" + (TONE_CLS[pl.tone] ? " " + TONE_CLS[pl.tone] : ""));
+          const head = el("div", "ev-plot-h"); head.append(el("b", null, pl.title || "剧情"), el("span", "tag", pl.tone || ""), el("span", "stat", pl.who ? `涉及：${pl.who}` : ""));
+          row.appendChild(head);
+          row.appendChild(el("div", "ev-hook", pl.hook));
+          const acts = el("div", "ev-plot-acts");
+          const mk = (label, title, fn) => { const b = el("button", "btn ghost", label); b.title = title; b.style.cssText = "font-size:12px;padding:3px 8px"; b.onclick = fn; acts.appendChild(b); };
+          mk("让 TA 提起", "主角下一条回复里自然带出这件事", () => { $("evBack").hidden = true; bringUp(c, ev, pl); });
+          mk("旁白插入", "写一条旁白楼层，剧情从这里开始，然后让 TA 接着演", () => { $("evBack").hidden = true; addNarration(c, `${ev.title}：${pl.hook}`, true); });
+          mk("写进输入框", "把钩子放进输入框，你改成自己的话再发", () => { $("evBack").hidden = true; $("input").value = pl.hook; $("input").focus(); });
+          row.appendChild(acts);
+          inner.appendChild(row);
+        }
+      }
+      d.appendChild(inner); box.appendChild(d);
+    });
+  }
+  function bringUp(c, ev, pl) {
+    const u = state.persona.name || "用户";
+    const scl = sceneNpcs(c), sc = scl[0] || null;
+    const who = sc ? namesOf(scl) : c.name;
+    const nudge = `（接下来的回复里，请让 ${who} 自然地把「${ev.title}」这件事带出来：${ev.summary ? ev.summary + "。" : ""}${pl.hook}。要贴合 ${who} 的性格和此刻的情境，不要生硬，不要替 ${u} 做决定。）`;
+    generate(c, null, sc ? { npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", nudge } : { nudge });
+  }
+  function saveEventToBook(c, ev) {
+    let book = c.books.find((b) => !b.memory && b.name === "剧情事件");
+    if (!book) { book = newBook("剧情事件"); book.enabled = true; c.books.push(book); }
+    const e = newEntry(book);
+    e.comment = ev.title;
+    e.keys = [ev.title];
+    e.content = `【${ev.title}】${ev.summary ? ev.summary + "\n" : ""}${ev.description}${ev.activities.length ? `\n可以做的事：${ev.activities.join("、")}` : ""}`;
+    e.constant = false; e.position = "after_char"; e.insertion_order = 100 + book.entries.length;
+    book.entries.push(e);
+    save();
+    toast(`已存进「剧情事件」世界书：${ev.title}（正文提到它时会带上）`);
+  }
+  $("evClose").onclick = () => { $("evBack").hidden = true; };
+  $("evGen").onclick = generateEvents;
   $("memRebuild").onclick = openRebuild;
   $("memMergeAll").onclick = openMergeAll;
   $("memQuick").onclick = quickSummarize;
