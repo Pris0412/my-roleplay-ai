@@ -438,6 +438,14 @@
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     backdrop-filter: blur(10px);
   }
+  .composer-grip { height: 12px; max-width: var(--read-w, 860px); margin: 0 auto 2px; cursor: ns-resize; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  .composer-grip::before { content: ""; width: 48px; height: 4px; border-radius: 2px; background: var(--line-strong); opacity: 0.6; }
+  .composer-grip:hover::before, .composer-grip.on::before { opacity: 1; background: var(--accent); }
+  .composer-open { display: none; max-width: var(--read-w, 860px); margin: 0 auto; }
+  .composer-open .btn { width: 100%; padding: 12px; font-size: 15px; }
+  .composer.collapsed { padding: 8px 20px 10px; }
+  .composer.collapsed > *:not(.composer-open) { display: none; }
+  .composer.collapsed .composer-open { display: block; }
   .composer-inner {
     max-width: var(--read-w, 860px); margin: 0 auto;
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: end;
@@ -994,7 +1002,7 @@
 
     <div class="messages" id="messages" aria-live="polite"></div>
 
-    <div class="composer">
+    <div class="composer" id="composer">
       <div class="composer-bar">
         <label class="pill-select" title="角色在回复里能不能替你说话、能不能描写你的动作表情">
           抢话
@@ -1011,6 +1019,7 @@
         <span class="spacer"></span>
         <button class="btn" id="ctxBtn" title="上下文用量 / 隐藏楼层 / 记忆索引">🧠 上下文 —</button>
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
+        <button class="btn ghost" id="composerHide" title="暂时收起回复栏，多留一点地方看正文">⌄ 收起</button>
       </div>
       <div class="ideas" id="ideas" hidden></div>
       <div class="snips" id="snips"></div>
@@ -1021,6 +1030,7 @@
         <button class="btn" id="bannerPeople" hidden>在场的人</button>
         <button class="btn ghost" id="bannerExitPhone">放下手机</button>
       </div>
+      <div class="composer-grip" id="composerGrip" title="上下拖动调整输入框高度，双击恢复自动"></div>
       <div class="composer-inner">
         <div class="plus-wrap">
           <button class="btn plus-btn" id="plusBtn" title="更多玩法" aria-label="更多玩法">＋</button>
@@ -1035,6 +1045,9 @@
       <div class="hint">
         <span id="hintLeft"></span>
         <span id="hintRight"></span>
+      </div>
+      <div class="composer-open">
+        <button class="btn primary" id="composerShow">✏️ 打开回复栏</button>
       </div>
     </div>
   </main>
@@ -3753,6 +3766,7 @@
     applyReadWidth();
     $("sTheme").value = state.settings.theme || "system";
     applyTheme();
+    autosize($("input"));
     const memPresets = ["20", "40", "80", "150", "1000"];
     const memVal = String(parseInt(state.settings.mem, 10) || 40);
     $("sMem").value = memPresets.includes(memVal) ? memVal : "custom";
@@ -7854,8 +7868,22 @@
   // Layout helpers
   // ============================================================
   function autosize(ta) {
+    const base = Math.max(0, Number(state.settings.inputH) || 0); // a height the user dragged out; 0 = automatic
     ta.style.height = "auto";
-    ta.style.height = Math.min(200, ta.scrollHeight) + "px";
+    ta.style.height = Math.max(base, Math.min(Math.max(200, base), ta.scrollHeight)) + "px";
+  }
+  // collapse the whole reply area; the way back is a full-width button that cannot be missed
+  $("composerHide").onclick = () => { $("composer").classList.add("collapsed"); };
+  $("composerShow").onclick = () => { $("composer").classList.remove("collapsed"); autosize($("input")); $("input").focus(); };
+  // drag the grip to set the input height
+  {
+    const grip = $("composerGrip");
+    let drag = null;
+    grip.addEventListener("pointerdown", (e) => { drag = { y: e.clientY, h: $("input").getBoundingClientRect().height }; grip.classList.add("on"); grip.setPointerCapture(e.pointerId); e.preventDefault(); });
+    grip.addEventListener("pointermove", (e) => { if (!drag) return; state.settings.inputH = Math.max(44, Math.min(600, Math.round(drag.h + (drag.y - e.clientY)))); autosize($("input")); });
+    const end = () => { if (!drag) return; drag = null; grip.classList.remove("on"); save(); };
+    grip.addEventListener("pointerup", end); grip.addEventListener("pointercancel", end);
+    grip.addEventListener("dblclick", () => { state.settings.inputH = 0; save(); autosize($("input")); toast("输入框高度已恢复自动"); });
   }
   let scrim = null;
   function openOverlay(node) {
