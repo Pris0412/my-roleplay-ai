@@ -2808,6 +2808,13 @@
     const db = await idbOpen();
     return new Promise((res, rej) => { const tx = db.transaction(DB_STORE, "readwrite"); tx.objectStore(DB_STORE).put(val, key); tx.oncomplete = () => { db.close(); res(); }; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error || new Error("aborted")); });
   }
+  // preset marker names live up here: parseState runs at script start and normalizePreset needs them then
+  const MARKERS = {
+    main: "主提示词", nsfw: "辅助提示词", jailbreak: "越狱 / 对话后指令", enhanceDefinitions: "强化设定",
+    worldInfoBefore: "世界书（前）", worldInfoAfter: "世界书（后）", charDescription: "角色描述", charPersonality: "角色性格",
+    scenario: "场景", personaDescription: "用户人设", dialogueExamples: "对话示例", chatHistory: "聊天记录", lanternRules: "Side Story · 回复规则",
+  };
+  const MARKER_IDS = new Set(["worldInfoBefore", "worldInfoAfter", "charDescription", "charPersonality", "scenario", "personaDescription", "dialogueExamples", "chatHistory", "lanternRules"]);
   function parseState(raw) {
     if (!raw) return null;
     const s = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -4025,12 +4032,6 @@
   }
 
   // ---------- SillyTavern chat-completion presets (prompt manager) ----------
-  const MARKERS = {
-    main: "主提示词", nsfw: "辅助提示词", jailbreak: "越狱 / 对话后指令", enhanceDefinitions: "强化设定",
-    worldInfoBefore: "世界书（前）", worldInfoAfter: "世界书（后）", charDescription: "角色描述", charPersonality: "角色性格",
-    scenario: "场景", personaDescription: "用户人设", dialogueExamples: "对话示例", chatHistory: "聊天记录", lanternRules: "Side Story · 回复规则",
-  };
-  const MARKER_IDS = new Set(["worldInfoBefore", "worldInfoAfter", "charDescription", "charPersonality", "scenario", "personaDescription", "dialogueExamples", "chatHistory", "lanternRules"]);
   function normalizePreset(p) {
     if (!p || typeof p !== "object") return null;
     const raw = p.raw && typeof p.raw === "object" ? p.raw : p;
@@ -4124,6 +4125,7 @@
     const history = kept.map((m) => {
       let txt = promptText(m, c);
       if (ps.namesInContent && m.role !== "system" && m.channel !== "phone") txt = `${m.role === "user" ? u : c.name}: ${txt}`;
+      if (raw.wrap_in_quotes && m.role === "user" && m.kind !== "divider" && !m.narration) txt = `"${txt}"`;
       return { role: m.role, content: txt, hist: true };
     }).filter((t) => t.content.trim());
     // in-chat injections: depth d = before the last d history messages
@@ -4131,10 +4133,20 @@
       const at = Math.max(0, history.length - inj.depth);
       history.splice(at, 0, { role: inj.role, content: inj.content });
     }
-    return [...pre, ...history, ...post];
+    const all = [...pre, ...history, ...post];
+    if (!raw.squash_system_messages) return all;
+    // squash: consecutive system messages become one (history floors stay separate so the size cap can still drop them one by one)
+    const out = [];
+    for (const t of all) {
+      const last = out[out.length - 1];
+      if (last && last.role === "system" && t.role === "system" && !last.hist && !t.hist) last.content += "\n\n" + t.content;
+      else out.push({ ...t });
+    }
+    return out;
   }
 
   let pendingNudge = ""; // one-off user-role instruction appended for the next generation only
+  const CONTINUE_NUDGE = "__continue__"; // placeholder: replaced by the preset's continue_nudge_prompt in buildTurns
   function buildTurns(c, upto, npcId, sceneMode, npcIds) {
     segments = [];
     const npc = npcId ? npcById(c, npcId) : null;
@@ -4201,8 +4213,15 @@
       capTokens: isCustom() ? Math.max(1000, (state.api.maxContext || 32000) - (samplerParams().max_tokens || state.api.maxTokens || 2048)) : Math.round(CAP / 3),
       segments: segments.map((x) => ({ ...x, chars: x.text.length, tokens: estTokens(x.text) })),
     };
-    if (pendingNudge) turns.push({ role: "user", content: pendingNudge });
-    else if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: npc && !sceneMode ? `（${npc.name} 接着发消息。）` : !npc && c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : "（继续，接着刚才的情节写下去。）" });
+    const presetNudge = ps && ps.raw && typeof ps.raw.continue_nudge_prompt === "string" && ps.raw.continue_nudge_prompt.trim() ? sub(ps.raw.continue_nudge_prompt, c) : "";
+    if (pendingNudge) turns.push({ role: "user", content: pendingNudge === CONTINUE_NUDGE && presetNudge ? presetNudge : pendingNudge });
+    else if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: npc && !sceneMode ? `（${npc.name} 接着发消息。）` : !npc && c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : presetNudge || "（继续，接着刚才的情节写下去。）" });
+    // assistant prefill: the reply continues from this text (only an API with real roles can take it)
+    if (ps && ps.raw && isCustom() && typeof ps.raw.assistant_prefill === "string" && ps.raw.assistant_prefill.trim()) {
+      const pf = sub(ps.raw.assistant_prefill, c).trim();
+      turns.push({ role: "assistant", content: pf });
+      seg("preset", "预填充（assistant_prefill）", pf);
+    }
     if (npc && others.length) segments.forEach((x) => { if (x.label === "开场指令") x.label = "开场指令（多人独处）"; });
     feKeepIds = null;
     return turns;
@@ -8078,7 +8097,7 @@
     const scl = sceneNpcs(c), sc = scl[0] || null;
     const who = sc ? namesOf(scl) : c.name;
     const nudge = `（${u} 这会儿没有说话也没有新的动作。请由 ${who} 接着刚才的情节往下演一段：可以是 ${who} 的下一步动作、心思或一句话，也可以让时间往前推一点；不要重复已经写过的内容，不要替 ${u} 说话或行动。）`;
-    generate(c, null, sc ? { npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", nudge } : { nudge });
+    generate(c, null, sc ? { npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", nudge } : { nudge: activePreset() && activePreset().raw && String(activePreset().raw.continue_nudge_prompt || "").trim() ? CONTINUE_NUDGE : nudge });
   }
 
   function openLib(tab) {
