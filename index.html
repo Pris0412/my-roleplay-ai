@@ -439,8 +439,9 @@
     backdrop-filter: blur(10px);
   }
   .composer-open { display: none; max-width: var(--read-w, 860px); margin: 0 auto; }
-  .composer-open .btn { width: 100%; padding: 12px; font-size: 15px; }
-  .composer.collapsed { padding: 8px 20px 10px; }
+  .composer-open .btn { width: 100%; padding: 8px; font-size: 14px; background: var(--accent-soft); color: var(--text); border-color: var(--line-strong); }
+  .composer-open .btn:hover { border-color: var(--accent); }
+  .composer.collapsed { padding: 6px 20px 8px; }
   .composer.collapsed > *:not(.composer-open) { display: none; }
   .composer.collapsed .composer-open { display: block; }
   .composer-inner {
@@ -1043,7 +1044,7 @@
         <span id="hintRight"></span>
       </div>
       <div class="composer-open">
-        <button class="btn primary" id="composerShow">✏️ 打开回复栏</button>
+        <button class="btn" id="composerShow">✏️ 打开回复栏</button>
       </div>
     </div>
   </main>
