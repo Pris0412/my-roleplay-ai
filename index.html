@@ -2101,6 +2101,7 @@
             </div>
             <div class="field"><label for="wzPersona">大概性格</label><input id="wzPersona" placeholder="如：外冷内热，嘴硬，护短"></div>
             <div class="field"><label for="wzRel">和你的关系</label><input id="wzRel" placeholder="如：青梅竹马 / 刚认识的同桌"></div>
+            <div class="field"><label for="wzXP">XP / 偏好提示</label><input id="wzXP" placeholder="如：占有欲强但不说 / 表面禁欲私下黏人 / 吃醋会冷战"><div class="help">留空让模型按人设定。写了就照这个方向写 XP 那一栏。</div></div>
             <div class="field"><label for="wzWorld">世界背景补充</label><input id="wzWorld" placeholder="如：靠海的城市，两大家族分庭抗礼"></div>
             <div class="field"><label>NPC <button class="btn ghost" id="wzAddNpc" type="button" style="font-size:12px;padding:2px 8px">＋ 加一个</button></label><div id="wzNpcs"></div><div class="help">每行「性别 + 一句话」，留空则模型自己设计 2–3 个。</div></div>
           </div>
@@ -8587,8 +8588,8 @@
     let look = ($("wzLooks").querySelector(".on") || {}).dataset ? $("wzLooks").querySelector(".on").dataset.v : "随机";
     if (look === "自定义") look = $("wzLookCustom").value.trim() || "随机";
     const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, random: !!random };
-    if (!random) Object.assign(s, { name: $("wzName").value.trim(), age: $("wzAge").value.trim(), role: $("wzRole").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), rel: $("wzRel").value.trim(), world: $("wzWorld").value.trim(), npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint) });
-    else Object.assign(s, { name: "", age: "", role: "", persona: "", family: "", rel: "", world: "", npcs: [] });
+    if (!random) Object.assign(s, { name: $("wzName").value.trim(), age: $("wzAge").value.trim(), role: $("wzRole").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), rel: $("wzRel").value.trim(), xp: $("wzXP").value.trim(), world: $("wzWorld").value.trim(), npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint) });
+    else Object.assign(s, { name: "", age: "", role: "", persona: "", family: "", rel: "", xp: "", world: "", npcs: [] });
     return s;
   }
   const WORLD_RULE = "世界必须是虚构的：城市、学校、公司、家族、机构一律自创名字，不用现实中存在的国家、城市、学校、公司、真实人物；时代和基调可以贴近现实。用户已经给出的名字（某家、某人）原样保留。";
@@ -8597,7 +8598,7 @@
     const rating = "XP 一栏要写具体、要有个人特色，每个角色都不一样：恋爱风格、主动还是被动、占有欲和吃醋的样子、喜欢的相处方式、亲密时的样子（态度、习惯、会说什么）、偏好（列表，越具体越好）、雷点（列表）、隐藏的一面（表面 vs 私下）。用描述性的短语写清楚他是什么样的人，不写露骨过程；具体尺度由之后的剧情决定。";
     return [
       `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。用户扮演 ${u}（${u} 的人设由用户自己写，你不要写）。${WORLD_RULE}`,
-      `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
+      `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.xp ? `\n- XP / 偏好方向：${seeds.xp}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
       `\n## 建卡偏好（必须遵守）\n${wizPrefs()}`,
       `\n## 顶奢与富人生活参考（家境好的角色从这里选牌子和生活方式，互不重复；家境普通的不用）\n${luxuryText()}`,
     ].join("\n");
