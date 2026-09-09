@@ -1,4 +1,4 @@
-<title>Lantern Tavern</title>
+<title>Side Story</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
 <!-- confirm dialog: the sandbox blocks window.confirm(), so the page brings its own -->
@@ -938,7 +938,7 @@
   <!-- ========== Character rail ========== -->
   <aside class="rail" id="rail">
     <div class="rail-head">
-      <div class="brand"><span class="flame"></span>提灯酒馆</div>
+      <div class="brand"><span class="flame"></span>Side Story</div>
       <button class="btn ghost icon" id="closeRail" title="收起" aria-label="收起角色栏">✕</button>
     </div>
     <div class="char-list" id="charList" role="listbox" aria-label="角色列表"></div>
@@ -4003,7 +4003,7 @@
   const MARKERS = {
     main: "主提示词", nsfw: "辅助提示词", jailbreak: "越狱 / 对话后指令", enhanceDefinitions: "强化设定",
     worldInfoBefore: "世界书（前）", worldInfoAfter: "世界书（后）", charDescription: "角色描述", charPersonality: "角色性格",
-    scenario: "场景", personaDescription: "用户人设", dialogueExamples: "对话示例", chatHistory: "聊天记录", lanternRules: "提灯酒馆 · 回复规则",
+    scenario: "场景", personaDescription: "用户人设", dialogueExamples: "对话示例", chatHistory: "聊天记录", lanternRules: "Side Story · 回复规则",
   };
   const MARKER_IDS = new Set(["worldInfoBefore", "worldInfoAfter", "charDescription", "charPersonality", "scenario", "personaDescription", "dialogueExamples", "chatHistory", "lanternRules"]);
   function normalizePreset(p) {
@@ -9331,7 +9331,7 @@ npcs（${npcLine}）：每个：
   // ============================================================
   async function backupAll() {
     const json = JSON.stringify(exportAllData(), null, 2);
-    const name = "lantern-tavern-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    const name = "side-story-backup-" + new Date().toISOString().slice(0, 10) + ".json";
     if (downloads) {
       try { await downloads.save({ filename: name, data: json }); }
       catch (e) { if (e && e.code !== "cancelled") toast("备份失败：" + (e.message || e.code), true); return; }
