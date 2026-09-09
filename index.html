@@ -3967,10 +3967,21 @@
     try {
       [sample, downloads] = await Promise.all([use("sample").catch(() => null), use("downloads").catch(() => null)]);
     } catch (e) { sample = null; downloads = null; }
+    // Outside the Artifact (a normal website or a local file) the browser can save files by itself.
+    if (!downloads && !inArtifact()) downloads = browserDownloads;
     if (editing) { $("exportJson").disabled = $("exportPng").disabled = !downloads; }
     sampleReady = true;
     refreshBackendUi();
   }
+  const inArtifact = () => !!(window.claude && typeof window.claude.use === "function");
+  const browserDownloads = {
+    async save({ filename, data }) {
+      const blob = data instanceof Blob ? data : new Blob([data], { type: /\.png$/i.test(filename) ? "image/png" : "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    },
+  };
 
   // ---------- Backends: Claude via the page, or an OpenAI-compatible API ----------
   const isCustom = () => state.settings.backend === "custom";
@@ -3979,6 +3990,7 @@
   function apiHeaders() {
     const h = { "Content-Type": "application/json" };
     if (state.api.key) h.Authorization = "Bearer " + state.api.key;
+    if (/api\.anthropic\.com/i.test(apiBase())) h["anthropic-dangerous-direct-browser-access"] = "true";
     return h;
   }
   function samplerParams() {
@@ -3998,9 +4010,8 @@
   function netErrorCopy(e) {
     if (e && e.name === "AbortError") return null;
     if (e && e.code) return copyFor(e.code);
-    const inArtifact = !!(window.claude && typeof window.claude.use === "function");
     if (e instanceof TypeError || /fetch/i.test(String(e && e.message))) {
-      return inArtifact
+      return inArtifact()
         ? "请求被浏览器拦截：在 Claude 的 Artifact 里，页面不允许访问任何外部地址（包括 localhost）。把本页下载到本地用浏览器打开就能用自定义接口（设置 › 数据 里可以先备份数据）。"
         : "连不上这个地址：检查 API 地址是否以 /v1 结尾、服务是否在运行并允许浏览器跨域（CORS）。";
     }
@@ -7182,16 +7193,21 @@
     $("apiTemp").value = a.temperature; $("apiTopP").value = a.topP; $("apiMaxTokens").value = a.maxTokens; $("apiContext").value = a.maxContext || 32000;
     $("apiStream").value = a.stream === false ? "0" : "1"; $("apiFollowPreset").checked = a.followPreset !== false;
     renderModelSelect();
-    const inArtifact = !!(window.claude && typeof window.claude.use === "function");
-    $("apiNote").textContent = inArtifact
+    const inArt = inArtifact();
+    const optClaude = $("sBackend").options[0];
+    optClaude.disabled = !inArt;
+    optClaude.textContent = inArt ? "Claude · 通过本页面（无需密钥）" : "Claude · 通过本页面（只在 Claude 里打开时可用）";
+    $("apiNote").textContent = inArt
       ? "注意：在 Claude 的 Artifact 里打开时，浏览器安全策略不允许页面访问任何外部地址，本机的 localhost 也算。这里的设置会保存，但请求会被拦截。把本页下载到本地用浏览器打开即可使用；先用「数据 › 备份全部数据」把角色和记录带走。"
-      : "本页以本地文件 / 自建站点方式打开，可以直接访问你填的接口（前提是该服务允许浏览器跨域）。";
+      : "这个网站没有服务器：你填的地址、Key、角色和聊天记录都只存在你自己的浏览器里，站长看不到。接哪家都行，只要是 OpenAI 兼容格式并允许浏览器跨域：OpenAI、Anthropic（https://api.anthropic.com/v1）、Gemini 兼容口、DeepSeek、各类中转站、本地 Ollama / LM Studio。";
     const ready = chatReady();
     if (sampleReady || custom) {
       $("send").disabled = !ready;
       $("inspire").disabled = !ready;
       if (custom) {
-        showNotice(ready ? "" : "<strong>自定义接口未配置完。</strong> 在右侧「模型接口」里填 API 地址和模型。" + libNote);
+        showNotice(ready ? "" : (inArt
+          ? "<strong>自定义接口未配置完。</strong> 在右侧「模型接口」里填 API 地址和模型。"
+          : "<strong>先接一个模型。</strong> 点右上角 ⚙ 打开设置，在「模型接口」里填你自己的 API 地址、Key，点「测试并读取模型列表」选一个模型。填的东西只存在你这个浏览器里。") + libNote);
         $("hintRight").textContent = ready ? `模型：${a.model}` : "接口未就绪";
       } else if (!sample) {
         showNotice("<strong>当前无法对话。</strong> 这个页面需要在 Claude 里打开才能用页内的 Claude；或者在右侧「模型接口」切到自定义 API。你仍然可以编辑角色和整理聊天记录。" + libNote);
@@ -8953,6 +8969,7 @@ npcs（${npcLine}）：每个：
   // ============================================================
   bootStorage().then(() => {
   try { ensureLuxuryBook(); } catch (e) { console.error(e); }
+  if (!inArtifact() && state.settings.backend !== "custom") { state.settings.backend = "custom"; save(); }
   renderAll();
   { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
   refreshGlobalRx();
