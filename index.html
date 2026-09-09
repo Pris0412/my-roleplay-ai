@@ -1161,6 +1161,15 @@
           </div>
         </div>
         <div class="field">
+          <label for="sTheme">外观</label>
+          <select id="sTheme">
+            <option value="system">跟随系统（默认）</option>
+            <option value="light">亮色</option>
+            <option value="dark">暗色</option>
+          </select>
+          <div class="help">「跟随系统」时，页面颜色跟着设备的浅色 / 深色模式走，所以不同人打开可能一亮一暗。</div>
+        </div>
+        <div class="field">
           <label for="sReadW">阅读宽度</label>
           <select id="sReadW">
             <option value="760">窄 · 760</option>
@@ -3742,6 +3751,8 @@
     $("sLang").value = state.settings.lang;
     $("sReadW").value = state.settings.readW || "860";
     applyReadWidth();
+    $("sTheme").value = state.settings.theme || "system";
+    applyTheme();
     const memPresets = ["20", "40", "80", "150", "1000"];
     const memVal = String(parseInt(state.settings.mem, 10) || 40);
     $("sMem").value = memPresets.includes(memVal) ? memVal : "custom";
@@ -8105,6 +8116,8 @@
   $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
   $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
+  function applyTheme() { const t = state.settings.theme; if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+  $("sTheme").addEventListener("change", (e) => { state.settings.theme = e.target.value; save(); applyTheme(); renderMessages(); });
   function applyReadWidth() { const v = state.settings.readW || "860"; document.documentElement.style.setProperty("--read-w", v === "full" ? "100%" : v + "px"); }
   $("sReadW").addEventListener("change", (e) => { state.settings.readW = e.target.value; save(); applyReadWidth(); toast("阅读宽度：" + e.target.options[e.target.selectedIndex].textContent); });
   $("sMem").addEventListener("change", (e) => {
@@ -9423,6 +9436,7 @@ npcs（${npcLine}）：每个：
   // Boot
   // ============================================================
   bootStorage().then(() => {
+  try { applyTheme(); } catch (e) {}
   try { dropBuiltinLuxuryBook(); } catch (e) { console.error(e); }
   if (!inArtifact() && state.settings.backend !== "custom") { state.settings.backend = "custom"; save(); }
   renderAll();
