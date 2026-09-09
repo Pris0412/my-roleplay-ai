@@ -2071,46 +2071,58 @@
 </div>
 
 <div class="modal-back" id="wzBack" hidden style="z-index:61">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wzTitle" style="width:min(720px,100%)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wzTitle" style="width:min(760px,100%)">
     <div class="modal-head">
       <span id="wzTitle">✨ AI 建卡</span>
       <button class="btn ghost icon" id="wzClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
       <div id="wzStep1">
-        <div class="help" id="wzHint">都可以留空，留空的部分模型自己补。</div>
-        <div class="section">
-          <div class="section-title">主角</div>
-          <div class="row">
-            <div class="field"><label for="wzName">名字（可空，让模型起）</label><input id="wzName" placeholder="如：随霁寒"></div>
-            <div class="field"><label for="wzGender">性别</label><select id="wzGender"><option>男</option><option>女</option><option>其他</option></select></div>
+        <div class="help" id="wzHint"></div>
+        <div class="field"><label>题材</label><div id="wzGenres" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+        <div class="field"><label for="wzLine">一句话想法（可空）</label><textarea id="wzLine" rows="2" placeholder="例如：冷傲的学生会长，我是刚转来的；或者：豪门继承人和家里安排的联姻对象；或者什么都不写"></textarea></div>
+        <div class="row">
+          <div class="field"><label for="wzGender">主角性别</label><select id="wzGender"><option>男</option><option>女</option><option>其他</option></select></div>
+          <div class="field"><label for="wzRating">尺度</label><select id="wzRating"><option value="暧昧">暧昧</option><option value="清水">清水</option><option value="成人">成人</option></select></div>
+        </div>
+        <div class="field"><label>外貌类型（默认帅 / 美，选的是哪一种）</label><div id="wzLooks" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn primary" id="wzRandom" style="flex:1">🎲 随机来一张</button>
+          <button class="btn" id="wzGo" style="flex:1">✨ 按我的提示生成</button>
+        </div>
+        <div class="stat" id="wzProg" hidden style="margin-top:6px"></div>
+        <details class="adv" style="margin-top:10px">
+          <summary>细调（可选）</summary>
+          <div class="inner">
+            <div class="row">
+              <div class="field"><label for="wzName">名字</label><input id="wzName" placeholder="留空让模型起"></div>
+              <div class="field"><label for="wzAge">年龄</label><input id="wzAge" placeholder="如：19"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label for="wzRole">身份 / 职业</label><input id="wzRole" placeholder="如：学生会会长"></div>
+              <div class="field"><label for="wzFamily">家境</label><input id="wzFamily" placeholder="如：老钱世家 / 普通家庭"></div>
+            </div>
+            <div class="field"><label for="wzPersona">大概性格</label><input id="wzPersona" placeholder="如：外冷内热，嘴硬，护短"></div>
+            <div class="field"><label for="wzRel">和你的关系</label><input id="wzRel" placeholder="如：青梅竹马 / 刚认识的同桌"></div>
+            <div class="field"><label for="wzWorld">世界背景补充</label><input id="wzWorld" placeholder="如：靠海的城市，两大家族分庭抗礼"></div>
+            <div class="field"><label>NPC <button class="btn ghost" id="wzAddNpc" type="button" style="font-size:12px;padding:2px 8px">＋ 加一个</button></label><div id="wzNpcs"></div><div class="help">每行「性别 + 一句话」，留空则模型自己设计 2–3 个。</div></div>
           </div>
-          <div class="row">
-            <div class="field"><label for="wzAge">年龄</label><input id="wzAge" placeholder="如：19 / 二十七八"></div>
-            <div class="field"><label for="wzRole">身份 / 职业</label><input id="wzRole" placeholder="如：学生会会长 / 家族继承人"></div>
+        </details>
+        <details class="adv" style="margin-top:8px">
+          <summary>建卡偏好（每次建卡都遵守，随时改）</summary>
+          <div class="inner">
+            <textarea id="wzPrefs" rows="6"></textarea>
+            <button class="btn ghost" id="wzPrefsReset" type="button" style="font-size:12px;padding:3px 8px;align-self:flex-start">恢复默认</button>
           </div>
-          <div class="field"><label for="wzPersona">大概性格</label><input id="wzPersona" placeholder="如：外冷内热，嘴硬，护短"></div>
-          <div class="field"><label for="wzFamily">家境</label><input id="wzFamily" placeholder="如：老牌世家，父母常年在国外"></div>
-          <div class="field"><label for="wzRel">和你的关系（可空）</label><input id="wzRel" placeholder="如：青梅竹马 / 刚认识的同桌"></div>
-          <div class="field"><label>外貌风格（可多选）</label><div id="wzLooks" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
-        </div>
-        <div class="section">
-          <div class="section-title">世界背景</div>
-          <div class="field"><input id="wzWorld" placeholder="如：现代都市 · 贵族私立高中 / 古风江湖 / 末世避难所"><div class="help">世界一定是虚构的：地名、学校、家族都会自创，不会用现实里的；基调可以贴近现实。</div></div>
-          <div class="field"><label for="wzUser">你的人设（可空）</label><input id="wzUser" placeholder="如：转学生，家里做生意"></div>
-        </div>
-        <div class="section">
-          <div class="section-title">NPC <button class="btn ghost" id="wzAddNpc" type="button" style="font-size:12px;padding:3px 8px">＋ 加一个</button></div>
-          <div id="wzNpcs"></div>
-          <div class="help">每行一个：性别 + 一句话提示，比如「男 · 主角的好朋友 · 陆家小儿子」。模型会补名字、年龄、身高、外貌、性格、家境。</div>
-        </div>
-        <button class="btn primary block" id="wzGo" style="margin-top:8px">✨ 生成</button>
+        </details>
       </div>
       <div id="wzStep2" hidden>
-        <div class="help">每一块都能改，也能单独「重刷」。满意了点最下面「创建角色卡」：会建好角色、绑一本世界书（背景 / 地点 / 势力 / 人物）、把 NPC 放进通讯录。</div>
+        <div class="help">每一栏都能改，也能单独「重刷」。满意了点最下面「创建角色卡」：会建好角色（描述是 YAML）、状态面板初值、绑一本世界书（背景 / 人物关系 / 地点 / 势力 / 人物）、NPC 进通讯录并填好关系。</div>
         <div id="wzResult"></div>
-        <div class="row" style="margin-top:10px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="btn" id="wzBackTo1">‹ 回去改提示</button>
+          <button class="btn" id="wzAgain">🎲 换一套</button>
+          <span style="flex:1"></span>
           <button class="btn primary" id="wzCreate">创建角色卡</button>
         </div>
       </div>
@@ -8538,53 +8550,124 @@
   $("evClose").onclick = () => { $("evBack").hidden = true; };
   $("evGen").onclick = generateEvents;
   // ============================================================
-  // ✨ AI 建卡: you give a few seeds, the model fills in the card, the world book and the NPCs; every block can be re-rolled
+  // ✨ AI 建卡 v2: one line + genre + 🎲; YAML card with rich-life awareness; every block re-rollable
   // ============================================================
-  let wiz = null; // { seeds, result }
-  const WIZ_LOOKS = ["随机", "帅气", "清冷", "温柔", "可爱", "野性", "精致", "阳光", "斯文", "妖冶"];
-  const WIZ_FIELDS = [["tag", "一句话标签"], ["look", "外貌（含身高）"], ["personality", "性格"], ["family", "家境与背景"], ["speech", "说话方式"], ["scenario", "开场场景"], ["first", "开场白"]];
-  const WIZ_NPC_FIELDS = [["look", "外貌（含身高）"], ["personality", "性格"], ["family", "家境与背景"], ["speech", "说话方式"]];
-  function wizSeeds() {
-    return {
-      name: $("wzName").value.trim(), gender: $("wzGender").value, age: $("wzAge").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), role: $("wzRole").value.trim(), rel: $("wzRel").value.trim(),
-      world: $("wzWorld").value.trim(), look: [...$("wzLooks").querySelectorAll(".on")].map((b) => b.dataset.v).filter((v) => v !== "随机").join("、"),
-      user: $("wzUser").value.trim(),
-      npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint),
-    };
+  const LUX_BOOK_NAME = "顶奢参考（内置）";
+  const LUX_ENTRIES = [
+    { comment: "顶奢 · 服装", keys: ["穿搭", "穿着", "衣服", "西装", "衬衫", "大衣", "外套", "羊绒", "鞋", "定制"], content: "【顶奢服装参考（仅供参考，不限于此，按人设和场合选）】\n老钱 / 低调派：Brunello Cucinelli（羊绒）、Loro Piana（羊绒、Vicuña 外套）、Kiton、Cesare Attolini、Cifonelli / Huntsman 定制西装、The Row、Hermès 成衣、Zegna Couture、Berluti（鞋与皮具）、John Lobb、Edward Green。\n新贵 / 张扬派：Tom Ford、Brioni、Stefano Ricci、Dolce & Gabbana 高定、Balmain、Amiri、Chrome Hearts。\n经典大牌：Chanel、Dior、Louis Vuitton、Gucci、Prada、Bottega Veneta、Saint Laurent、Celine、Givenchy、Balenciaga、Valentino。\n写法：写料子、剪裁、颜色和穿的场合，不写价格；老钱不露 logo，新贵可以露；同一个人不同场合穿不同牌子；「简单的白衬衫」「普通的黑外套」这类描写禁止，衬衫也要有牌子或定制来历。" },
+    { comment: "顶奢 · 手表珠宝", keys: ["手表", "腕表", "表", "袖扣", "戒指", "项链", "耳钉", "首饰", "珠宝", "钢笔", "打火机", "眼镜"], content: "【顶奢手表 / 珠宝 / 小件参考（仅供参考，不限于此）】\n手表：Patek Philippe（Nautilus 5711、Calatrava、Grand Complications）、Vacheron Constantin（Overseas、Patrimony、Traditionnelle）、Audemars Piguet（Royal Oak、Royal Oak Offshore）、A. Lange & Söhne（Lange 1、Datograph）、Richard Mille、F.P. Journe、Breguet、Rolex（Daytona、Submariner、Day-Date）、Cartier（Santos、Tank）、Jaeger-LeCoultre Reverso。\n珠宝：Cartier（Love、Juste un Clou）、Van Cleef & Arpels、Bulgari（Serpenti）、Tiffany、Harry Winston、Graff、Chaumet、Boucheron。\n小件：Montblanc 149 / Graf von Faber-Castell 钢笔、S.T. Dupont 打火机、Lindberg / Jacques Marie Mage / Dita 眼镜、Goyard / Hermès 卡包、Bottega 钥匙扣。\n写法：手表按场合换，正式和日常不同款；珠宝男性以袖扣、戒指、手链为主；这些东西随手放、随手借人，不心疼。" },
+    { comment: "顶奢 · 车与出行", keys: ["车", "座驾", "司机", "开车", "接你", "送你", "飞机", "游艇", "机场"], content: "【顶奢出行参考（仅供参考，不限于此）】\n司机开的：Rolls-Royce（Phantom、Ghost、Cullinan）、Bentley（Mulsanne、Flying Spur、Bentayga）、Mercedes-Maybach S680、Range Rover SV。\n自己开的：Porsche 911 GT3 / Turbo S、Ferrari（SF90、Roma、296）、Lamborghini（Urus、Revuelto）、Aston Martin（DB12、Vantage）、McLaren、Mercedes-AMG G63、Bentley Continental GT、Rolls-Royce Spectre 或 Wraith。\n更远：家里有私人飞机（Gulfstream G650、Bombardier Global）、游艇、直升机接送；出差飞头等舱或私飞，住套房或自家物业。\n写法：出门有司机是默认，自己开车是心情或想载某个人；不找车位、不打车、不挤地铁；「让司机送你」是他表达关心的方式之一。" },
+    { comment: "顶奢 · 香水气味", keys: ["香水", "味道", "气味", "好闻", "香"], content: "【香水 / 气味参考（仅供参考，不限于此）】\n顶奢男香：Creed（Aventus、Green Irish Tweed、Silver Mountain Water）、Tom Ford Private Blend（Oud Wood、Tobacco Vanille、Neroli Portofino、Fucking Fabulous）、Frédéric Malle（Musc Ravageur、Portrait of a Lady）、Maison Francis Kurkdjian（Baccarat Rouge 540、Grand Soir）、Byredo（Gypsy Water、Bal d'Afrique）、Le Labo（Santal 33、Another 13）、Amouage（Reflection Man、Interlude）、Roja Dove、Xerjoff（Naxos）、Parfums de Marly（Layton、Herod）、Diptyque（Tam Dao、Philosykos）、Kilian（Black Phantom）。\n普通 / 家境一般的角色：淡淡薄荷、皂香、洗衣粉味、阳光晒过的棉布味、洗发水味，干净就好。\n禁用：雪松。任何角色都不要写雪松味，除非用户自己写了。\n写法：味道是近距离才闻到的，写在靠近、拥抱、借外套这种时刻；同一个人固定一到两款，不要每次换。" },
+    { comment: "顶奢 · 住与生活方式", keys: ["住", "家里", "老宅", "公寓", "别墅", "管家", "阿姨", "私厨", "会所", "俱乐部", "马场", "庄园"], content: "【顶奢居住与生活方式参考（仅供参考，不限于此）】\n住：城中老宅、顶层复式、半山别墅、郊外庄园、海边度假屋，不止一处，在哪住看心情和日程。\n人：管家、司机、阿姨 / 保姆、私厨、园丁、家庭医生、家庭律师、私人助理、贴身保镖（视家族）。\n去处：私人会所、马场、高尔夫、私人健身房、老字号私房菜、酒店行政酒廊、艺术拍卖、赛车场；不去奶茶店排队、不逛平价商场。\n吃：私厨做、外面订，或临时飞去某地吃某一家；对某一样东西有偏执（只喝某个牌子的水、只吃某家的某道菜）。\n钱：不看价格、不比价、不记得花了多少；卡是家里给的或自己公司的；送东西随手，收礼物反而认真。" },
+    { comment: "富人写法规则", keys: ["有钱", "豪门", "世家", "富", "继承人", "老钱", "新贵", "财团", "集团", "千金", "少爷", "公子", "会所", "司机", "管家"], content: "【怎么写有钱人（写作规则，所有富裕角色适用）】\n1. 有钱通过细节和习惯表现，不通过台词：他不说「我有钱」，他说「让司机送你」「这个不用还」「我让人去办」。\n2. 不自己做饭、不自己洗衣、不自己找车位、不排队、不比价、不记得价格；出门有司机，家里有人打理。真要自己下厨是为了某个人，且写成生疏或郑重的事，不是日常。\n3. 衣服必须有牌子、料子或定制来历，禁止「简单的白衬衫」「普通的黑色外套」；手表按场合换；东西随手放、随手送、随手借，不心疼。\n4. 场景跟着身份走：约人去会所包厢、自家马场、老宅、私厨，不是奶茶店和路边摊。\n5. 老钱与新贵分开写：老钱低调、看料子和出身、不露 logo、规矩多；新贵张扬、看 logo 和价格、喜欢让人知道。\n6. 对钱没有概念，对品质和某几样东西有偏执；不炫耀，也不假装自己普通。\n7. 不写成暴发户式的炫富，也不写成扣扣搜搜的精打细算。\n8. 家境一般或穷的角色反过来：东西具体但便宜，写出「不贵但有品味」，不写得寒酸可怜。" },
+  ];
+  function ensureLuxuryBook() {
+    if ((state.books || []).some((b) => b && b.name === LUX_BOOK_NAME)) return;
+    const b = newBook(LUX_BOOK_NAME);
+    b.enabled = true; b.description = "内置：顶奢品牌与富人生活参考。按关键词触发，随便加牌子、改规则。";
+    for (const src of LUX_ENTRIES) { const e = newEntry(b); e.comment = src.comment; e.keys = src.keys.slice(); e.content = src.content; e.constant = false; e.position = "after_char"; e.insertion_order = 50 + b.entries.length; b.entries.push(e); }
+    state.books.push(b); save();
   }
-  const WORLD_RULE = "世界必须是虚构的：城市、学校、公司、家族、品牌、机构一律自创名字，不要用现实中存在的国家、城市、学校、公司、真实人物；但时代和基调可以贴近现实（现代都市、贵族校园、古风、末世……由用户的提示决定）。用户已经给出的名字（比如某家、某人）要原样保留。";
-  function wizPrompt(seeds) {
-    const u = state.persona.name || "用户";
-    const lines = [];
-    lines.push(`你是角色扮演的角色卡作者。根据用户给的零星提示，补全一张完整的角色卡、一本世界书和几个 NPC。${WORLD_RULE}`);
-    lines.push(`\n## 用户给的提示`);
-    lines.push(`- 主角：${seeds.name ? `名字「${seeds.name}」` : "名字请你起"}；性别 ${seeds.gender}；${seeds.age ? `年龄 ${seeds.age}` : "年龄自定"}；${seeds.persona ? `大概性格：${seeds.persona}` : "性格自定"}；${seeds.family ? `家境：${seeds.family}` : "家境自定"}；${seeds.role ? `身份/职业：${seeds.role}` : ""}；${seeds.rel ? `和 ${u} 的关系：${seeds.rel}` : `和 ${u} 的关系自定（要有戏可演）`}`);
-    lines.push(`- 世界背景：${seeds.world || "由你决定，要有意思"}`);
-    if (seeds.look) lines.push(`- 外貌风格偏好：${seeds.look}`);
-    if (seeds.user) lines.push(`- ${u} 的人设：${seeds.user}`);
-    if (seeds.npcs.length) lines.push(`- NPC：\n${seeds.npcs.map((n, i) => `  ${i + 1}. ${n.gender} · ${n.hint}`).join("\n")}`);
-    else lines.push(`- NPC：请你设计 2 个和主角关系密切的人`);
-    lines.push(`\n## 要求
-- 主角 char：name（名字）、tag（一句话标签，15 字内）、look（外貌，含身高和 2–3 个辨识度细节，60–100 字）、personality（性格，有优点有毛病有软肋，80–150 字）、family（家境与背景，家族/成长/现在的处境，80–150 字）、speech（说话方式，口头禅、语气、对 ${u} 说话时的特别之处，40–80 字）、scenario（开场场景，${u} 和主角此刻在哪、为什么碰上，40–80 字）、first（开场白：主角视角的第一条消息，动作用 *星号* 包住，对白用「」，150–300 字，结尾留给 ${u} 接话）、emoji（一个能代表主角的 emoji）
-- world：worldName（这个世界/故事的名字）、overview（世界背景总述，时代、地方、规则、氛围，120–200 字）、places（2–3 个重要地点，每个 {name, desc(40–80字)}）、factions（家族/势力/机构，把用户提到的家都写上，每个 {name, desc(40–80字)}）
-- npcs：每个 {name, gender, age, height（如 178cm）, look（40–70 字）, personality（40–80 字）, family（40–80 字）, speech（20–40 字）, relation（和主角的关系一句话）, aliases（别称，数组，可空）}
-- 全部用中文。只输出 JSON：{"char":{...},"world":{...},"npcs":[...]}`);
-    return lines.join("\n");
+  const luxuryText = () => { const b = (state.books || []).find((x) => x && x.name === LUX_BOOK_NAME); return b ? b.entries.filter((e) => e.enabled).map((e) => e.content).join("\n\n") : LUX_ENTRIES.map((e) => e.content).join("\n\n"); };
+
+  const WIZ_DEFAULT_PREFS = [
+    "- 外貌默认干净：无疤、无痣、无纹身、无胎记，除非用户自己写了。",
+    "- 永久禁用「雪松」味。家境好的随机一款顶奢香水并写牌子；家境普通或穷的是淡淡薄荷 / 皂香 / 洗衣粉味。",
+    "- 品牌例外：香水、服装、手表、车、珠宝这类消费品可以用现实品牌；地名、学校、公司、家族、机构一律虚构。",
+    "- 男性角色默认帅，女性角色默认美，但每个人的类型不同，朋友团不能是同一款。",
+    "- 家境好的角色：穿搭、手表、座驾、住处、身边的人（司机 / 管家 / 私厨）都要具体到牌子和细节，不写成过普通人的日子。",
+  ].join("\n");
+  const WIZ_GENRES = ["随机", "现代都市", "贵族校园", "豪门世家", "娱乐圈", "职场", "古风权谋", "仙侠", "末世", "星际", "悬疑"];
+  const WIZ_LOOK_M = ["随机", "清冷禁欲", "阳光少年", "斯文败类", "野性痞帅", "贵气矜贵", "温润如玉", "冷硬军人", "妖孽", "病娇美人"];
+  const WIZ_LOOK_F = ["随机", "明艳", "清纯", "冷艳", "娇软", "英气", "温婉", "妩媚", "少年感", "高岭之花"];
+  const WIZ_SECTIONS = ["基本", "外貌", "财富", "性格", "喜好", "经历", "关系", "称呼", "XP", "说话", "手机", "朋友圈", "底线", "钩子", "作息"];
+  const WIZ_NPC_SECTIONS = ["基本", "外貌", "财富", "性格", "喜好", "关系", "说话"];
+  let wiz = null;
+  function wizPrefs() { return (state.settings.wizPrefs && state.settings.wizPrefs.trim()) || WIZ_DEFAULT_PREFS; }
+  function wizSeeds(random) {
+    const genre = ($("wzGenres").querySelector(".on") || {}).dataset ? $("wzGenres").querySelector(".on").dataset.v : "随机";
+    const look = ($("wzLooks").querySelector(".on") || {}).dataset ? $("wzLooks").querySelector(".on").dataset.v : "随机";
+    const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, rating: $("wzRating").value, random: !!random };
+    if (!random) Object.assign(s, { name: $("wzName").value.trim(), age: $("wzAge").value.trim(), role: $("wzRole").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), rel: $("wzRel").value.trim(), world: $("wzWorld").value.trim(), npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint) });
+    else Object.assign(s, { name: "", age: "", role: "", persona: "", family: "", rel: "", world: "", npcs: [] });
+    return s;
   }
-  function wizRerollPrompt(kind, field, seeds, cur, idx) {
+  const WORLD_RULE = "世界必须是虚构的：城市、学校、公司、家族、机构一律自创名字，不用现实中存在的国家、城市、学校、公司、真实人物；时代和基调可以贴近现实。用户已经给出的名字（某家、某人）原样保留。";
+  function wizCommonHead(seeds) {
     const u = state.persona.name || "用户";
-    const ctx = JSON.stringify({ char: cur.char, world: { worldName: cur.world.worldName, overview: cur.world.overview }, npcs: cur.npcs.map((n) => ({ name: n.name, relation: n.relation })) });
-    const target = kind === "char" ? `主角「${cur.char.name}」的 ${field}` : kind === "npc" ? `NPC「${cur.npcs[idx].name}」的 ${field}` : `世界书里的 ${field}`;
-    const extra = seeds.look && field === "look" ? `外貌风格偏好：${seeds.look}。` : "";
-    return `下面是一张角色卡的现状（JSON）。请只重写 ${target}，给一个和现在明显不同、但和其他部分自洽的新版本。${extra}${WORLD_RULE}\n\n现状：${ctx}\n\n现在这一项的内容：${JSON.stringify(kind === "char" ? cur.char[field] : kind === "npc" ? cur.npcs[idx][field] : cur.world[field])}\n\n只输出 JSON：{"value": "新内容"}（若该项本来是数组，value 也给数组）。用中文。`;
+    const rating = { "清水": "尺度：清水。不写亲密关系细节，XP 一栏只写恋爱风格和亲密时的态度。", "暧昧": "尺度：暧昧。可以写吸引、张力和亲密偏好，点到为止。", "成人": "尺度：成人。XP 一栏可以写明确的偏好、雷点和亲密关系里的样子（在你允许的范围内尽量具体）。" }[seeds.rating] || "";
+    return [
+      `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。用户扮演 ${u}（${u} 的人设由用户自己写，你不要写）。${WORLD_RULE}`,
+      `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
+      `\n## 建卡偏好（必须遵守）\n${wizPrefs()}`,
+      `\n## 顶奢与富人生活参考（家境好的角色从这里选牌子和生活方式，互不重复；家境普通的不用）\n${luxuryText()}`,
+    ].join("\n");
+  }
+  function wizCharPrompt(seeds) {
+    const u = state.persona.name || "用户";
+    return wizCommonHead(seeds) + `\n\n## 任务：写主角卡
+用 YAML 写，每一栏是一段 YAML 文本（键值对 / 列表，短语为主，不写长句），全部中文。栏目：
+- 基本：姓名、别称（列表）、性别、年龄、生日、身高、体重、身份、家世一句话
+- 外貌：脸型、眼睛、眉、鼻唇、发（发型发色）、肤色、身材、气质、标志性细节（默认干净无疤无痣，细节写神态和习惯动作）、常穿（写牌子 / 料子 / 剪裁，按家境）、味道
+- 财富：家境好才写（类型 老钱/新贵/继承人；日常穿搭、正式场合、手表、座驾（自己开的 / 司机开的）、住、身边的人、花钱习惯、对钱的态度、小件）；家境普通写「无」
+- 性格：核心、表面、内里、优点、缺点、软肋、怕、执念、价值观
+- 喜好：喜欢（列表）、讨厌（列表）、爱吃、常做、小习惯、口头禅
+- 经历：成长、家庭关系、重要的事（列表 2–4）、秘密
+- 关系：对 ${u} 的初始态度、初始关系（一个词）、初始好感（0–100 的数字）、对其他人
+- 称呼：叫 ${u}、别人叫他
+- XP：恋爱风格、偏好、雷点（按尺度）
+- 说话：语气、用词、对 ${u}、对别人、示例（列表，3–5 句典型台词）
+- 手机：打字风格、表情、回复速度、会不会已读不回
+- 朋友圈：发不发、发什么、频率
+- 底线：列表 2–4 条绝不会做的事
+- 钩子：列表 2–3 个埋好的剧情坑
+- 作息：几点起、常去哪、周末
+另外给：
+- tag：一句话标签（15 字内）
+- emoji：一个代表他的 emoji
+- tags：题材 / 类型标签列表（3–5 个）
+- scenario：开场场景（${u} 和主角此刻在哪、为什么碰上，40–80 字）
+- greetings：2–3 个不同的开场白（主角视角第一条消息，动作用 *星号*，对白用「」，150–300 字，结尾留给 ${u} 接话，三个相遇方式要不同）
+- rules：写这个角色时的 3–6 条注意事项（怎么写他才像他；家境好的一定包含富人写法）
+- status：{地点, 时间, 心情, 穿着}（开场那一刻的）
+只输出 JSON：{"name":"","sections":{"基本":"yaml","外貌":"yaml",...},"tag":"","emoji":"","tags":[],"scenario":"","greetings":[],"rules":"","status":{}}`;
+  }
+  function wizWorldPrompt(seeds, ch) {
+    const u = state.persona.name || "用户";
+    const npcLine = seeds.npcs && seeds.npcs.length ? seeds.npcs.map((n, i) => `${i + 1}. ${n.gender} · ${n.hint}`).join("\n") : "由你设计 2–3 个和主角关系密切、各有用处的人（朋友、对手、家人、暧昧对象等）";
+    return wizCommonHead(seeds) + `\n\n## 已经写好的主角（请与之自洽）\n${JSON.stringify({ name: ch.name, tag: ch.tag, 基本: ch.sections["基本"], 关系: ch.sections["关系"], 财富: ch.sections["财富"] })}\n\n## 任务：写世界书和 NPC
+world：
+- worldName：世界 / 故事的名字
+- overview：世界背景总述（时代、地方、规则、氛围、这个圈子怎么运转，120–200 字）
+- places：3–4 个重要地点 {name, desc(40–80字)}；家境好的世界要有会所、老宅、马场这类场所
+- factions：家族 / 势力 / 机构 {name, desc(40–80字)}，用户提到的家都要有
+- relations：人物关系一段（主角、各 NPC 之间谁和谁是什么关系、有什么过节或渊源，80–150 字）
+npcs（${npcLine}）：每个：
+- name、gender、age、height、aliases（列表）
+- relation：和主角的关系一句话
+- relToUser：和 ${u} 的初始关系（一个词）；aff：初始好感 0–100
+- sections：YAML 文本，栏目 基本（姓名、性别、年龄、身高、身份、家世）、外貌（脸、眼、发、身材、气质、常穿写牌子、味道；类型和主角、和其他 NPC 都不同）、财富（家境好才写，否则「无」）、性格、喜好、关系（对主角、对 ${u}）、说话（语气、口头禅、示例 2 句）
+只输出 JSON：{"world":{"worldName":"","overview":"","places":[],"factions":[],"relations":""},"npcs":[{"name":"","gender":"","age":"","height":"","aliases":[],"relation":"","relToUser":"","aff":50,"sections":{}}]}`;
+  }
+  function wizRerollPrompt(kind, key, idx) {
+    const r = wiz.result, seeds = wiz.seeds;
+    const cur = kind === "char" ? r.char.sections[key] : kind === "npc" ? r.npcs[idx].sections[key] : r.world[key];
+    const who = kind === "char" ? `主角「${r.char.name}」` : kind === "npc" ? `NPC「${r.npcs[idx].name}」` : "世界书";
+    const ctx = kind === "world" ? JSON.stringify({ char: r.char.name, world: r.world.worldName, overview: r.world.overview }) : JSON.stringify(kind === "char" ? { name: r.char.name, 基本: r.char.sections["基本"], 性格: r.char.sections["性格"] } : { name: r.npcs[idx].name, 基本: r.npcs[idx].sections["基本"], relation: r.npcs[idx].relation });
+    return wizCommonHead(seeds) + `\n\n## 任务：只重写 ${who} 的「${key}」这一栏\n给一个和现在明显不同、但和其他部分自洽的新版本，格式和长度与现在一致${key === "外貌" && seeds.look && seeds.look !== "随机" && kind === "char" ? `，外貌类型仍是 ${seeds.look}` : ""}。\n\n其他部分摘要：${ctx}\n现在这一栏：${JSON.stringify(cur)}\n\n只输出 JSON：{"value": "新内容"}（原来是数组就给数组）`;
   }
   function openWizard() {
-    if (!wiz) wiz = { seeds: null, result: null };
-    $("wzLooks").innerHTML = "";
-    for (const v of WIZ_LOOKS) { const b = el("button", "btn ghost wz-chip" + (v === "随机" ? " on" : ""), v); b.dataset.v = v; b.type = "button"; b.onclick = () => { if (v === "随机") { $("wzLooks").querySelectorAll(".wz-chip").forEach((x) => x.classList.toggle("on", x === b)); } else { b.classList.toggle("on"); $("wzLooks").querySelector('[data-v="随机"]').classList.toggle("on", ![...$("wzLooks").querySelectorAll(".wz-chip.on")].some((x) => x.dataset.v !== "随机")); } }; $("wzLooks").appendChild(b); }
+    ensureLuxuryBook();
+    const chips = (box, list, cur) => { box.innerHTML = ""; for (const v of list) { const b = el("button", "btn ghost wz-chip" + (v === cur ? " on" : ""), v); b.type = "button"; b.dataset.v = v; b.onclick = () => { box.querySelectorAll(".wz-chip").forEach((x) => x.classList.toggle("on", x === b)); }; box.appendChild(b); } };
+    chips($("wzGenres"), WIZ_GENRES, "随机");
+    const looks = () => chips($("wzLooks"), $("wzGender").value === "女" ? WIZ_LOOK_F : WIZ_LOOK_M, "随机");
+    looks(); $("wzGender").onchange = looks;
     if (!$("wzNpcs").children.length) { wizAddNpc(); wizAddNpc(); }
+    $("wzPrefs").value = wizPrefs();
     $("wzStep1").hidden = false; $("wzStep2").hidden = true;
-    $("wzGo").disabled = !chatReady(); $("wzHint").textContent = chatReady() ? "都可以留空，留空的部分模型自己补。" : "接口未就绪。";
+    const ok = chatReady();
+    $("wzRandom").disabled = !ok; $("wzGo").disabled = !ok;
+    $("wzHint").textContent = ok ? "什么都不填也行：挑个题材，按 🎲，不喜欢的地方再改。想控制细节就展开下面的「细调」。" : "接口未就绪。";
     $("wzBack").hidden = false;
   }
   function wizAddNpc(gender, hint) {
@@ -8594,91 +8677,131 @@
     const x = el("button", "mo-x", "×"); x.type = "button"; x.onclick = () => row.remove();
     row.append(sel, inp, x); $("wzNpcs").appendChild(row);
   }
-  async function wizGenerate() {
+  async function wizGenerate(random) {
     if (!chatReady()) return;
-    const seeds = wizSeeds();
-    $("wzGo").disabled = true; $("wzGo").textContent = "生成中…（一次调用，二三十秒）";
+    state.settings.wizPrefs = $("wzPrefs").value.trim(); save();
+    const seeds = wizSeeds(random);
+    const btns = [$("wzRandom"), $("wzGo")]; btns.forEach((b) => { b.disabled = true; });
+    const prog = $("wzProg"); prog.hidden = false;
     try {
-      const v = await completeJson(wizPrompt(seeds), { tier: state.settings.tier });
-      if (!v || !v.char || !v.char.name) throw Object.assign(new Error("bad"), { code: "invalid_json" });
-      const r = { char: v.char, world: Object.assign({ worldName: "", overview: "", places: [], factions: [] }, v.world || {}), npcs: Array.isArray(v.npcs) ? v.npcs : [] };
-      for (const k of ["places", "factions"]) if (!Array.isArray(r.world[k])) r.world[k] = [];
-      wiz = { seeds, result: r };
+      prog.textContent = "第 1 / 2 步：写主角卡…（可能要半分钟）";
+      const ch = await completeJson(wizCharPrompt(seeds), { tier: state.settings.tier });
+      if (!ch || !ch.name || !ch.sections) throw Object.assign(new Error("bad"), { code: "invalid_json" });
+      ch.sections = Object.fromEntries(WIZ_SECTIONS.map((k) => [k, yamlStr(ch.sections[k])]));
+      ch.greetings = Array.isArray(ch.greetings) ? ch.greetings.map(String).filter(Boolean) : [String(ch.greetings || "")];
+      ch.tags = Array.isArray(ch.tags) ? ch.tags.map(String) : [];
+      ch.status = ch.status && typeof ch.status === "object" ? ch.status : {};
+      prog.textContent = "第 2 / 2 步：写世界书和 NPC…";
+      const wv = await completeJson(wizWorldPrompt(seeds, ch), { tier: state.settings.tier });
+      const world = Object.assign({ worldName: "", overview: "", places: [], factions: [], relations: "" }, (wv && wv.world) || {});
+      for (const k of ["places", "factions"]) if (!Array.isArray(world[k])) world[k] = [];
+      world.relations = yamlStr(world.relations);
+      const npcs = ((wv && Array.isArray(wv.npcs)) ? wv.npcs : []).filter((n) => n && n.name).map((n) => ({ name: String(n.name), gender: String(n.gender || ""), age: String(n.age || ""), height: String(n.height || ""), aliases: Array.isArray(n.aliases) ? n.aliases.map(String).filter(Boolean) : [], relation: String(n.relation || ""), relToUser: String(n.relToUser || ""), aff: Math.max(0, Math.min(100, Number(n.aff) || 50)), sections: Object.fromEntries(WIZ_NPC_SECTIONS.map((k) => [k, yamlStr((n.sections || {})[k])])) }));
+      wiz = { seeds, result: { char: ch, world, npcs, greetingIdx: 0 } };
       renderWizResult();
       $("wzStep1").hidden = true; $("wzStep2").hidden = false;
     } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
-    finally { $("wzGo").disabled = false; $("wzGo").textContent = "✨ 生成"; }
+    finally { btns.forEach((b) => { b.disabled = false; }); prog.hidden = true; }
   }
-  function wizField(label, value, onInput, onReroll) {
+  // sections may come back as objects; turn anything into readable YAML-ish text
+  function yamlStr(v, depth) {
+    depth = depth || 0; const pad = "  ".repeat(depth);
+    if (v == null) return "";
+    if (typeof v === "string") return v.trim();
+    if (Array.isArray(v)) return v.map((x) => (typeof x === "object" ? yamlStr(x, depth + 1) : pad + "- " + String(x))).join("\n");
+    if (typeof v === "object") return Object.entries(v).map(([k, x]) => (typeof x === "object" && x !== null ? `${pad}${k}:\n${yamlStr(x, depth + 1)}` : `${pad}${k}: ${String(x)}`)).join("\n");
+    return String(v);
+  }
+  function wizField(label, value, onInput, onReroll, rows) {
     const box = el("div", "wz-field");
     const head = el("div", "wz-field-h"); head.appendChild(el("span", null, label));
-    if (onReroll) { const b = el("button", "btn ghost", "🔄 重刷"); b.type = "button"; b.style.cssText = "font-size:11px;padding:2px 7px"; b.onclick = async () => { b.disabled = true; b.textContent = "…"; try { await onReroll(); } finally { b.disabled = false; b.textContent = "🔄 重刷"; } }; head.appendChild(b); }
-    const ta = document.createElement("textarea"); ta.value = Array.isArray(value) ? value.join("、") : (value || ""); ta.rows = Math.min(8, Math.max(2, Math.ceil(String(ta.value).length / 40)));
+    if (onReroll) { const b = el("button", "btn ghost", "🔄 重刷"); b.type = "button"; b.style.cssText = "font-size:11px;padding:2px 7px"; b.onclick = async () => { b.disabled = true; b.textContent = "…"; try { await onReroll(); } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); } finally { b.disabled = false; b.textContent = "🔄 重刷"; } }; head.appendChild(b); }
+    const ta = document.createElement("textarea"); ta.value = value || ""; ta.rows = rows || Math.min(12, Math.max(2, ta.value.split("\n").length + 1));
     ta.oninput = () => onInput(ta.value);
     box.append(head, ta);
     return box;
   }
-  async function wizReroll(kind, field, idx) {
+  async function wizReroll(kind, key, idx) {
+    const v = await completeJson(wizRerollPrompt(kind, key, idx), { tier: state.settings.tier });
+    if (!v || v.value == null) { toast("没刷出来，再试一次", true); return; }
+    const val = yamlStr(v.value);
     const r = wiz.result;
-    const v = await completeJson(wizRerollPrompt(kind, field, wiz.seeds, r, idx), { tier: state.settings.tier });
-    const val = v && v.value != null ? v.value : null;
-    if (val == null) { toast("没刷出来，再试一次", true); return; }
-    if (kind === "char") r.char[field] = val; else if (kind === "npc") r.npcs[idx][field] = val; else r.world[field] = val;
+    if (kind === "char") r.char.sections[key] = val; else if (kind === "npc") r.npcs[idx].sections[key] = val; else r.world[key] = val;
     renderWizResult();
   }
   function renderWizResult() {
     const r = wiz.result; const box = $("wzResult"); box.innerHTML = "";
-    const sec = (title) => { const d = el("div", "section"); d.appendChild(el("div", "section-title", title)); box.appendChild(d); return d; };
-    const sc = sec(`主角 · ${r.char.name}`);
-    sc.appendChild(wizField("名字", r.char.name, (v) => { r.char.name = v; }, null));
-    for (const [f, label] of WIZ_FIELDS) sc.appendChild(wizField(label, r.char[f], (v) => { r.char[f] = v; }, () => wizReroll("char", f)));
+    const sec = (title) => { const d = document.createElement("details"); d.className = "adv"; d.open = true; const sm = document.createElement("summary"); sm.textContent = title; d.appendChild(sm); const inner = el("div", "inner"); inner.style.gap = "4px"; d.appendChild(inner); box.appendChild(d); return inner; };
+    const sc = sec(`主角 · ${r.char.name} ${r.char.emoji || ""}`);
+    const top = el("div", "row"); top.appendChild(wizField("名字", r.char.name, (v) => { r.char.name = v; }, null, 1)); top.appendChild(wizField("一句话标签", r.char.tag, (v) => { r.char.tag = v; }, null, 1)); sc.appendChild(top);
+    for (const k of WIZ_SECTIONS) { if (k === "财富" && /^(无|没有|不适用)/.test((r.char.sections[k] || "").trim())) continue; sc.appendChild(wizField(k, r.char.sections[k], (v) => { r.char.sections[k] = v; }, () => wizReroll("char", k))); }
+    sc.appendChild(wizField("写这个角色的注意事项（会放进对话后指令）", r.char.rules, (v) => { r.char.rules = v; }, null));
+    sc.appendChild(wizField("开场场景", r.char.scenario, (v) => { r.char.scenario = v; }, null));
+    const gWrap = el("div", "wz-field"); gWrap.appendChild(el("div", "wz-field-h", "开场白（选一个当默认，其余存成备选）"));
+    r.char.greetings.forEach((g, i) => { const row = el("label", "rebuild-row"); row.style.alignItems = "flex-start"; const rb = document.createElement("input"); rb.type = "radio"; rb.name = "wzG"; rb.checked = i === r.greetingIdx; rb.onchange = () => { r.greetingIdx = i; }; const ta = document.createElement("textarea"); ta.value = g; ta.rows = 5; ta.style.flex = "1"; ta.oninput = () => { r.char.greetings[i] = ta.value; }; row.append(rb, ta); gWrap.appendChild(row); });
+    sc.appendChild(gWrap);
+    sc.appendChild(wizField("状态面板初值", yamlStr(r.char.status), (v) => { r.char.statusText = v; }, null, 3));
     const sw = sec(`世界书 · ${r.world.worldName || ""}`);
-    sw.appendChild(wizField("世界名字", r.world.worldName, (v) => { r.world.worldName = v; }, null));
+    sw.appendChild(wizField("世界名字", r.world.worldName, (v) => { r.world.worldName = v; }, null, 1));
     sw.appendChild(wizField("世界背景", r.world.overview, (v) => { r.world.overview = v; }, () => wizReroll("world", "overview")));
-    r.world.places.forEach((pl, i) => sw.appendChild(wizField(`地点 · ${pl.name}`, pl.desc, (v) => { pl.desc = v; }, async () => { const v = await completeJson(wizRerollPrompt("world", "places", wiz.seeds, r) .replace("只重写 世界书里的 places", `只重写地点「${pl.name}」的描述`), { tier: state.settings.tier }); if (v && v.value) { pl.desc = String(v.value); renderWizResult(); } })));
-    r.world.factions.forEach((fa) => sw.appendChild(wizField(`势力 · ${fa.name}`, fa.desc, (v) => { fa.desc = v; }, async () => { const v = await completeJson(wizRerollPrompt("world", "factions", wiz.seeds, r).replace("只重写 世界书里的 factions", `只重写势力「${fa.name}」的描述`), { tier: state.settings.tier }); if (v && v.value) { fa.desc = String(v.value); renderWizResult(); } })));
+    sw.appendChild(wizField("人物关系", r.world.relations, (v) => { r.world.relations = v; }, () => wizReroll("world", "relations")));
+    r.world.places.forEach((pl) => sw.appendChild(wizField(`地点 · ${pl.name}`, pl.desc, (v) => { pl.desc = v; }, null, 2)));
+    r.world.factions.forEach((fa) => sw.appendChild(wizField(`势力 · ${fa.name}`, fa.desc, (v) => { fa.desc = v; }, null, 2)));
     r.npcs.forEach((n, i) => {
       const sn = sec(`NPC · ${n.name}${n.gender ? ` · ${n.gender}` : ""}${n.age ? ` · ${n.age}` : ""}${n.height ? ` · ${n.height}` : ""}`);
-      sn.appendChild(wizField("和主角的关系", n.relation, (v) => { n.relation = v; }, null));
-      for (const [f, label] of WIZ_NPC_FIELDS) sn.appendChild(wizField(label, n[f], (v) => { n[f] = v; }, () => wizReroll("npc", f, i)));
+      const rr = el("div", "row"); rr.appendChild(wizField("和主角的关系", n.relation, (v) => { n.relation = v; }, null, 1)); rr.appendChild(wizField(`和你的初始关系 · 好感 ${n.aff}`, n.relToUser, (v) => { n.relToUser = v; }, null, 1)); sn.appendChild(rr);
+      for (const k of WIZ_NPC_SECTIONS) { if (k === "财富" && /^(无|没有|不适用)/.test((n.sections[k] || "").trim())) continue; sn.appendChild(wizField(k, n.sections[k], (v) => { n.sections[k] = v; }, () => wizReroll("npc", k, i))); }
       const del = el("button", "btn ghost", "删掉这个 NPC"); del.type = "button"; del.style.cssText = "font-size:12px;padding:3px 8px;color:var(--danger);align-self:flex-start"; del.onclick = () => { r.npcs.splice(i, 1); renderWizResult(); };
       sn.appendChild(del);
     });
   }
   function wizCreate() {
     const r = wiz && wiz.result; if (!r) return;
-    const u = state.persona.name || "你";
+    const ch = r.char;
+    const desc = WIZ_SECTIONS.filter((k) => ch.sections[k] && !(k === "财富" && /^(无|没有|不适用)/.test(ch.sections[k].trim()))).map((k) => `${k}:\n${ch.sections[k].split("\n").map((l) => "  " + l).join("\n")}`).join("\n");
+    const greetings = ch.greetings.filter((g) => g && g.trim());
+    const gi = Math.min(r.greetingIdx || 0, Math.max(0, greetings.length - 1));
     const c = {
-      id: uid(), name: String(r.char.name || "新角色").trim(), tag: String(r.char.tag || ""), emoji: String(r.char.emoji || "🎭").slice(0, 4), color: SWATCHES[Math.floor(Math.random() * SWATCHES.length)], image: "",
-      description: [`【外貌】${r.char.look || ""}`, `【家境与背景】${r.char.family || ""}`, `【说话方式】${r.char.speech || ""}`].join("\n\n"),
-      personality: String(r.char.personality || ""), scenario: String(r.char.scenario || ""), firstMessage: String(r.char.first || ""), examples: "",
-      chat: [], createdAt: Date.now(), worldName: r.world.worldName || "",
+      id: uid(), name: String(ch.name || "新角色").trim(), tag: String(ch.tag || ""), emoji: String(ch.emoji || "🎭").slice(0, 4), color: SWATCHES[Math.floor(Math.random() * SWATCHES.length)], image: "",
+      description: desc, personality: "", scenario: String(ch.scenario || ""), firstMessage: greetings[gi] || "", altGreetings: greetings.filter((_, i) => i !== gi), examples: "",
+      postHistory: ch.rules ? String(ch.rules).trim() : "", tags: ch.tags || [], chat: [], createdAt: Date.now(), worldName: r.world.worldName || "",
     };
     normalizeChar(c);
+    // status panel: relation + affinity from the card, opening state
+    const rel = {}; for (const line of (ch.sections["关系"] || "").split("\n")) { const m = line.match(/^\s*(初始关系|初始好感)\s*[:：]\s*(.+)$/); if (m) rel[m[1]] = m[2].trim(); }
+    c.status.enabled = true;
+    const setF = (key, val, type) => { if (val == null || val === "") return; let f = c.status.fields.find((x) => x.key === key); if (!f) { f = { key, type: type || "text", value: "" }; c.status.fields.push(f); } f.value = type === "number" ? Math.max(0, Math.min(100, Number(val) || 0)) : String(val); };
+    if (rel["初始关系"]) setF("关系", rel["初始关系"]);
+    if (rel["初始好感"]) setF("好感度", parseInt(rel["初始好感"], 10), "number");
+    const st = ch.statusText != null ? Object.fromEntries(ch.statusText.split("\n").map((l) => l.split(/[:：]/)).filter((a) => a.length >= 2).map((a) => [a[0].trim(), a.slice(1).join(":").trim()])) : ch.status;
+    for (const k of ["地点", "时间", "心情", "穿着"]) if (st && st[k]) setF(k, st[k]);
     // world book bound to the card
-    const book = newBook(`世界书 · ${r.world.worldName || c.name}`);
-    book.enabled = true;
+    const book = newBook(`世界书 · ${r.world.worldName || c.name}`); book.enabled = true;
     const add = (comment, keys, content, constant) => { const e = newEntry(book); e.comment = comment; e.keys = keys; e.content = content; e.constant = !!constant; e.position = "before_char"; e.insertion_order = 100 + book.entries.length; book.entries.push(e); };
     if (r.world.overview) add("世界背景", [], `【${r.world.worldName || "世界背景"}】${r.world.overview}`, true);
+    if (r.world.relations) add("人物关系", [], `【人物关系】\n${r.world.relations}`, true);
     for (const pl of r.world.places) if (pl && pl.name) add(`地点 · ${pl.name}`, [pl.name], `【${pl.name}】${pl.desc || ""}`, false);
     for (const fa of r.world.factions) if (fa && fa.name) add(`势力 · ${fa.name}`, [fa.name], `【${fa.name}】${fa.desc || ""}`, false);
-    for (const n of r.npcs) if (n && n.name) add(`人物 · ${n.name}`, [n.name, ...(Array.isArray(n.aliases) ? n.aliases : [])].filter(Boolean), `【${n.name}】${[n.gender, n.age, n.height].filter(Boolean).join(" · ")}${n.relation ? `，${n.relation}` : ""}\n外貌：${n.look || ""}\n性格：${n.personality || ""}\n背景：${n.family || ""}\n说话方式：${n.speech || ""}`, false);
+    for (const n of r.npcs) add(`人物 · ${n.name}`, [n.name, ...n.aliases].filter(Boolean), `【${n.name}】${[n.gender, n.age, n.height].filter(Boolean).join(" · ")}${n.relation ? `，${n.relation}` : ""}\n${WIZ_NPC_SECTIONS.filter((k) => n.sections[k] && !(k === "财富" && /^(无|没有|不适用)/.test(n.sections[k].trim()))).map((k) => `${k}:\n${n.sections[k].split("\n").map((l) => "  " + l).join("\n")}`).join("\n")}`, false);
     c.books.push(book);
-    // contacts
-    c.npcs = r.npcs.filter((n) => n && n.name).map((n) => normalizeNpc({ name: n.name, aliases: Array.isArray(n.aliases) ? n.aliases : [], brief: [n.relation, n.family ? n.family.split(/[。；;]/)[0] : ""].filter(Boolean).join(" · ").slice(0, 60), desc: `${n.look || ""}\n${n.family || ""}`, personality: n.personality || "", speech: n.speech || "" })).filter(Boolean);
-    for (const n of c.npcs) relSet(c, "c", n.id, (r.npcs.find((x) => x.name === n.name) || {}).relation || "", 60, "", "建卡时设定");
+    // contacts + relations
+    c.npcs = r.npcs.map((n) => normalizeNpc({ name: n.name, aliases: n.aliases, brief: n.relation.slice(0, 60), desc: `${n.sections["外貌"] || ""}\n${n.sections["基本"] || ""}`.slice(0, 600), personality: (n.sections["性格"] || "").slice(0, 300), speech: (n.sections["说话"] || "").slice(0, 300) })).filter(Boolean);
+    for (const npc of c.npcs) { const src = r.npcs.find((x) => x.name === npc.name); if (!src) continue; relSet(c, "c", npc.id, src.relation, 65, "", "建卡时设定"); if (src.relToUser) relSet(c, "u", npc.id, src.relToUser, src.aff, "", "建卡时设定"); }
     c.chat = [greeting(c)];
     state.characters.push(c); state.activeId = c.id;
     save(); renderAll();
     $("wzBack").hidden = true; wiz = null; $("wzNpcs").innerHTML = "";
-    toast(`已创建「${c.name}」：世界书 ${book.entries.length} 条，联系人 ${c.npcs.length} 位`);
+    toast(`已创建「${c.name}」：世界书 ${book.entries.length} 条，联系人 ${c.npcs.length} 位，开场白 ${greetings.length} 个`);
   }
   $("wizBtn").onclick = openWizard;
   $("wzClose").onclick = () => { $("wzBack").hidden = true; };
   $("wzAddNpc").onclick = () => wizAddNpc();
-  $("wzGo").onclick = wizGenerate;
+  $("wzRandom").onclick = () => wizGenerate(true);
+  $("wzGo").onclick = () => wizGenerate(false);
   $("wzBackTo1").onclick = () => { $("wzStep1").hidden = false; $("wzStep2").hidden = true; };
+  $("wzAgain").onclick = () => { $("wzStep1").hidden = false; $("wzStep2").hidden = true; wizGenerate(wiz && wiz.seeds ? wiz.seeds.random : false); };
   $("wzCreate").onclick = wizCreate;
+  $("wzPrefsReset").onclick = () => { $("wzPrefs").value = WIZ_DEFAULT_PREFS; state.settings.wizPrefs = ""; save(); };
   $("memRebuild").onclick = openRebuild;
   $("memMergeAll").onclick = openMergeAll;
   $("memQuick").onclick = quickSummarize;
@@ -8829,6 +8952,7 @@
   // Boot
   // ============================================================
   bootStorage().then(() => {
+  try { ensureLuxuryBook(); } catch (e) { console.error(e); }
   renderAll();
   { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
   refreshGlobalRx();
