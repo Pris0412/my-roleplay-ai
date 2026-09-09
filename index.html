@@ -1161,7 +1161,22 @@
             <option value="inline">内嵌 · 安全，不运行卡里的脚本</option>
             <option value="iframe">iframe · 运行卡里的脚本（实验）</option>
           </select>
-          <div class="help">整份 HTML 文档或 ```html 代码块会被识别为前端界面。iframe 模式提供酒馆助手常用 API 的替身（getChatMessages 等）；若环境不允许 iframe，会自动退回内嵌。</div>
+          <div class="help">整份 HTML 文档或 ```html 代码块会被识别为前端界面。iframe 模式提供酒馆助手常用 API 的替身（getChatMessages、getVariables、triggerSlash、eventOn 等）；若环境不允许 iframe，会自动退回内嵌。</div>
+        </div>
+        <div class="field">
+          <label for="sFeKeep">前端代码带入上下文</label>
+          <select id="sFeKeep">
+            <option value="0">不带 · 所有楼层只留文字</option>
+            <option value="1">最近 1 条回复带代码</option>
+            <option value="2">最近 2 条回复带代码（默认）</option>
+            <option value="4">最近 4 条回复带代码</option>
+            <option value="all">全部带 · 不过滤</option>
+          </select>
+          <div class="help">状态栏、```html 前端卡的代码很占 token。更早的楼层只保留卡上的文字（数值、标题），代码去掉；记忆总结永远只看文字。</div>
+        </div>
+        <div class="field">
+          <label for="sCss">自定义 CSS（全局）</label>
+          <textarea id="sCss" class="mono" rows="4" placeholder="卡作者附的美化 CSS 可以贴在这里；对每条消息和整个页面生效。角色专属的 CSS 在角色编辑里填。"></textarea>
         </div>
         <div class="field">
           <label for="sMem">带入上下文的消息数</label>
@@ -1303,6 +1318,10 @@
           <div class="field">
             <label for="edSys">系统提示词（system_prompt）</label>
             <textarea id="edSys" placeholder="留空则用本页默认的扮演规则。写了就会替换默认规则；可以用 {{original}} 把默认规则插回来。"></textarea>
+          </div>
+          <div class="field">
+            <label for="edCss">自定义 CSS（这张卡）</label>
+            <textarea id="edCss" class="mono" rows="3" placeholder="只对这个角色的消息生效，例如卡作者附的状态栏样式。"></textarea>
           </div>
           <div class="field">
             <label for="edPost">对话后指令（post_history_instructions）</label>
@@ -2970,6 +2989,8 @@
     details.reasoning { color: var(--muted); font-size: 0.92em; margin-bottom: 0.6em; }
     details.reasoning summary { cursor: pointer; color: var(--faint); font-size: 12px; }
     .mes_text > :first-child { margin-top: 0; }
+    .lt-frame { display: block; margin: 6px 0; min-height: 120px; } /* reserve the iframe's minimum so mounting one does not shift the page */
+    .lt-frame iframe { display: block; width: 100%; border: 0; background: transparent; min-height: 120px; border-radius: 8px; }
   `;
   const canHtml = () => !!(window.marked && window.DOMPurify && window.DOMPurify.isSupported);
 
@@ -3026,6 +3047,18 @@
     return t;
   }
   function stripReasoning(t) { return t.replace(REASON_RE, "").trim(); }
+  // Front-end cards in the prompt: keep what the card says, drop the code. Used for older floors, memory summaries and search.
+  const FE_CODE_RE = /<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi;
+  const hasFrontend = (t) => /<(style|script|!doctype|html)\b/i.test(t) || /```[ \t]*html/i.test(t);
+  function stripFrontend(t) {
+    let x = String(t || "").replace(/```[ \t]*(html|htm|xml)?[ \t]*\r?\n([\s\S]*?)```/gi, (m, lang, body) => (lang || looksLikeMarkup(body) ? "\n" + body + "\n" : m));
+    x = x.replace(/<!--[\s\S]*?-->/g, "").replace(FE_CODE_RE, "").replace(/<(title|head)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+    x = x.replace(/<\/(p|div|tr|li|h[1-6]|section|article|header|footer|details|summary|blockquote|pre|table|dd|dt)>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<\/t[dh]>/gi, " ");
+    x = x.replace(/<[^>]+>/g, "");
+    x = x.replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+    return x.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  const textOnly = (t) => stripFrontend(stripStatus(stripReasoning(String(t || ""))));
   // "quoted speech" → <q>, outside tags and inline code (SillyTavern does the same; card CSS styles q)
   function wrapQuotes(t) {
     return t.split(/(<[^>]+>|`[^`\n]*`|@@HTMLBLOCK\d+@@)/).map((seg, i) => (i % 2 ? seg : seg.replace(/(["“])([^"”\n]{1,400}?)(["”])/g, "<q>$2</q>"))).join("");
@@ -3071,129 +3104,279 @@
     let t = sub(text, ctx.c);
     t = applyRegex(t, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
     if (!canHtml()) return { html: renderRich(t), plain: true };
-    let html;
     try {
       t = foldReasoning(t, !!ctx.streaming);
-      t = inlineDocuments(unwrapHtmlFences(t));
-      const p = protectHtml(t);
-      html = restoreHtml(window.marked.parse(wrapQuotes(p.text), { breaks: true, gfm: true, mangle: false, headerIds: false }), p.blocks);
+      return { html: renderFragment(inlineDocuments(unwrapHtmlFences(t))), plain: false };
     } catch (e) { return { html: renderRich(t), plain: true }; }
-    html = window.DOMPurify.sanitize(html, {
+  }
+  // Markdown + HTML fragment -> sanitized HTML (no scripts). Throws if marked fails; callers fall back to plain text.
+  function renderFragment(t) {
+    const p = protectHtml(t);
+    const html = restoreHtml(window.marked.parse(wrapQuotes(p.text), { breaks: true, gfm: true, mangle: false, headerIds: false }), p.blocks);
+    return window.DOMPurify.sanitize(html, {
       FORCE_BODY: true, // otherwise a leading <style> is hoisted into <head> and dropped
       ADD_TAGS: ["style"],
       FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
       ADD_ATTR: ["target"],
     });
-    return { html, plain: false };
   }
-  // ---- iframe renderer with a small 酒馆助手-style API shim ----
+  // ---- Front-end cards: sandboxed iframes with a 酒馆助手-style API shim ----
   let iframeBlocked = false;
   document.addEventListener("securitypolicyviolation", (e) => {
     if (/frame-src|child-src/.test(e.violatedDirective || "")) {
       if (!iframeBlocked) { iframeBlocked = true; toast("这个环境不允许 iframe，前端卡已退回内嵌渲染。", true); renderMessages(); }
     }
   });
-  const frameRegistry = new Map(); // frameId -> { iframe, msgId }
-  window.addEventListener("message", (ev) => {
+  const frameRegistry = new Map(); // frameId -> { iframe, msgId, slot }
+  const frameSlots = new WeakMap(); // placeholder element -> { doc, ctx, frameId, height }
+  const feEvents = []; // recent events, replayed to frames that finish loading right after a render
+  function feEmit(name, ...args) {
+    feEvents.push({ name, args, t: Date.now() });
+    while (feEvents.length > 20) feEvents.shift();
+    for (const [, r] of frameRegistry) frameReply(r, { lt: "event", name, args });
+  }
+  function frameReply(reg, msg) { if (reg && reg.iframe.isConnected && reg.iframe.contentWindow) { try { reg.iframe.contentWindow.postMessage(msg, "*"); } catch (e) {} } }
+  function gcFrames() { for (const [k, v] of frameRegistry) if (!v.iframe.isConnected) frameRegistry.delete(k); }
+  // A card mounting or growing above the viewport must not push what the reader is looking at; one at the bottom must not leave them mid-list.
+  let stickUntil = 0; // right after a render the list sits at the bottom and should stay there while cards settle
+  function keepScroll(node, fn) {
+    const box = $("messages");
+    const nearBottom = Date.now() < stickUntil && box.scrollHeight - box.scrollTop - box.clientHeight < 160;
+    const above = node && node.isConnected && node.getBoundingClientRect().bottom < box.getBoundingClientRect().top;
+    const before = box.scrollHeight;
+    fn();
+    const delta = box.scrollHeight - before;
+    // the list scrolls smoothly by default; these corrections have to be instant or they pile up into an animation
+    if (nearBottom) box.scrollTo({ top: box.scrollHeight, behavior: "instant" });
+    else if (above && delta) box.scrollTo({ top: box.scrollTop + delta, behavior: "instant" });
+  }
+  // Slash commands a card may run through triggerSlash(). Returns the pipe value.
+  async function runSlash(cmdText, c) {
+    let pipe = "";
+    const cmds = String(cmdText || "").split(/\s*\|\s*(?=\/)|\n+(?=\s*\/)/).map((x) => x.trim()).filter(Boolean);
+    for (const raw of cmds) {
+      const m = raw.match(/^\/(\w+)\s*([\s\S]*)$/);
+      if (!m) continue;
+      const cmd = m[1].toLowerCase();
+      let rest = m[2].trim().replace(/\{\{pipe\}\}/g, pipe);
+      const named = {};
+      rest = rest.replace(/(^|\s)(\w+)=("([^"]*)"|(\S+))/g, (_, sp, k, v, q, bare) => { named[k] = q != null ? q : bare; return sp; }).trim();
+      const scope = /global/.test(cmd) ? "global" : "chat";
+      switch (cmd) {
+        case "send": if (rest && !busy) { $("input").value = rest; await send(); } break;
+        case "setinput": $("input").value = rest; autosize($("input")); break;
+        case "trigger": if (!busy) { const last = c.chat[c.chat.length - 1]; if (last && last.role === "user") await generate(c, null, {}); else if ($("input").value.trim()) await send(); else await generate(c, null, {}); } break;
+        case "echo": toast(rest || named.text || ""); break;
+        case "sys": case "comment": if (rest) addNarration(c, rest, false); break;
+        case "sendas": { const name = named.name || c.name; if (rest) { const text = name === c.name ? rest : `${name}：${rest}`; c.chat.push({ id: uid(), role: "assistant", content: text, swipes: [text], si: 0, ts: Date.now() }); save(); renderMessages(); } break; }
+        case "setvar": case "setglobalvar": { const st = vars(scope, c); const key = named.key || rest.split(/\s+/)[0]; const val = named.key ? rest : rest.slice(key.length).trim(); if (key) { st[key] = /^-?\d+(\.\d+)?$/.test(val) ? Number(val) : val; pipe = String(val); save(); } break; }
+        case "getvar": case "getglobalvar": { const st = vars(scope, c); const key = named.key || rest; pipe = st[key] == null ? "" : typeof st[key] === "object" ? JSON.stringify(st[key]) : String(st[key]); break; }
+        case "addvar": case "addglobalvar": case "incvar": case "incglobalvar": case "decvar": case "decglobalvar": { const st = vars(scope, c); const key = named.key || rest.split(/\s+/)[0]; const n = cmd.startsWith("inc") ? 1 : cmd.startsWith("dec") ? -1 : Number(named.key ? rest : rest.slice(key.length).trim()) || 0; if (key) { st[key] = (Number(st[key]) || 0) + n; pipe = String(st[key]); save(); } break; }
+        case "flushvar": case "flushglobalvar": { const st = vars(scope, c); delete st[named.key || rest]; save(); break; }
+        case "hide": case "unhide": { const i = parseInt(rest, 10); const mm = c.chat[i]; if (mm) { mm.hidden = cmd === "hide"; save(); renderMessages(); } break; }
+        default: break;
+      }
+    }
+    return pipe;
+  }
+  window.addEventListener("message", async (ev) => {
     const d = ev.data;
     if (!d || typeof d !== "object" || !d.lt) return;
     const reg = frameRegistry.get(d.frame);
     if (!reg || ev.source !== reg.iframe.contentWindow) return;
     const c = active();
-    if (d.lt === "h") { reg.iframe.style.height = Math.min(4000, Math.max(80, Number(d.h) || 0) + 4) + "px"; return; }
-    if (d.lt === "setChatMessages" && c && Array.isArray(d.items)) {
+    if (d.lt === "h") {
+      const h = Math.min(4000, Math.max(80, Math.ceil(Number(d.h) || 0)));
+      if (Math.abs(h - reg.iframe.getBoundingClientRect().height) < 2) return; // same height: a 1px drift would otherwise grow the card every tick
+      keepScroll(reg.slot || reg.iframe, () => {
+        reg.iframe.style.height = h + "px";
+        if (reg.slot) { reg.slot.style.minHeight = h + "px"; const s = frameSlots.get(reg.slot); if (s) s.height = h; }
+      });
+      return;
+    }
+    if (d.lt === "ready") { const since = Date.now() - 4000; for (const e of feEvents) if (e.t >= since) frameReply(reg, { lt: "event", name: e.name, args: e.args }); return; }
+    if (!c) return;
+    if (d.lt === "setChatMessages" && Array.isArray(d.items)) {
       let changed = false;
       for (const it of d.items) {
         const m = c.chat[Number(it.message_id)];
-        if (!m || typeof it.message !== "string") continue;
-        m.content = it.message; m.swipes[m.si] = it.message; changed = true;
+        if (!m) continue;
+        if (typeof it.message === "string") { m.content = it.message; m.swipes[m.si] = it.message; changed = true; }
+        if (it.data && typeof it.data === "object") { m.vars = { ...(m.vars || {}), ...it.data }; changed = true; }
       }
-      if (changed) { save(); renderMessages(); }
+      if (changed) { save(); if (d.refresh !== "none") renderMessages(); }
       return;
     }
-    if (d.lt === "setVariables" && c && d.vars && typeof d.vars === "object") {
-      const store = d.scope === "global" ? (state.vars = state.vars || {}) : (c.vars = c.vars || {});
-      Object.assign(store, d.vars); save(); return;
+    if (d.lt === "setVariables" && d.vars && typeof d.vars === "object") {
+      let store;
+      if (d.scope === "message") { const mm = c.chat[Number(d.message_id)]; if (!mm) return; store = mm.vars = mm.vars || {}; }
+      else store = vars(d.scope === "global" ? "global" : "chat", c);
+      if (d.replace) for (const k of Object.keys(store)) delete store[k];
+      Object.assign(store, d.vars);
+      save();
+      return;
     }
     if (d.lt === "toast") { toast(String(d.text || ""), d.kind === "error"); return; }
+    if (d.lt === "slash") {
+      let value = "";
+      try { value = await runSlash(d.cmd, c); } catch (e) { console.error(e); }
+      frameReply(reg, { lt: "slashResult", id: d.id, value });
+      return;
+    }
+    if (d.lt === "generate") {
+      if (busy) { frameReply(reg, { lt: "generated", id: d.id, text: "" }); return; }
+      try {
+        if (d.input && String(d.input).trim()) { $("input").value = String(d.input); await send(); }
+        else await generate(c, null, {});
+      } catch (e) { console.error(e); }
+      const last = c.chat[c.chat.length - 1];
+      frameReply(reg, { lt: "generated", id: d.id, text: last && last.role === "assistant" ? last.content : "" });
+      return;
+    }
   });
+  // The page's theme, resolved to plain colours so a card's CSS can use the SillyTavern variable names inside its iframe.
+  function frameThemeCss() {
+    const cs = getComputedStyle(document.documentElement);
+    const names = ["--SmartThemeBodyColor", "--SmartThemeEmColor", "--SmartThemeUnderlineColor", "--SmartThemeQuoteColor", "--SmartThemeBlurTintColor", "--SmartThemeChatTintColor", "--SmartThemeUserMesBlurTintColor", "--SmartThemeBotMesBlurTintColor", "--SmartThemeShadowColor", "--SmartThemeBorderColor", "--mainFontSize", "--ground", "--surface", "--raised", "--line", "--line-strong", "--text", "--muted", "--faint", "--accent", "--accent-strong", "--user-bubble", "--char-bubble", "--font-body", "--font-mono"];
+    const lines = [];
+    for (const v of names) { const val = cs.getPropertyValue(v).trim(); if (val) lines.push(`${v}:${val}`); }
+    const dark = document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    return `<style id="lt-theme">:root{${lines.join(";")};color-scheme:${dark ? "dark" : "light"}}</style>`;
+  }
   function frameShim(frameId, c, msgIndex) {
     const u = state.persona.name || "你";
-    const msgs = c.chat.map((m, i) => ({ message_id: i, name: m.role === "user" ? u : c.name, role: m.role, is_hidden: !!m.hidden, is_user: m.role === "user", message: m.content, data: {}, swipe_id: m.si || 0, swipes: m.swipes || [m.content] }));
+    const msgs = c.chat.map((m, i) => ({ message_id: i, name: m.role === "user" ? u : c.name, role: m.role, is_hidden: !!m.hidden, is_user: m.role === "user", message: m.content, data: m.vars || {}, swipe_id: m.si || 0, swipes: m.swipes || [m.content] }));
     const charData = { name: c.name, description: c.description || "", personality: c.personality || "", scenario: c.scenario || "", first_mes: c.firstMessage || "", mes_example: c.examples || "", avatar: "", tags: c.tags || [], system_prompt: c.systemPrompt || "", post_history_instructions: c.postHistory || "", alternate_greetings: c.altGreetings || [] };
     // the JSON rides inside a <script>: a literal closing script tag or comment opener in any message would end the tag early
     const payload = JSON.stringify({ frameId, msgs, charData, msgIndex, vars: c.vars || {}, gvars: state.vars || {}, user: u })
       .replace(/<\//g, "<\\/").replace(/<!-{2}/g, "<\\!--").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
     return `<script>(function(){
       var D=${payload};
-      var post=function(m){m.lt=m.lt;m.frame=D.frameId;parent.postMessage(m,'*');};
-      function range(r){ if(r==null)return [D.msgIndex,D.msgIndex]; if(typeof r==='number')return [r,r]; var s=String(r).trim(); var m=s.match(/^(-?\\d+)\\s*-\\s*(-?\\d+)$/); var last=D.msgs.length-1; var norm=function(n){n=Number(n); return n<0?last+1+n:n;}; if(m)return [norm(m[1]),norm(m[2])]; if(/^-?\\d+$/.test(s)){var n=norm(s);return [n,n];} return [0,last]; }
-      window.getChatMessages=function(r,o){var ab=range(r);var out=D.msgs.filter(function(m){return m.message_id>=ab[0]&&m.message_id<=ab[1];}); if(o&&o.role&&o.role!=='all')out=out.filter(function(m){return o.role==='user'?m.is_user:!m.is_user;}); if(o&&o.hide_state==='unhidden')out=out.filter(function(m){return !m.is_hidden;}); return out.map(function(m){return JSON.parse(JSON.stringify(m));});};
-      window.getCurrentMessageId=function(){return D.msgIndex;};
-      window.getLastMessageId=function(){return D.msgs.length-1;};
+      var pending={}, seq=0, listeners={};
+      var post=function(m){m.frame=D.frameId;parent.postMessage(m,'*');};
+      var ask=function(m){return new Promise(function(res){var id=++seq;pending[id]=res;m.id=id;post(m);});};
+      window.addEventListener('message',function(ev){var d=ev.data; if(!d||typeof d!=='object')return;
+        if((d.lt==='slashResult'||d.lt==='generated')&&pending[d.id]){pending[d.id](d.lt==='generated'?d.text:d.value);delete pending[d.id];}
+        else if(d.lt==='event'){var ls=(listeners[d.name]||[]).slice(); ls.forEach(function(l){try{l.fn.apply(null,d.args||[]);}catch(e){console.error(e);} if(l.once)window.eventRemoveListener(d.name,l.fn);});}
+      });
+      var last=D.msgs.length-1;
+      function macros(t){return String(t).replace(/\\{\\{user\\}\\}/gi,D.user).replace(/\\{\\{char\\}\\}/gi,D.charData.name).replace(/\\{\\{lastMessageId\\}\\}/gi,String(last)).replace(/\\{\\{lastUserMessageId\\}\\}/gi,String((function(){for(var i=last;i>=0;i--)if(D.msgs[i].is_user)return i;return 0;})())).replace(/\\{\\{lastCharMessageId\\}\\}/gi,String((function(){for(var i=last;i>=0;i--)if(!D.msgs[i].is_user)return i;return 0;})()));}
+      function range(r){ if(r==null)return [D.msgIndex,D.msgIndex]; if(typeof r==='number')return [r,r]; var s=macros(String(r)).trim(); var m=s.match(/^(-?\\d+)\\s*-\\s*(-?\\d+)$/); var norm=function(n){n=Number(n); return n<0?last+1+n:n;}; if(m)return [norm(m[1]),norm(m[2])]; if(/^-?\\d+$/.test(s)){var n=norm(s);return [n,n];} return [0,last]; }
+      window.getChatMessages=function(r,o){var ab=range(r);var out=D.msgs.filter(function(m){return m.message_id>=ab[0]&&m.message_id<=ab[1];}); if(o&&o.role&&o.role!=='all')out=out.filter(function(m){return o.role==='user'?m.is_user:!m.is_user;}); if(o&&o.hide_state==='unhidden')out=out.filter(function(m){return !m.is_hidden;}); if(o&&o.hide_state==='hidden')out=out.filter(function(m){return m.is_hidden;}); return out.map(function(m){return JSON.parse(JSON.stringify(m));});};
+      window.getCurrentMessageId=window.getMessageId=function(){return D.msgIndex;};
+      window.getLastMessageId=function(){return last;};
+      window.getIframeName=function(){return 'message-iframe-'+D.msgIndex;};
       window.getCharData=function(){return JSON.parse(JSON.stringify(D.charData));};
       window.getCharAvatarPath=function(){return '';};
-      window.getVariables=function(o){return JSON.parse(JSON.stringify(o&&o.type==='global'?D.gvars:D.vars));};
-      window.replaceVariables=function(v,o){var s=o&&o.type==='global'?'global':'chat'; if(s==='global')D.gvars=v;else D.vars=v; post({lt:'setVariables',scope:s,vars:v});};
-      window.insertOrAssignVariables=function(v,o){var s=o&&o.type==='global'?'global':'chat'; var t=s==='global'?D.gvars:D.vars; for(var k in v)t[k]=v[k]; post({lt:'setVariables',scope:s,vars:v});};
-      window.setChatMessages=function(items,o){ (items||[]).forEach(function(it){var m=D.msgs[it.message_id]; if(m&&typeof it.message==='string')m.message=it.message;}); post({lt:'setChatMessages',items:items||[]}); return Promise.resolve(); };
+      function store(o){ if(o&&o.type==='global')return D.gvars; if(o&&o.type==='message'){var id=o.message_id==null?D.msgIndex:o.message_id; if(id<0)id=last+1+id; var m=D.msgs[id]; if(!m)return {}; m.data=m.data||{}; return m.data;} return D.vars; }
+      function scopeOf(o){ return o&&o.type==='global'?'global':o&&o.type==='message'?'message':'chat'; }
+      function midOf(o){ var id=o&&o.message_id!=null?o.message_id:D.msgIndex; return id<0?last+1+id:id; }
+      window.getVariables=function(o){return JSON.parse(JSON.stringify(store(o)));};
+      window.replaceVariables=function(v,o){var s=store(o); for(var k in s)delete s[k]; for(var k2 in v)s[k2]=v[k2]; post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:v,replace:true});};
+      window.insertOrAssignVariables=function(v,o){var s=store(o); for(var k in v)s[k]=v[k]; post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:v});};
+      window.insertVariables=function(v,o){var s=store(o),add={}; for(var k in v)if(!(k in s)){s[k]=v[k];add[k]=v[k];} post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:add});};
+      window.deleteVariable=function(p,o){var s=store(o); if(!(p in s))return false; delete s[p]; post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:JSON.parse(JSON.stringify(s)),replace:true}); return true;};
+      window.updateVariablesWith=function(fn,o){var s=store(o); var out=fn(JSON.parse(JSON.stringify(s))); if(out&&typeof out.then==='function')return out.then(function(v){window.replaceVariables(v,o);return v;}); window.replaceVariables(out,o); return out;};
+      window.setChatMessages=function(items,o){ (items||[]).forEach(function(it){var m=D.msgs[it.message_id]; if(!m)return; if(typeof it.message==='string')m.message=it.message; if(it.data)m.data=Object.assign(m.data||{},it.data);}); post({lt:'setChatMessages',items:items||[],refresh:o&&o.refresh}); return Promise.resolve(); };
       window.setChatMessage=function(field,id,o){ if(typeof field==='string')return window.setChatMessages([{message_id:id,message:field}],o); return window.setChatMessages([Object.assign({message_id:id},field)],o); };
-      window.triggerSlash=function(){return Promise.resolve('');};
+      window.triggerSlash=function(cmd){return ask({lt:'slash',cmd:macros(cmd)});};
       window.triggerSlashWithResult=window.triggerSlash;
-      window.eventOn=window.eventOnce=window.eventMakeFirst=window.eventMakeLast=function(){}; window.eventEmit=function(){return Promise.resolve();}; window.eventRemoveListener=function(){};
-      window.tavern_events={MESSAGE_RECEIVED:'message_received',MESSAGE_SENT:'message_sent',GENERATION_ENDED:'generation_ended',CHAT_CHANGED:'chat_id_changed'};
-      window.substitudeMacros=window.substituteMacros=function(t){return String(t).replace(/\\{\\{user\\}\\}/gi,D.user).replace(/\\{\\{char\\}\\}/gi,D.charData.name);};
+      window.generate=function(o){o=o||{}; return ask({lt:'generate',input:o.user_input||''});};
+      window.generateRaw=window.generate;
+      window.eventOn=function(n,fn){(listeners[n]=listeners[n]||[]).push({fn:fn});return fn;};
+      window.eventOnce=function(n,fn){(listeners[n]=listeners[n]||[]).push({fn:fn,once:true});return fn;};
+      window.eventMakeFirst=function(n,fn){(listeners[n]=listeners[n]||[]).unshift({fn:fn});return fn;};
+      window.eventMakeLast=window.eventOn;
+      window.eventRemoveListener=function(n,fn){listeners[n]=(listeners[n]||[]).filter(function(l){return l.fn!==fn;});};
+      window.eventClearAll=function(){listeners={};};
+      window.eventEmit=function(n){var a=Array.prototype.slice.call(arguments,1); (listeners[n]||[]).slice().forEach(function(l){try{l.fn.apply(null,a);}catch(e){}}); return Promise.resolve();};
+      window.tavern_events={MESSAGE_RECEIVED:'message_received',MESSAGE_SENT:'message_sent',GENERATION_STARTED:'generation_started',GENERATION_ENDED:'generation_ended',CHAT_CHANGED:'chat_id_changed',MESSAGE_UPDATED:'message_updated',MESSAGE_SWIPED:'message_swiped',MESSAGE_DELETED:'message_deleted',USER_MESSAGE_RENDERED:'user_message_rendered',CHARACTER_MESSAGE_RENDERED:'character_message_rendered'};
+      window.iframe_events={MESSAGE_IFRAME_RENDER_STARTED:'message_iframe_render_started',MESSAGE_IFRAME_RENDER_ENDED:'message_iframe_render_ended'};
+      window.substitudeMacros=window.substituteMacros=macros;
       window.formatAsTavernRegexedString=function(t){return t;};
       window.toastr={success:function(t){post({lt:'toast',text:t});},info:function(t){post({lt:'toast',text:t});},warning:function(t){post({lt:'toast',text:t,kind:'error'});},error:function(t){post({lt:'toast',text:t,kind:'error'});}};
-      window.SillyTavern={getContext:function(){return {chat:D.msgs.map(function(m){return {name:m.name,is_user:m.is_user,mes:m.message};}),characterId:0,characters:[D.charData],name1:D.user,name2:D.charData.name};}};
+      window.SillyTavern={getContext:function(){return {chat:D.msgs.map(function(m){return {name:m.name,is_user:m.is_user,mes:m.message};}),characterId:0,characters:[D.charData],name1:D.user,name2:D.charData.name,chatMetadata:{variables:D.vars}};}};
       var h=function(){ post({lt:'h',h:Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0)}); };
-      window.addEventListener('load',h); document.addEventListener('DOMContentLoaded',h); setTimeout(h,50); setTimeout(h,500); setInterval(h,1500);
+      window.addEventListener('load',function(){h();post({lt:'ready'});}); document.addEventListener('DOMContentLoaded',h); setTimeout(h,50); setTimeout(h,500); setInterval(h,2000);
       if(window.ResizeObserver){ document.addEventListener('DOMContentLoaded',function(){ new ResizeObserver(h).observe(document.documentElement); if(document.body)new ResizeObserver(h).observe(document.body); }); }
       document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]'); if(a&&/^https?:/.test(a.getAttribute('href')))a.setAttribute('target','_blank');});
     })();<\/script>`;
   }
-  function paintFrame(bubble, doc, ctx) {
+  function frameSrc(doc, frameId, ctx) {
     const c = ctx.c;
-    const frameId = uid();
-    const shim = frameShim(frameId, c, ctx.msgIndex ?? c.chat.length - 1);
+    const shim = frameThemeCss() + frameShim(frameId, c, ctx.msgIndex ?? c.chat.length - 1);
     let src = /<head[^>]*>/i.test(doc) ? doc.replace(/<head[^>]*>/i, (m) => m + shim) : (/<html[^>]*>/i.test(doc) ? doc.replace(/<html[^>]*>/i, (m) => m + "<head>" + shim + "</head>") : shim + doc);
-    src = src.replace(/<head>/i, '<head><meta charset="utf-8">');
+    return src.replace(/<head[^>]*>/i, (m) => m + '<meta charset="utf-8">');
+  }
+  // Frames are mounted only near the viewport: a long chat full of cards would otherwise run dozens of iframes at once.
+  function mountFrame(slot) {
+    const s = frameSlots.get(slot);
+    if (!s || slot.querySelector("iframe")) return;
+    const frameId = uid();
     const f = document.createElement("iframe");
     f.className = "frontend";
-    f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms");
+    f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms allow-modals");
     f.setAttribute("referrerpolicy", "no-referrer");
-    f.srcdoc = src;
-    frameRegistry.set(frameId, { iframe: f, msgId: ctx.msgId });
-    for (const [k, v] of frameRegistry) if (!v.iframe.isConnected && v.iframe !== f) frameRegistry.delete(k);
-    return f;
+    if (s.height) f.style.height = s.height + "px";
+    f.srcdoc = frameSrc(s.doc, frameId, s.ctx);
+    frameRegistry.set(frameId, { iframe: f, msgId: s.ctx.msgId, slot });
+    s.frameId = frameId;
+    keepScroll(slot, () => slot.appendChild(f));
+    gcFrames();
   }
+  function unmountFrame(slot) {
+    const s = frameSlots.get(slot);
+    const f = slot.querySelector("iframe");
+    if (!f) return;
+    if (s && s.height) slot.style.minHeight = s.height + "px";
+    keepScroll(slot, () => f.remove());
+    if (s) { frameRegistry.delete(s.frameId); s.frameId = null; }
+  }
+  const frameWatcher = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+    for (const en of entries) { if (!frameSlots.has(en.target)) continue; if (en.isIntersecting) mountFrame(en.target); else unmountFrame(en.target); }
+  }, { root: $("messages"), rootMargin: "1200px 0px" }) : null; // the chat list is the scroller: it clips, so the margin has to be measured against it
+  function userCss(c) { return `${state.settings.css || ""}\n${(c && c.css) || ""}`; }
+  function applyUserCss() { let n = document.getElementById("userCss"); if (!n) { n = document.createElement("style"); n.id = "userCss"; document.head.appendChild(n); } n.textContent = state.settings.css || ""; }
 
   function paintBubble(bubble, text, ctx) {
     let host = bubble.querySelector(".rendered");
     if (!host) { host = el("div", "rendered"); bubble.appendChild(host); }
     const root = host.shadowRoot || host.attachShadow({ mode: "open" });
-    // iframe mode: a whole HTML document (possibly inside a ```html fence) gets its own frame with scripts
-    let frameDoc = null;
+    for (const old of bubble.querySelectorAll(":scope > iframe.frontend")) old.remove();
+    for (const slot of root.querySelectorAll(".lt-frame")) { if (frameWatcher) frameWatcher.unobserve(slot); unmountFrame(slot); }
+    host.hidden = false;
+    const name = esc(ctx.role === "user" ? (state.persona.name || "你") : (ctx.c ? ctx.c.name : ""));
+    // the same wrapper classes SillyTavern uses, so card CSS like ".mes_text .panel" matches
+    const wrap = (inner, plain) => `<style>${BUBBLE_CSS}${plain ? ":host{white-space:pre-wrap}" : ""}</style><style class="user-css">${userCss(ctx.c)}</style>`
+      + `<div class="mes" is_user="${ctx.role === "user"}" is_system="false" ch_name="${name}"><div class="mes_block"><div class="mes_text">${inner}</div></div></div>`;
+    // iframe mode: every whole HTML document (possibly inside a ```html fence) gets its own frame, in place, text around it kept
+    let parts = null;
     if (state.settings.htmlMode === "iframe" && !iframeBlocked && !ctx.streaming && canHtml()) {
       let raw = sub(text, ctx.c);
       raw = applyRegex(raw, { placement: ctx.role === "user" ? 1 : 2, stage: "display", depth: ctx.depth, c: ctx.c });
       raw = unwrapHtmlFences(stripReasoning(raw));
-      const d = findDocument(raw);
-      if (d) frameDoc = d;
+      const segs = [];
+      let rest = raw, guard = 0, found = false;
+      while (guard++ < 8) {
+        const d = findDocument(rest);
+        if (!d) break;
+        found = true;
+        segs.push({ text: rest.slice(0, d.start) });
+        segs.push({ doc: d.doc });
+        rest = rest.slice(d.end);
+      }
+      if (found) { segs.push({ text: rest }); parts = segs; }
     }
-    for (const old of bubble.querySelectorAll("iframe.frontend")) old.remove();
-    if (frameDoc) {
-      root.innerHTML = `<style>${BUBBLE_CSS}</style>` + (frameDoc.start > 0 || frameDoc.end < frameDoc.doc.length + frameDoc.start ? "" : "");
-      host.hidden = true;
-      bubble.appendChild(paintFrame(bubble, frameDoc.doc, ctx));
-      return;
+    if (parts) {
+      const html = parts.map((p) => p.doc ? `<div class="lt-frame"></div>` : (p.text.trim() ? renderFragment(p.text) : "")).join("");
+      root.innerHTML = wrap(html, false);
+      const slots = root.querySelectorAll(".lt-frame");
+      let k = 0;
+      for (const p of parts) if (p.doc) { const slot = slots[k++]; frameSlots.set(slot, { doc: p.doc, ctx, frameId: null, height: 0 }); if (frameWatcher) frameWatcher.observe(slot); else mountFrame(slot); }
+    } else {
+      const { html, plain } = messageHtml(text, ctx);
+      root.innerHTML = wrap(html, plain);
     }
-    host.hidden = false;
-    const { html, plain } = messageHtml(text, ctx);
-    const name = esc(ctx.role === "user" ? (state.persona.name || "你") : (ctx.c ? ctx.c.name : ""));
-    // the same wrapper classes SillyTavern uses, so card CSS like ".mes_text .panel" matches
-    root.innerHTML = `<style>${BUBBLE_CSS}${plain ? ":host{white-space:pre-wrap}" : ""}</style>`
-      + `<div class="mes" is_user="${ctx.role === "user"}" is_system="false" ch_name="${name}"><div class="mes_block"><div class="mes_text">${html}</div></div></div>`;
     for (const a of root.querySelectorAll("a[href]")) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   }
 
@@ -3286,7 +3469,8 @@
       box.appendChild(messageNode(m, c, i));
     });
     flush();
-    box.scrollTop = box.scrollHeight;
+    box.scrollTo({ top: box.scrollHeight, behavior: "instant" });
+    stickUntil = Date.now() + 2500;
     const scl = sceneNpcs(c);
     const sc = scl[0] || null;
     $("modeBanner").hidden = !(c.phone && c.phone.open) && !sc;
@@ -3483,6 +3667,9 @@
     $("sMemCustom").value = memVal;
     $("sVoice").value = state.settings.voice || "strict";
     $("sHtmlMode").value = state.settings.htmlMode === "iframe" ? "iframe" : "inline";
+    $("sFeKeep").value = state.settings.feKeep == null ? "2" : String(state.settings.feKeep);
+    $("sCss").value = state.settings.css || "";
+    applyUserCss();
   }
 
   function updateStats() {
@@ -3675,9 +3862,11 @@
   const seg = (group, label, text) => { if (text && String(text).trim()) segments.push({ group, label, text: String(text) }); };
 
   // How a stored message reads in the prompt: phone texts get a [手机 时间] prefix, dividers are scene notes
+  let feKeepIds = null; // set while buildTurns runs: floors allowed to keep their front-end code in the prompt
   function promptText(m, c) {
     let txt = applyRegex(sub(m.content, c), { placement: m.role === "user" ? 1 : 2, stage: "prompt", depth: 0, c });
     if (m.role === "assistant") txt = stripStatus(stripReasoning(txt));
+    if (feKeepIds && m.kind !== "divider" && !feKeepIds.has(m.id) && hasFrontend(txt)) txt = stripFrontend(txt);
     if (m.kind === "divider") return `（${sub(m.content, c)}）`;
     if (m.narration) return `[旁白] ${txt}`;
     if (m.channel === "moments") return momentLine(c, m);
@@ -3880,6 +4069,10 @@
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto).filter((m) => npc ? visibleToNpc(c, m, npc.id) : visibleToChar(c, m));
     const kept = history.filter((m) => !m.error && !m.hidden).slice(-mem);
     const keptIds = new Set(kept.map((m) => m.id));
+    // front-end code (status bars, ```html cards) only rides along on the newest few replies; older floors keep just their text
+    const feKeep = state.settings.feKeep == null ? "2" : String(state.settings.feKeep);
+    const feN = parseInt(feKeep, 10) || 0;
+    feKeepIds = feKeep === "all" ? null : new Set((feN ? kept.filter((m) => m.role === "assistant").slice(-feN) : []).map((m) => m.id));
     // retrieval: floors not in context that match the latest exchange
     let retrieved = [];
     if (state.settings.ragOn !== false && state.settings.ragOn !== "0") {
@@ -3936,6 +4129,7 @@
     if (pendingNudge) turns.push({ role: "user", content: pendingNudge });
     else if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: npc && !sceneMode ? `（${npc.name} 接着发消息。）` : !npc && c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : "（继续，接着刚才的情节写下去。）" });
     if (npc && others.length) segments.forEach((x) => { if (x.label === "开场指令") x.label = "开场指令（多人独处）"; });
+    feKeepIds = null;
     return turns;
   }
   // The Claude path has no system role and must start/end on user turns; a custom API takes turns as they are.
@@ -4154,6 +4348,7 @@
     const ctl = new AbortController();
     busy = { ctl, msgId: msg.id };
     setBusy(true);
+    feEmit("generation_started");
     try {
       const res = await complete(turns, {
         signal: ctl.signal,
@@ -4199,6 +4394,8 @@
       renderMessages();
       renderCharList();
       if (msg.channel === "phone") renderPhone();
+      if (!msg.error && c.chat.includes(msg)) feEmit("message_received", c.chat.indexOf(msg));
+      feEmit("generation_ended", msg.content);
     }
   }
 
@@ -4211,7 +4408,7 @@
     const sc = scl[0] || null;
     const name = sc ? namesOf(scl) : c.name;
     const history = c.chat.filter((m) => !m.error && !m.group && (sc ? msgHasNpc(m, sc.id) : !m.npc)).slice(-mem);
-    const lines = history.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, 1500)}`).join("\n\n");
+    const lines = history.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : name}：${textOnly(sub(m.content, c)).slice(0, 1500)}`).join("\n\n");
     const instr = [
       `你是 ${u} 的写手。下面是 ${u} 和 ${name} 之间正在进行的角色扮演；${name} 的设定和最近的对话都给你了。请替 ${u} 想下一条回复。`,
       "",
@@ -5616,7 +5813,7 @@
   function buildNpcMemPrompt(c, npc, msgsOpt, templateOpt) {
     const u = state.persona.name || "用户";
     const msgs = msgsOpt || npcUnsummarized(c, npc);
-    const lines = msgs.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.group ? "" : m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : npc.name}：${stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, "").trim()}`).join("\n");
+    const lines = msgs.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.group ? "" : m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : npc.name}：${textOnly(sub(m.content, c))}`).join("\n");
     const book = memoryBook(c, false, npc);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
     let prompt = templateOpt || $("memPrompt").value || (npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
@@ -6064,7 +6261,7 @@
     }
     return out;
   }
-  const plainText = (m, c) => stripReasoning(sub(m.content, c)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const plainText = (m, c) => stripFrontend(stripReasoning(sub(m.content, c))).replace(/\s+/g, " ").trim();
   let ragCache = null; // { charId, sig, docs:[{m,floor,len,text}], postings:Map(term→Map(docIdx→tf)), avg }
   function ragIndex(c) {
     const sig = c.chat.length + ":" + c.chat.reduce((n, m) => n + m.content.length, 0) + ":" + (state.persona.name || "");
@@ -6359,7 +6556,7 @@
       if (m.kind === "divider") { if (m.cast) marked = (m.present || []).filter((id) => npcById(c, id)); continue; }
       fl++;
       if (covered(fl) || m.error || m.npc || m.group) continue;
-      rows.push({ floor: fl, bytes: utf8.enc.encode(m.content || "").length, moments: isMoment(m), explicit: !!marked, cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : marked ? marked.slice() : floorCast(c, m) });
+      rows.push({ floor: fl, bytes: utf8.enc.encode(hasFrontend(m.content || "") ? textOnly(m.content) : (m.content || "")).length, moments: isMoment(m), explicit: !!marked, cast: isMoment(m) ? (m.author !== "user" && m.author !== "char" ? [m.author] : []) : marked ? marked.slice() : floorCast(c, m) });
     }
     if (!rows.length) return [];
     // an NPC stays "present" for two more floors after the last mention, so a floor without the name doesn't split the scene
@@ -6518,8 +6715,8 @@
       if (m.kind === "divider") return `（${sub(m.content, c)}）`;
       fl++;
       if (m.channel === "moments") return `#${fl} ${momentLine(c, m)}`;
-      if (m.narration) return `#${fl} 旁白：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`;
-      return `#${fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").trim()}`;
+      if (m.narration) return `#${fl} 旁白：${textOnly(sub(m.content, c))}`;
+      return `#${fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${textOnly(sub(m.content, c))}`;
     }).filter(Boolean).join("\n\n");
     const book = memoryBook(c, false);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim() && entryScope(e) !== "public" && !entryScope(e).startsWith("npc:")).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
@@ -6615,6 +6812,7 @@
     }
     if (c.phone && c.phone.open) exitPhone(false);
     c.chat.push(sc ? { id: uid(), role: "user", npc: sc.id, npcs: scl.map((n) => n.id), channel: "scene", content: text, ts: Date.now() } : { id: uid(), role: "user", content: text, ts: Date.now() });
+    feEmit("message_sent", c.chat.length - 1);
     ta.value = "";
     $("ideas").hidden = true; $("ideas").innerHTML = "";
     autosize(ta);
@@ -6653,7 +6851,7 @@
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || "";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || "";
     renderEdBook();
     refreshCharRx();
     $("editorDelete").hidden = !c;
@@ -6698,6 +6896,7 @@
     d.creatorNotes = $("edNotes").value.trim();
     d.systemPrompt = $("edSys").value.trim();
     d.postHistory = $("edPost").value.trim();
+    d.css = $("edCss").value.trim();
     d.worldName = $("edWorld").value;
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
@@ -7742,6 +7941,8 @@
   });
   $("sMemCustom").addEventListener("change", (e) => { const v = Math.max(1, Math.min(1000, parseInt(e.target.value, 10) || 40)); e.target.value = v; state.settings.mem = String(v); save(); refreshContextMeter(); });
   $("sHtmlMode").addEventListener("change", (e) => { state.settings.htmlMode = e.target.value; save(); renderMessages(); });
+  $("sFeKeep").addEventListener("change", (e) => { state.settings.feKeep = e.target.value; save(); refreshContextMeter(); });
+  $("sCss").addEventListener("change", (e) => { state.settings.css = e.target.value; save(); applyUserCss(); renderMessages(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
   // ▶ 再写一段: the character (or the NPC you're alone with) carries on without a new message from you
