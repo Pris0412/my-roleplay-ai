@@ -717,7 +717,7 @@
   .ev-desc { font-size: 13px; line-height: 1.6; }
   .ev-acts { font-size: 13px; color: var(--muted); line-height: 1.6; }
   .ev-plot { border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: var(--raised); }
-  .ev-plot.sweet { border-left-color: #e0729a; } .ev-plot.daily { border-left-color: #6aa86a; } .ev-plot.twist { border-left-color: #d9a441; } .ev-plot.angst { border-left-color: #7a6bd6; }
+  .ev-plot.sweet { border-left-color: #e0729a; } .ev-plot.daily { border-left-color: #6aa86a; } .ev-plot.twist { border-left-color: #d9a441; } .ev-plot.angst { border-left-color: #7a6bd6; } .ev-plot.fun { border-left-color: #2fb3c9; }
   .ev-plot-h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .ev-plot-h .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; }
   .ev-hook { font-size: 13px; line-height: 1.55; }
@@ -2090,8 +2090,9 @@
           <option value="误会">基调：误会</option>
           <option value="悬念">基调：悬念</option>
           <option value="虐">基调：虐</option>
+          <option value="搞笑">基调：搞笑 / 抽象</option>
         </select>
-        <button class="btn" id="evGen" style="font-size:12px;padding:4px 10px">✨ 换一批</button>
+        <button class="btn primary" id="evGen" style="font-size:12px;padding:4px 12px">✨ 开始想</button>
         <span class="help" style="margin:0">按世界观、人设、关系和最近剧情想的。卡片不进上下文，用了的那条才会变成楼层。</span>
       </div>
       <div class="rx-list" id="evList"></div>
@@ -8399,8 +8400,8 @@
     if (p && p.ids.length) parts.push(`\n此刻在场：${p.ids.map((id) => npcName(c, id)).join("、")}`);
     const recent = c.chat.filter((m) => !m.npc && !m.group && !isMoment(m) && m.kind !== "divider" && !m.error && !m.hidden).slice(-20);
     if (recent.length) parts.push(`\n## 最近的剧情\n${recent.map((m) => `${m.narration ? "旁白" : m.role === "user" ? u : c.name}：${stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").slice(0, 200)}`).join("\n")}`);
-    const toneLine = tone && tone !== "any" ? `这批事件的基调偏「${tone}」。` : "四个事件的基调要分开：至少一个甜、一个日常、一个带点误会或悬念。";
-    parts.push(`\n## 要求\n${toneLine}每个事件给：\n- title：事件名（4–8 字）\n- summary：一句话是什么\n- description：这个事件在这个世界里的来历和样子，2–4 句，像世界书条目那样写（谁办的、什么时候、有什么讲究、大家怎么看它）\n- activities：在这个事件里可以做的 3–5 件事，短语\n- plots：2–3 条推荐剧情，每条 {title: 标题(4–8字), hook: 一两句钩子（写清楚 ${c.name} 和 ${u} 各自的处境或动作，留一个悬念）, who: 涉及的人名（主角、${u} 之外的用名字）, tone: 甜|日常|误会|悬念|虐}\n\n只输出 JSON：{"events":[{"title":"","summary":"","description":"","activities":[""],"plots":[{"title":"","hook":"","who":"","tone":""}]}]}`);
+    const toneLine = tone === "搞笑" ? "这批事件的基调是搞笑、抽象、无厘头：可以离谱、可以荒诞、可以玩梗，但要贴着世界观和人设的逻辑来离谱（比如贵族学校里也能有一场荒唐的马术比赛），推荐剧情的钩子要让人想笑。" : tone && tone !== "any" ? `这批事件的基调偏「${tone}」。` : "四个事件的基调要分开：至少一个甜、一个日常、一个带点误会或悬念。";
+    parts.push(`\n## 要求\n${toneLine}每个事件给：\n- title：事件名（4–8 字）\n- summary：一句话是什么\n- description：这个事件在这个世界里的来历和样子，2–4 句，像世界书条目那样写（谁办的、什么时候、有什么讲究、大家怎么看它）\n- activities：在这个事件里可以做的 3–5 件事，短语\n- plots：2–3 条推荐剧情，每条 {title: 标题(4–8字), hook: 一两句钩子（写清楚 ${c.name} 和 ${u} 各自的处境或动作，留一个悬念）, who: 涉及的人名（主角、${u} 之外的用名字）, tone: 甜|日常|误会|悬念|虐|搞笑}\n\n只输出 JSON：{"events":[{"title":"","summary":"","description":"","activities":[""],"plots":[{"title":"","hook":"","who":"","tone":""}]}]}`);
     parts.push(`\n${langHint()}`);
     return sub(parts.join("\n"), c);
   }
@@ -8409,7 +8410,6 @@
     $("evTitle").textContent = `📜 剧情灵感 · ${c.name}`;
     renderEvents();
     $("evBack").hidden = false;
-    if (!eventCards.length && chatReady()) generateEvents();
   }
   async function generateEvents() {
     const c = active(); if (!c || eventBusy || !chatReady()) return;
@@ -8421,13 +8421,13 @@
       eventCards = list.filter((e) => e && e.title).map((e) => ({ title: String(e.title), summary: String(e.summary || ""), description: String(e.description || ""), activities: Array.isArray(e.activities) ? e.activities.map(String) : [], plots: (Array.isArray(e.plots) ? e.plots : []).filter((p) => p && (p.hook || p.title)).map((p) => ({ title: String(p.title || ""), hook: String(p.hook || ""), who: String(p.who || ""), tone: String(p.tone || "") })) }));
       if (!eventCards.length) toast("没想出来，再试一次", true);
     } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
-    finally { eventBusy = false; $("evGen").disabled = false; $("evGen").textContent = "✨ 换一批"; renderEvents(); }
+    finally { eventBusy = false; $("evGen").disabled = false; $("evGen").textContent = eventCards.length ? "✨ 换一批" : "✨ 开始想"; renderEvents(); }
   }
-  const TONE_CLS = { "甜": "sweet", "日常": "daily", "误会": "twist", "悬念": "twist", "虐": "angst" };
+  const TONE_CLS = { "甜": "sweet", "日常": "daily", "误会": "twist", "悬念": "twist", "虐": "angst", "搞笑": "fun", "抽象": "fun", "幽默": "fun" };
   function renderEvents() {
     const c = active(); const box = $("evList"); box.innerHTML = "";
     if (!c) return;
-    if (!eventCards.length) { box.appendChild(el("div", "rx-empty", chatReady() ? "点「换一批」让模型想几个事件。" : "接口未就绪。")); return; }
+    if (!eventCards.length) { box.appendChild(el("div", "rx-empty", chatReady() ? "选个基调，点「开始想」，模型会按世界观和最近剧情想 4 个事件。" : "接口未就绪。")); return; }
     const u = state.persona.name || "你";
     eventCards.forEach((ev, i) => {
       const d = document.createElement("details"); d.className = "adv ev-card"; d.open = i === 0;
