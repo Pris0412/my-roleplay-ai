@@ -1353,6 +1353,7 @@
       <div class="right">
         <button class="btn" id="exportJson" title="导出为 SillyTavern V2 JSON">导出 JSON</button>
         <button class="btn" id="exportPng" title="导出为带角色数据的 PNG">导出 PNG</button>
+        <button class="btn" id="exportPack" title="把这个角色连同聊天记录、记忆书、联系人、存档、状态、关系整份打包成一个文件；用「导入角色卡」就能导回来">打包导出（含记录）</button>
         <button class="btn danger" id="editorDelete" title="删除这个角色和它的聊天记录">删除角色</button>
         <span class="stat" id="edStat"></span>
       </div>
@@ -6890,6 +6891,7 @@
     refreshCharRx();
     $("editorDelete").hidden = !c;
     $("exportJson").disabled = $("exportPng").disabled = !downloads;
+    $("exportPack").disabled = !downloads || !c;
     $("exportJson").title = $("exportPng").title = downloads ? "" : "只有在 Claude 里打开时才能保存文件";
     renderEditorAvatar();
     $("editorBack").hidden = false;
@@ -7189,6 +7191,13 @@
           if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
           try { card = JSON.parse(text); } catch (e) { throw new Error("不是合法的 JSON 文件"); }
         }
+        if (card && card.app === "lantern-tavern" && card.kind === "character-pack") {
+          const c = await importPack(card);
+          if (!c) continue;
+          ok++;
+          details.push(`${c.name}：整份导回（${floorCount(c)} 楼、${c.books.length} 本书、${c.npcs.length} 位联系人、${(c.saves || []).length} 个存档）`);
+          continue;
+        }
         const c = fromStCard(card);
         if (image) c.image = image;
         state.characters.unshift(c);
@@ -7207,6 +7216,35 @@
     if (ok && !fail.length) toast(`导入了 ${ok} 个角色 · ${details.join("；")}`, false, 7000);
     else if (ok) toast(`导入了 ${ok} 个（${details.join("；")}），失败 ${fail.length} 个：${fail.join("；")}`, true);
     else toast(`导入失败：${fail.join("；")}`, true);
+  }
+
+  // ---- Character pack: one file with everything this character owns (chat, books, NPCs, saves, status, relations) ----
+  function buildPack(c) {
+    const bound = c.worldName ? state.books.filter((b) => b.name === c.worldName) : [];
+    return { app: "lantern-tavern", kind: "character-pack", version: 1, exportedAt: new Date().toISOString(), character: deep(c), globalBooks: deep(bound) };
+  }
+  async function exportPack() {
+    if (!editing || !editing.id || !downloads) return;
+    const c = state.characters.find((x) => x.id === editing.id);
+    if (!c) return;
+    const json = JSON.stringify(buildPack(c));
+    try { await downloads.save({ filename: safeName(c.name) + ".pack.json", data: json }); toast(`已打包：${floorCount(c)} 楼、${c.books.length} 本书、${c.npcs.length} 位联系人（${(json.length / 1024).toFixed(0)} KB）`); }
+    catch (e) { if (e && e.code !== "cancelled") toast("导出失败：" + (e.message || e.code), true); }
+  }
+  async function importPack(pack) {
+    let c;
+    try { c = normalizeChar(deep(pack.character)); } catch (e) { c = null; }
+    if (!c || !c.name) throw new Error("打包文件里读不出角色");
+    const same = state.characters.find((x) => x.id === c.id);
+    if (same) {
+      const overwrite = await askConfirm(`本机已经有「${same.name}」这个角色（同一份的 ${floorCount(same)} 楼）。覆盖它？「取消」则另存为一个副本。`, "覆盖", true);
+      if (overwrite) { makeSave(same, `自动 · 被导入覆盖前（第 ${floorCount(same)} 楼）`, "import"); state.characters[state.characters.indexOf(same)] = c; }
+      else { c.id = uid(); c.name = c.name + "（导入）"; state.characters.unshift(c); }
+    } else state.characters.unshift(c);
+    for (const b of pack.globalBooks || []) if (b && b.name && !state.books.some((x) => x.name === b.name)) state.books.push(b);
+    state.activeId = c.id;
+    renderGlobalBooks();
+    return c;
   }
 
   // Build a PNG for export: the uploaded avatar if any, else a generated portrait card
@@ -7755,6 +7793,7 @@
     if (files.length) await importFiles(files);
   });
   $("exportJson").onclick = () => exportCard("json");
+  $("exportPack").onclick = exportPack;
   // regex: global
   let rxImportTarget = null;
   $("rxGlobalImport").onclick = () => { rxImportTarget = { list: state.regex, onChange: () => { save(); refreshGlobalRx(); renderMessages(); } }; $("rxFile").click(); };
