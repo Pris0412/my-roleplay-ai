@@ -3205,7 +3205,7 @@
     let pipe = "";
     const cmds = String(cmdText || "").split(/\s*\|\s*(?=\/)|\n+(?=\s*\/)/).map((x) => x.trim()).filter(Boolean);
     for (const raw of cmds) {
-      const m = raw.match(/^\/(\w+)\s*([\s\S]*)$/);
+      const m = raw.match(/^\/([\w-]+)\s*([\s\S]*)$/);
       if (!m) continue;
       const cmd = m[1].toLowerCase();
       let rest = m[2].trim().replace(/\{\{pipe\}\}/g, pipe);
