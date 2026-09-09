@@ -2994,7 +2994,7 @@
     rxCache.set(src, re);
     return re;
   }
-  function allScripts(c) { return [...(state.regex || []), ...((c && c.regex) || [])]; }
+  function allScripts(c) { return [...(state.regex || []).filter((x) => !x.preset || x.preset === state.activePreset), ...((c && c.regex) || [])]; }
   function applyRegex(text, opts) {
     const { placement, stage, depth, c } = opts;
     for (const sc of allScripts(c)) {
@@ -4067,9 +4067,12 @@
     const order = ps.order.filter((o) => o.identifier !== "lanternRules").map((o) => ({ identifier: o.identifier, enabled: o.enabled }));
     raw.prompt_order = [{ character_id: 100000, order }, { character_id: 100001, order }];
     raw.names_behavior = ps.namesInContent ? 1 : 0;
+    const bound = state.regex.filter((x) => x.preset === ps.id).map((x) => { const y = { ...x }; delete y.preset; return y; });
+    if (bound.length) raw.extensions = { ...(raw.extensions || {}), regex_scripts: bound };
     return raw;
   }
   const activePreset = () => state.presets.find((p) => p.id === state.activePreset) || null;
+  const presetName = (id) => { const p = state.presets.find((x) => x.id === id); return p ? p.name : "已删除的预设"; };
   function samplerSummary(raw) {
     const keys = ["temperature", "top_p", "top_k", "frequency_penalty", "presence_penalty", "openai_max_tokens", "openai_max_context"];
     const parts = keys.filter((k) => raw[k] != null).map((k) => `${k}=${raw[k]}`);
@@ -7665,6 +7668,7 @@
   function closePromptEditor() { $("ppBack").hidden = true; ppEditing = null; }
   async function importPresetFiles(files) {
     let n = 0, bad = [];
+    const rxNote = [];
     for (const f of files) {
       try {
         const data = JSON.parse(await f.text());
@@ -7673,10 +7677,12 @@
         ps.name = ps.name === "未命名预设" ? f.name.replace(/\.json$/i, "") : ps.name;
         state.presets.push(ps); n++;
         state.activePreset = ps.id;
+        const rxN = bindPresetScripts(ps, presetScripts(data));
+        if (rxN) rxNote.push(`${ps.name} 带 ${rxN} 条正则`);
       } catch (e) { bad.push(f.name); }
     }
-    save(); renderPresetSelect(); refreshContextMeter();
-    toast(n ? `导入了 ${n} 个预设，已启用最后一个${bad.length ? "；跳过：" + bad.join("、") : ""}` : `没有可用的预设：${bad.join("、")}`, !n, 6000);
+    save(); renderPresetSelect(); refreshContextMeter(); refreshGlobalRx(); renderMessages();
+    toast(n ? `导入了 ${n} 个预设，已启用最后一个${rxNote.length ? "；" + rxNote.join("、") + "（跟着预设启用，删预设时一起删）" : ""}${bad.length ? "；跳过：" + bad.join("、") : ""}` : `没有可用的预设：${bad.join("、")}`, !n, 7000);
   }
 
   // ---------- Regex scripts UI ----------
@@ -7696,8 +7702,29 @@
       substituteRegex: Number(s.substituteRegex) || 0,
       minDepth: typeof s.minDepth === "number" ? s.minDepth : -1,
       maxDepth: typeof s.maxDepth === "number" ? s.maxDepth : -1,
+      preset: typeof s.preset === "string" && s.preset ? s.preset : undefined, // bound to a preset: only runs while that preset is active
     };
   }
+  // regex scripts that ride inside a preset file, under whichever key the author used
+  function presetScripts(raw) {
+    const cands = [raw && raw.regex_scripts, raw && raw.extensions && raw.extensions.regex_scripts, raw && raw.regex, raw && raw.extensions && raw.extensions.regex];
+    for (const c of cands) if (Array.isArray(c) && c.length) return c;
+    return [];
+  }
+  function bindPresetScripts(ps, list) {
+    const mine = state.regex.filter((x) => x.preset === ps.id);
+    let n = 0;
+    for (const src of list) {
+      const sc = normalizeScript(src);
+      if (!sc) continue;
+      if (mine.some((x) => x.findRegex === sc.findRegex && x.replaceString === sc.replaceString)) continue;
+      sc.preset = ps.id;
+      state.regex.push(sc); n++;
+    }
+    rxCache.clear();
+    return n;
+  }
+  function unbindPresetScripts(id) { state.regex = state.regex.filter((x) => x.preset !== id); rxCache.clear(); }
   function renderRxList(container, list, onChange, scope) {
     container.innerHTML = "";
     if (!list.length) { container.appendChild(el("div", "rx-empty", scope === "char" ? "这个角色没有自带脚本。" : "还没有全局脚本。")); return; }
@@ -7708,7 +7735,7 @@
       const nm = el("div", "nm"); nm.textContent = sc.scriptName;
       const where = [sc.placement.includes(1) ? "输入" : "", sc.placement.includes(2) ? "回复" : "", sc.placement.includes(5) ? "世界书" : ""].filter(Boolean).join("/");
       const mode = sc.markdownOnly ? "仅显示" : sc.promptOnly ? "仅提示词" : "";
-      const small = document.createElement("small"); small.textContent = [where, mode].filter(Boolean).join(" · ");
+      const small = document.createElement("small"); small.textContent = [where, mode, sc.preset ? `预设 · ${presetName(sc.preset)}${sc.preset === state.activePreset ? "" : "（未启用）"}` : ""].filter(Boolean).join(" · ");
       nm.appendChild(small);
       const bEd = el("button", "btn ghost", "编辑");
       bEd.onclick = () => openRxEditor(sc, (updated) => { list[i] = updated; rxCache.clear(); onChange(); });
@@ -7895,7 +7922,7 @@
   $("dataFile").addEventListener("change", async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) await importAllData(f); });
 
   // presets
-  $("psActive").addEventListener("change", (e) => { state.activePreset = e.target.value; save(); renderPresetSelect(); refreshContextMeter(); toast(e.target.value ? "已启用预设" : "已切回内置默认"); });
+  $("psActive").addEventListener("change", (e) => { state.activePreset = e.target.value; rxCache.clear(); save(); renderPresetSelect(); refreshContextMeter(); refreshGlobalRx(); renderMessages(); toast(e.target.value ? "已启用预设" : "已切回内置默认"); });
   $("psImport").onclick = () => $("psFile").click();
   $("psFile").addEventListener("change", async (e) => { const files = Array.from(e.target.files || []); e.target.value = ""; if (files.length) await importPresetFiles(files); });
   $("psEdit").onclick = () => { const ps = activePreset(); if (ps) openPresetEditor(ps); };
@@ -7909,9 +7936,11 @@
   $("psDelete").onclick = async () => {
     const ps = activePreset();
     if (!ps) return;
-    if (!(await askConfirm(`删除预设「${ps.name}」？`, "删除", true))) return;
+    const bound = state.regex.filter((x) => x.preset === ps.id).length;
+    if (!(await askConfirm(`删除预设「${ps.name}」？${bound ? `它带的 ${bound} 条正则也会一起删。` : ""}`, "删除", true))) return;
     state.presets = state.presets.filter((p) => p.id !== ps.id); state.activePreset = "";
-    save(); renderPresetSelect(); refreshContextMeter();
+    unbindPresetScripts(ps.id);
+    save(); renderPresetSelect(); refreshContextMeter(); refreshGlobalRx(); renderMessages();
   };
   $("psClose").onclick = closePresetEditor;
   $("psCancel").onclick = closePresetEditor;
@@ -8543,7 +8572,7 @@
     if (state.bg && state.bg.image) { const b = state.bg.image.length; counted += b; add("聊天背景图 · 全局", "图片", b, () => { state.bg.image = ""; return true; }); }
     if (state.persona.image) { const b = state.persona.image.length; counted += b; add("你的头像", "图片", b, () => { state.persona.image = ""; return true; }); }
     for (const bk of state.books) { const b = bytesOf(bk); counted += b; add(`全局世界书 · ${bk.name}`, `${bk.entries.length} 条`, b, async () => { if (!(await askConfirm(`删掉全局世界书「${bk.name}」（${bk.entries.length} 条）？`, "删除", true))) return false; state.books = state.books.filter((x) => x !== bk); return true; }); }
-    for (const ps of state.presets) { const b = bytesOf(ps); counted += b; add(`预设 · ${ps.name}`, "", b, () => { state.presets = state.presets.filter((x) => x !== ps); if (state.activePreset === ps.id) state.activePreset = ""; return true; }); }
+    for (const ps of state.presets) { const b = bytesOf(ps); counted += b; add(`预设 · ${ps.name}`, "", b, () => { state.presets = state.presets.filter((x) => x !== ps); if (state.activePreset === ps.id) state.activePreset = ""; unbindPresetScripts(ps.id); return true; }); }
     const total = lastBytes || bytesOf(state);
     add("其他（设置、人设、正则、角色设定）", "", Math.max(0, total - counted), null);
     items.sort((a, b) => b.bytes - a.bytes);
