@@ -974,7 +974,7 @@
       <button class="btn ghost block" id="wizBtn" title="给几句提示，让模型补全角色卡、世界书和 NPC，每块都能重刷">✨ 让 AI 帮我建一张卡</button>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
-      <div class="stat" id="storeStat">v21.18 · 本地保存 · 仅此浏览器</div>
+      <div class="stat" id="storeStat">v21.19 · 本地保存 · 仅此浏览器</div>
     </div>
   </aside>
 
@@ -2387,7 +2387,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.18"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.19"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3652,7 +3652,8 @@
     paintBubble(bubble, m.content, { c, role: m.role, depth, msgId: m.id, msgIndex: index });
     const actions = el("div", "actions");
 
-    const last = c.chat[c.chat.length - 1];
+    // "last" ignores dividers: a cast or scene marker appended after a reply must not take away its swipes and 重新生成
+    const last = [...c.chat].reverse().find((x) => x.kind !== "divider");
     const isLast = last && last.id === m.id;
 
     // swipes: ‹ n/N › on assistant messages; › on the last reply generates a new version
@@ -6956,7 +6957,7 @@
   function regenerate() {
     const c = active();
     if (!c || busy) return;
-    const last = c.chat[c.chat.length - 1];
+    const last = [...c.chat].reverse().find((x) => x.kind !== "divider");
     if (!last || last.role !== "assistant" || last.greeting) return;
     generate(c, last);
   }
