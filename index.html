@@ -1324,6 +1324,15 @@
         <select id="edWorld"></select>
         <div class="help" id="edWorldHelp"></div>
       </div>
+      <div class="field">
+        <label>角色自带正则脚本（extensions.regex_scripts）</label>
+        <div class="rx-list" id="rxCharList"></div>
+        <div class="row">
+          <button class="btn" id="rxCharImport">导入脚本</button>
+          <button class="btn" id="rxCharNew">＋ 新建</button>
+        </div>
+        <div class="help">导入角色卡时自带的正则会出现在这里，可以逐条开关、改、删；也能从文件导入或新建。全局正则在「全局库 › 正则」。</div>
+      </div>
       <details class="adv">
         <summary>高级 · SillyTavern 兼容字段</summary>
         <div class="inner">
@@ -1352,14 +1361,6 @@
           <div class="field">
             <label for="edPost">对话后指令（post_history_instructions）</label>
             <textarea id="edPost" placeholder="放在整段对话之后的提醒，例如格式或长度要求。"></textarea>
-          </div>
-          <div class="field">
-            <label>角色自带正则脚本（extensions.regex_scripts）</label>
-            <div class="rx-list" id="rxCharList"></div>
-            <div class="row">
-              <button class="btn" id="rxCharImport">导入脚本</button>
-              <button class="btn" id="rxCharNew">＋ 新建</button>
-            </div>
           </div>
         </div>
       </details>
