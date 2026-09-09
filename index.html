@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
 <meta name="description" content="Side Story（番外）：在浏览器里跑的 AI 角色扮演聊天页面。角色卡、世界书、记忆、手机与朋友圈；数据只存在你自己的浏览器里。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%231e1d25'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%23d9a066'/%3E%3C/svg%3E">
 <title>Side Story</title>
@@ -3223,6 +3224,21 @@
         case "addvar": case "addglobalvar": case "incvar": case "incglobalvar": case "decvar": case "decglobalvar": { const st = vars(scope, c); const key = named.key || rest.split(/\s+/)[0]; const n = cmd.startsWith("inc") ? 1 : cmd.startsWith("dec") ? -1 : Number(named.key ? rest : rest.slice(key.length).trim()) || 0; if (key) { st[key] = (Number(st[key]) || 0) + n; pipe = String(st[key]); save(); } break; }
         case "flushvar": case "flushglobalvar": { const st = vars(scope, c); delete st[named.key || rest]; save(); break; }
         case "hide": case "unhide": { const i = parseInt(rest, 10); const mm = c.chat[i]; if (mm) { mm.hidden = cmd === "hide"; save(); renderMessages(); } break; }
+        case "swipes-go": case "swipes-swipe": case "swipes-count": case "swipes-index": case "swipe": {
+          // opening-line pickers: the greeting floor carries every alternate greeting as a swipe
+          const mi = named.message != null ? parseInt(named.message, 10) : c.chat.length - 1;
+          const mm = c.chat[mi < 0 ? c.chat.length + mi : mi];
+          if (!mm || !Array.isArray(mm.swipes)) break;
+          if (cmd === "swipes-count") { pipe = String(mm.swipes.length); break; }
+          if (cmd === "swipes-index") { pipe = String(mm.si || 0); break; }
+          let idx = cmd === "swipes-go" ? parseInt(rest, 10) : (mm.si || 0) + 1;
+          if (!Number.isFinite(idx)) break;
+          idx = ((idx % mm.swipes.length) + mm.swipes.length) % mm.swipes.length;
+          mm.si = idx; mm.content = mm.swipes[idx];
+          save(); renderMessages(); feEmit("message_swiped", c.chat.indexOf(mm));
+          pipe = String(idx);
+          break;
+        }
         default: break;
       }
     }
