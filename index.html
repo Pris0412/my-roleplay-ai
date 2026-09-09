@@ -2081,11 +2081,8 @@
         <div class="help" id="wzHint"></div>
         <div class="field"><label>题材</label><div id="wzGenres" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
         <div class="field"><label for="wzLine">一句话想法（可空）</label><textarea id="wzLine" rows="2" placeholder="例如：冷傲的学生会长，我是刚转来的；或者：豪门继承人和家里安排的联姻对象；或者什么都不写"></textarea></div>
-        <div class="row">
-          <div class="field"><label for="wzGender">主角性别</label><select id="wzGender"><option>男</option><option>女</option><option>其他</option></select></div>
-          <div class="field"><label for="wzRating">尺度</label><select id="wzRating"><option value="暧昧">暧昧</option><option value="清水">清水</option><option value="成人">成人</option></select></div>
-        </div>
-        <div class="field"><label>外貌类型（默认帅 / 美，选的是哪一种）</label><div id="wzLooks" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+        <div class="field"><label for="wzGender">主角性别</label><select id="wzGender" style="max-width:200px"><option>男</option><option>女</option><option>其他</option></select></div>
+        <div class="field"><label>外貌类型（默认帅 / 美，选的是哪一种）</label><div id="wzLooks" style="display:flex;gap:6px;flex-wrap:wrap"></div><input id="wzLookCustom" placeholder="自己写：例如「书卷气但很高，笑起来有点坏」" hidden style="margin-top:6px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
           <button class="btn primary" id="wzRandom" style="flex:1">🎲 随机来一张</button>
           <button class="btn" id="wzGo" style="flex:1">✨ 按我的提示生成</button>
@@ -8578,16 +8575,17 @@
     "- 家境好的角色：穿搭、手表、座驾、住处、身边的人（司机 / 管家 / 私厨）都要具体到牌子和细节，不写成过普通人的日子。",
   ].join("\n");
   const WIZ_GENRES = ["随机", "现代都市", "贵族校园", "豪门世家", "娱乐圈", "职场", "古风权谋", "仙侠", "末世", "星际", "悬疑"];
-  const WIZ_LOOK_M = ["随机", "清冷禁欲", "阳光少年", "斯文败类", "野性痞帅", "贵气矜贵", "温润如玉", "冷硬军人", "妖孽", "病娇美人"];
-  const WIZ_LOOK_F = ["随机", "明艳", "清纯", "冷艳", "娇软", "英气", "温婉", "妩媚", "少年感", "高岭之花"];
+  const WIZ_LOOK_M = ["随机", "清冷禁欲", "阳光少年", "斯文败类", "野性痞帅", "贵气矜贵", "温润如玉", "冷硬军人", "妖孽", "病娇美人", "自定义"];
+  const WIZ_LOOK_F = ["随机", "明艳", "清纯", "冷艳", "娇软", "英气", "温婉", "妩媚", "少年感", "高岭之花", "自定义"];
   const WIZ_SECTIONS = ["基本", "外貌", "财富", "性格", "喜好", "经历", "关系", "称呼", "XP", "说话", "手机", "朋友圈", "底线", "钩子", "作息"];
   const WIZ_NPC_SECTIONS = ["基本", "外貌", "财富", "性格", "喜好", "关系", "说话"];
   let wiz = null;
   function wizPrefs() { return (state.settings.wizPrefs && state.settings.wizPrefs.trim()) || WIZ_DEFAULT_PREFS; }
   function wizSeeds(random) {
     const genre = ($("wzGenres").querySelector(".on") || {}).dataset ? $("wzGenres").querySelector(".on").dataset.v : "随机";
-    const look = ($("wzLooks").querySelector(".on") || {}).dataset ? $("wzLooks").querySelector(".on").dataset.v : "随机";
-    const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, rating: $("wzRating").value, random: !!random };
+    let look = ($("wzLooks").querySelector(".on") || {}).dataset ? $("wzLooks").querySelector(".on").dataset.v : "随机";
+    if (look === "自定义") look = $("wzLookCustom").value.trim() || "随机";
+    const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, random: !!random };
     if (!random) Object.assign(s, { name: $("wzName").value.trim(), age: $("wzAge").value.trim(), role: $("wzRole").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), rel: $("wzRel").value.trim(), world: $("wzWorld").value.trim(), npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint) });
     else Object.assign(s, { name: "", age: "", role: "", persona: "", family: "", rel: "", world: "", npcs: [] });
     return s;
@@ -8595,7 +8593,7 @@
   const WORLD_RULE = "世界必须是虚构的：城市、学校、公司、家族、机构一律自创名字，不用现实中存在的国家、城市、学校、公司、真实人物；时代和基调可以贴近现实。用户已经给出的名字（某家、某人）原样保留。";
   function wizCommonHead(seeds) {
     const u = state.persona.name || "用户";
-    const rating = { "清水": "尺度：清水。不写亲密关系细节，XP 一栏只写恋爱风格和亲密时的态度。", "暧昧": "尺度：暧昧。可以写吸引、张力和亲密偏好，点到为止。", "成人": "尺度：成人。XP 一栏可以写明确的偏好、雷点和亲密关系里的样子（在你允许的范围内尽量具体）。" }[seeds.rating] || "";
+    const rating = "XP 一栏：写恋爱风格、亲密关系里的偏好和雷点，写清楚是什么样的人，但不写露骨过程；具体尺度由之后的剧情决定。";
     return [
       `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。用户扮演 ${u}（${u} 的人设由用户自己写，你不要写）。${WORLD_RULE}`,
       `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
@@ -8658,7 +8656,7 @@ npcs（${npcLine}）：每个：
   }
   function openWizard() {
     ensureLuxuryBook();
-    const chips = (box, list, cur) => { box.innerHTML = ""; for (const v of list) { const b = el("button", "btn ghost wz-chip" + (v === cur ? " on" : ""), v); b.type = "button"; b.dataset.v = v; b.onclick = () => { box.querySelectorAll(".wz-chip").forEach((x) => x.classList.toggle("on", x === b)); }; box.appendChild(b); } };
+    const chips = (box, list, cur) => { box.innerHTML = ""; for (const v of list) { const b = el("button", "btn ghost wz-chip" + (v === cur ? " on" : ""), v); b.type = "button"; b.dataset.v = v; b.onclick = () => { box.querySelectorAll(".wz-chip").forEach((x) => x.classList.toggle("on", x === b)); if (box.id === "wzLooks") { $("wzLookCustom").hidden = v !== "自定义"; if (v === "自定义") $("wzLookCustom").focus(); } }; box.appendChild(b); } if (box.id === "wzLooks") $("wzLookCustom").hidden = true; };
     chips($("wzGenres"), WIZ_GENRES, "随机");
     const looks = () => chips($("wzLooks"), $("wzGender").value === "女" ? WIZ_LOOK_F : WIZ_LOOK_M, "随机");
     looks(); $("wzGender").onchange = looks;
