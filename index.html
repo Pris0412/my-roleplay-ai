@@ -438,13 +438,6 @@
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     backdrop-filter: blur(10px);
   }
-  .composer { position: relative; display: flex; flex-direction: column; }
-  .composer-grip { position: absolute; left: 0; right: 0; top: -7px; height: 14px; cursor: ns-resize; display: flex; align-items: center; justify-content: center; touch-action: none; z-index: 3; }
-  .composer-grip::before { content: ""; width: 56px; height: 5px; border-radius: 3px; background: var(--line-strong); opacity: 0.7; }
-  .composer-grip:hover::before, .composer-grip.on::before { opacity: 1; background: var(--accent); }
-  .composer.sized { height: var(--composer-h); overflow: hidden; justify-content: flex-end; }
-  .composer.sized > * { flex: 0 0 auto; }
-  .composer.sized > .clipped { visibility: hidden; } /* a toolbar row pushed above the top edge is hidden whole, not cut in half */
   .composer-open { display: none; max-width: var(--read-w, 860px); margin: 0 auto; }
   .composer-open .btn { width: 100%; padding: 12px; font-size: 15px; }
   .composer.collapsed { padding: 8px 20px 10px; }
@@ -1007,7 +1000,6 @@
     <div class="messages" id="messages" aria-live="polite"></div>
 
     <div class="composer" id="composer">
-      <div class="composer-grip" id="composerGrip" title="上下拖动调整整个回复区的高度，双击恢复自动"></div>
       <div class="composer-bar">
         <label class="pill-select" title="角色在回复里能不能替你说话、能不能描写你的动作表情">
           抢话
@@ -3770,8 +3762,6 @@
     applyReadWidth();
     $("sTheme").value = state.settings.theme || "system";
     applyTheme();
-    applyComposerHeight();
-    autosize($("input"));
     const memPresets = ["20", "40", "80", "150", "1000"];
     const memVal = String(parseInt(state.settings.mem, 10) || 40);
     $("sMem").value = memPresets.includes(memVal) ? memVal : "custom";
@@ -7872,50 +7862,13 @@
   // ============================================================
   // Layout helpers
   // ============================================================
-  // The whole reply panel can be given a fixed height: the input keeps what it needs, the toolbar rows give way; extra room goes to the input.
-  function applyComposerHeight() {
-    const comp = $("composer");
-    const H = Math.max(0, Number(state.settings.composerH) || 0);
-    comp.classList.toggle("sized", H > 0);
-    comp.style.setProperty("--composer-h", H ? H + "px" : "auto");
-    requestAnimationFrame(clipComposerRows);
-  }
-  function clipComposerRows() {
-    const comp = $("composer");
-    const top = comp.getBoundingClientRect().top;
-    for (const sel of [".composer-bar", ".ideas", ".snips", ".mode-banner"]) {
-      const n = comp.querySelector(sel);
-      if (n) n.classList.toggle("clipped", comp.classList.contains("sized") && n.getBoundingClientRect().top < top - 1);
-    }
-  }
-  window.addEventListener("resize", () => requestAnimationFrame(clipComposerRows));
   function autosize(ta) {
-    const comp = $("composer");
-    let base = 0;
-    if (comp.classList.contains("sized")) {
-      const H = Number(state.settings.composerH) || 0;
-      const cs = getComputedStyle(comp);
-      let others = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-      for (const sel of [".composer-bar", ".ideas", ".snips", ".mode-banner", ".hint"]) { const n = comp.querySelector(sel); if (n && !n.hidden) { const m = getComputedStyle(n); others += n.scrollHeight + parseFloat(m.marginTop) + parseFloat(m.marginBottom); } }
-      base = Math.max(44, H - others);
-    }
     ta.style.height = "auto";
-    ta.style.height = Math.max(base, Math.min(Math.max(200, base), ta.scrollHeight)) + "px";
-    if (comp.classList.contains("sized")) requestAnimationFrame(clipComposerRows);
+    ta.style.height = Math.min(200, ta.scrollHeight) + "px";
   }
   // collapse the whole reply area; the way back is a full-width button that cannot be missed
   $("composerHide").onclick = () => { $("composer").classList.add("collapsed"); };
   $("composerShow").onclick = () => { $("composer").classList.remove("collapsed"); autosize($("input")); $("input").focus(); };
-  // drag the top edge to set the panel height; double-click to go back to automatic
-  {
-    const grip = $("composerGrip");
-    let drag = null;
-    grip.addEventListener("pointerdown", (e) => { drag = { y: e.clientY, h: $("composer").getBoundingClientRect().height }; grip.classList.add("on"); grip.setPointerCapture(e.pointerId); e.preventDefault(); });
-    grip.addEventListener("pointermove", (e) => { if (!drag) return; state.settings.composerH = Math.max(70, Math.min(Math.round(window.innerHeight * 0.75), Math.round(drag.h + (drag.y - e.clientY)))); applyComposerHeight(); autosize($("input")); });
-    const end = () => { if (!drag) return; drag = null; grip.classList.remove("on"); save(); };
-    grip.addEventListener("pointerup", end); grip.addEventListener("pointercancel", end);
-    grip.addEventListener("dblclick", () => { state.settings.composerH = 0; save(); applyComposerHeight(); autosize($("input")); toast("回复区高度已恢复自动"); });
-  }
   let scrim = null;
   function openOverlay(node) {
     node.classList.add("open");
