@@ -716,6 +716,20 @@
   #chatStat { white-space: pre-line; line-height: 1.6; }
   .ctx-grp .inner { gap: 6px; }
   .ctx-item { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--raised); }
+  .note-row { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--raised); display: flex; flex-direction: column; gap: 4px; }
+  .note-row.done { opacity: 0.6; }
+  .note-row.done .note-text { text-decoration: line-through; }
+  .note-top { display: flex; gap: 8px; align-items: baseline; }
+  .note-text { cursor: text; flex: 1; min-width: 0; line-height: 1.5; }
+  .note-edit { flex: 1; min-width: 0; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--accent); background: var(--surface); color: var(--text); font: inherit; }
+  .note-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .note-meta .lnk { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font: inherit; font-size: 12px; }
+  .note-acts { margin-left: auto; display: flex; gap: 4px; }
+  .note-acts .btn { padding: 2px 8px; font-size: 12px; }
+  .note-picks { display: flex; flex-direction: column; gap: 4px; }
+  .note-pick { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; padding: 4px 6px; border-radius: 6px; background: var(--raised); }
+  .note-pick.dup { opacity: 0.55; }
+  .note-pick .tg { flex-shrink: 0; }
   .sr-item { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--raised); cursor: pointer; text-align: left; width: 100%; color: var(--text); font: inherit; }
   .sr-item:hover { border-color: var(--line-strong); }
   .sr-item .sr-h { font-size: 12px; color: var(--muted); display: flex; gap: 8px; margin-bottom: 3px; }
@@ -974,7 +988,7 @@
       <button class="btn ghost block" id="wizBtn" title="给几句提示，让模型补全角色卡、世界书和 NPC，每块都能重刷">✨ 让 AI 帮我建一张卡</button>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
-      <div class="stat" id="storeStat">v21.19 · 本地保存 · 仅此浏览器</div>
+      <div class="stat" id="storeStat">v21.20 · 本地保存 · 仅此浏览器</div>
     </div>
   </aside>
 
@@ -1536,7 +1550,7 @@
     </div>
     <div class="modal-body">
       <div class="rx-list" id="memOverview"></div>
-      <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px"><button class="btn ghost" id="memQuick" title="把还没总结的部分自动归位：主线进主角的记忆书、私聊进 NPC 的、群聊进群的；已总结的不动">⚡ 一键小总结</button><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button></div>
+      <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px"><button class="btn ghost" id="memQuick" title="把还没总结的部分自动归位：主线进主角的记忆书、私聊进 NPC 的、群聊进群的；已总结的不动">⚡ 一键小总结</button><button class="btn ghost" id="memMergeAll" title="把每本记忆书里现有的条目各自合并成一条大总结（角色卡自带的世界书不动）">📚 一键大总结</button><button class="btn ghost" id="memRebuild" title="删掉旧总结、取消隐藏，按楼层一段段重新总结（会先自动存档）">🧹 重建记忆</button><button class="btn ghost" id="memNotesOpen" title="承诺、秘密、约定、认知：一条一行，每次发送都带着，做完的划掉">📌 不能忘的事</button></div>
       <div class="field">
         <label for="memTarget">总结谁的记忆</label>
         <select id="memTarget"></select>
@@ -1583,6 +1597,12 @@
       <div class="field">
         <label for="memResult">总结（可以改）</label>
         <textarea id="memResult" class="mem-result" placeholder="点「生成总结」，结果会出现在这里。也可以自己写。"></textarea>
+      </div>
+      <div id="memNotesBox" hidden>
+        <div class="help" id="memNotesAddH">模型认为这段里「不能忘的事」，勾选的会在保存时加进便签：</div>
+        <div class="note-picks" id="memNotesAdd"></div>
+        <div class="help" id="memNotesDoneH">已有便签里这段完成或变化了的，勾选的会被划掉：</div>
+        <div class="note-picks" id="memNotesDone"></div>
       </div>
       <div class="field">
         <label for="memScope">谁知道这条记忆</label>
@@ -2336,6 +2356,27 @@
     </div>
   </div>
 </div>
+<div class="modal-back" id="notesBack" hidden style="z-index:62">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="notesTitle" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <span id="notesTitle">📌 不能忘的事</span>
+      <button class="btn ghost icon" id="notesClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help">承诺、秘密、没做完的约定、对方对你的看法。每次发送都会带给模型，划掉的就不再带。做记忆总结时模型会自动提议新增和划掉，你确认即可。</div>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="notesOn"> 发给模型</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="noteType" style="flex:0 0 auto"><option value="promise">承诺</option><option value="secret">秘密</option><option value="todo">约定</option><option value="view">认知</option><option value="other">其他</option></select>
+        <input id="noteText" placeholder="一句话，例如：他答应下周带你去马场" style="flex:1;min-width:160px">
+        <select id="noteScope" style="flex:0 0 auto"></select>
+        <button class="btn" id="noteAdd">＋ 加一条</button>
+      </div>
+      <div class="rx-list" id="notesList"></div>
+      <details class="adv"><summary id="notesDoneSum">已划掉</summary><div class="rx-list" id="notesDoneList" style="margin:8px 0"></div></details>
+      <div class="stat" id="notesStat"></div>
+    </div>
+  </div>
+</div>
 <div class="modal-back" id="saveBack" hidden style="z-index:60">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saveTitle" style="width:min(560px,100%)">
     <div class="modal-head">
@@ -2387,7 +2428,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.19"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.20"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2743,6 +2784,12 @@
         toast(`已删掉 ${stale.length} 条过期的记忆总结`);
       }
     }
+    if (tail && c.notes && c.notes.length) {
+      const before = c.notes.length;
+      c.notes = c.notes.filter((x) => !(x.floor >= lo));
+      for (const x of c.notes) if (x.status === "done" && x.doneFloor >= lo) { x.status = "open"; x.note = ""; x.doneFloor = 0; }
+      if (before !== c.notes.length) toast(`已删掉 ${before - c.notes.length} 条来自被删楼层的便签`);
+    }
     if ((c.memory.lastFloor || 0) > n) c.memory.lastFloor = n;
     save(); updateStats();
   }
@@ -2805,6 +2852,7 @@
       mainMem.entries = mainMem.entries.filter((e) => !mine.includes(e));
     }
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
+    c.notes = Array.isArray(c.notes) ? c.notes.map(normalizeNote).filter(Boolean) : [];
     c.status = normalizeStatus(c.status);
     c.phone = c.phone && typeof c.phone === "object" ? c.phone : { open: false };
     c.worldName = typeof c.worldName === "string" ? c.worldName : (c.extensions && typeof c.extensions.world === "string" ? c.extensions.world : "");
@@ -2843,6 +2891,12 @@
     scenario: "场景", personaDescription: "用户人设", dialogueExamples: "对话示例", chatHistory: "聊天记录", lanternRules: "Side Story · 回复规则",
   };
   const MARKER_IDS = new Set(["worldInfoBefore", "worldInfoAfter", "charDescription", "charPersonality", "scenario", "personaDescription", "dialogueExamples", "chatHistory", "lanternRules"]);
+  const NOTE_TYPES = { promise: "承诺", secret: "秘密", todo: "约定", view: "认知", other: "其他" };
+  const NOTE_LIMIT = 60;
+  function normalizeNote(n) {
+    if (!n || typeof n !== "object" || typeof n.text !== "string" || !n.text.trim()) return null;
+    return { id: n.id || uid(), text: n.text.trim(), type: NOTE_TYPES[n.type] ? n.type : "other", floor: Number(n.floor) || 0, scope: typeof n.scope === "string" && n.scope ? n.scope : "char", status: n.status === "done" ? "done" : "open", note: typeof n.note === "string" ? n.note : "", ts: Number(n.ts) || Date.now(), doneFloor: Number(n.doneFloor) || 0 };
+  }
   function parseState(raw) {
     if (!raw) return null;
     const s = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -4031,6 +4085,7 @@
     if (c.personality) { parts.push(`性格：${c.personality}`); seg("char", "性格", c.personality); }
     if (c.scenario) { parts.push(`\n## 场景\n${c.scenario}`); seg("char", "场景", c.scenario); }
     if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
+    { const nb = notesBlock(c, null); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
     if (retrieved && retrieved.length) {
       const u = state.persona.name || "用户";
       const lines = retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : c.name}：${h.text}`);
@@ -4126,7 +4181,7 @@
     const markerContent = (id) => {
       switch (id) {
         case "worldInfoBefore": return wi(lore.before);
-        case "worldInfoAfter": return [wi(lore.after), memLines].filter(Boolean).join("\n\n");
+        case "worldInfoAfter": return [wi(lore.after), memLines, notesBlock(c, null)].filter(Boolean).join("\n\n");
         case "charDescription": return sub(c.description || "", c);
         case "charPersonality": return sub(fmtTemplate(raw.personality_format, "personality", c.personality || ""), c);
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
@@ -4798,6 +4853,7 @@
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
     if (state.persona.desc && state.persona.desc.trim()) { parts.push(`\n## ${u} 的人设`, state.persona.desc); seg("char", "用户人设", state.persona.desc); }
     if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
+    { const nb = notesBlock(c, npc.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
     if (retrieved && retrieved.length) {
       const lines = retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : npc.name}：${h.text}`);
       parts.push(`\n## 相关记忆（从更早的私聊里检索到的片段，按需参考，不要复述）\n${lines.join("\n")}`);
@@ -5487,6 +5543,7 @@
     }
     if (relLines.length) { const rl = `## 人际关系\n${relLines.map((x) => "- " + x).join("\n")}`; parts.push("\n" + rl); seg("fixed", "人际关系", rl); }
     if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
+    { const nb = notesBlock(c, "group:" + g.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
     const rules = [
       "## 群聊规则",
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
@@ -5957,7 +6014,7 @@
       .replace(/\{\{previous\}\}/g, () => (prev ? `此前的记忆摘要（用于衔接，不要重复其中内容）：\n${prev}\n` : ""));
     prompt = sub(prompt, c);
     while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
-    return prompt;
+    return prompt + notesInstruction(c, npc.isGroup ? "group:" + npc.group.id : npc.id);
   }
   function memSaveNpc(c, npc, text, msgsOpt, scopeOpt, silent) {
     const msgs = msgsOpt || npcUnsummarized(c, npc);
@@ -6496,7 +6553,7 @@
     $("ctxBack").hidden = false;
   }
   const tokOpen = new Set(["history"]);
-  const GROUP_LABELS = { preset: "预设提示词", fixed: "固定指令（开场 / 规则 / 状态面板）", char: "角色卡与人设", lore: "世界书与记忆书", rag: "检索到的旧楼层", history: "对话历史" };
+  const GROUP_LABELS = { preset: "预设提示词", fixed: "固定指令（开场 / 规则 / 状态面板）", char: "角色卡与人设", lore: "世界书与记忆书", notes: "不能忘的事", rag: "检索到的旧楼层", history: "对话历史" };
   function renderTokenTable(r) {
     const table = $("tokTable");
     table.innerHTML = "";
@@ -6516,7 +6573,7 @@
       if (onClick) tr.onclick = onClick;
       table.appendChild(tr);
     };
-    for (const key of ["preset", "fixed", "char", "lore", "rag", "history"]) {
+    for (const key of ["preset", "fixed", "char", "lore", "notes", "rag", "history"]) {
       const list = groups.get(key);
       if (!list || !list.length) continue;
       const chars = list.reduce((n, x) => n + x.chars, 0), tokens = list.reduce((n, x) => n + x.tokens, 0);
@@ -6827,12 +6884,13 @@
     $("memTo").value = floorCount(c);
     $("memPrompt").value = memPromptTemplate();
     $("memResult").value = "";
+    memPendingNotes = null; $("memNotesBox").hidden = true;
     $("memGen").disabled = !chatReady();
     if (!chatReady()) $("memHint").textContent = "接口未就绪：只能手写总结";
     memUpdateHint();
     $("memBack").hidden = false;
   }
-  function closeMemory() { if (memCtl) memCtl.abort(); $("memBack").hidden = true; }
+  function closeMemory() { if (memCtl) memCtl.abort(); $("memBack").hidden = true; memPendingNotes = null; }
   function buildMemPrompt(c) {
     if (memMode === "merge") return buildMergePrompt(c);
     if (memNpc) return buildNpcMemPrompt(c, memNpc);
@@ -6860,7 +6918,7 @@
     prompt = sub(prompt, c);
     // stay under the input cap
     while (utf8.enc.encode(prompt).length > 60000) prompt = prompt.slice(0, Math.floor(prompt.length * 0.9)) + "\n（原文过长，已截断）";
-    return prompt;
+    return prompt + notesInstruction(c, null);
   }
   async function memGenerate() {
     const c = active();
@@ -6875,7 +6933,10 @@
         signal: memCtl.signal,
         onText: ({ text }) => { out.value = stripReasoning(text); },
       });
-      out.value = stripReasoning(res.text).trim();
+      const parsed = extractNotes(stripReasoning(res.text).trim());
+      out.value = parsed.summary;
+      memPendingNotes = memMode === "merge" ? null : parsed;
+      renderPendingNotes();
     } catch (e) {
       if (e && e.text) out.value = e.text;
       if (!e || (e.code !== "cancelled" && e.name !== "AbortError")) toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true);
@@ -6891,8 +6952,9 @@
     if (!c) return;
     if (!text) { $("memResult").focus(); toast("总结是空的，先生成或自己写一段。", true); return; }
     if (memMode === "merge") return memSaveMerge(c, text);
-    if (memNpc) return memSaveNpc(c, memNpc, text);
+    if (memNpc) { commitPendingNotes(c, floorCount(c), memNpc.isGroup ? "public" : ($("memScope").value === "public" ? "public" : "npc:" + memNpc.id), memNpc.isGroup ? "group:" + memNpc.group.id : memNpc.id); return memSaveNpc(c, memNpc, text); }
     const { from, to } = memRange();
+    commitPendingNotes(c, to, $("memScope").value === "public" ? "public" : "char", null);
     const { book, created } = saveMainMem(c, from, to, text, $("memScope").value || "char");
     closeMemory();
     toast(created ? `已创建「${book.name}」并存入记忆 ${from}-${to}` : `已存入记忆 ${from}-${to}（共 ${book.entries.length} 条）`);
@@ -8081,6 +8143,7 @@
     if (all) {
       c.books = c.books.filter((b) => !b.memory);
       c.memory = { lastFloor: 0, npcDone: {} };
+      c.notes = [];
       c.status = normalizeStatus({ enabled: c.status.enabled, showStrip: c.status.showStrip, extra: c.status.extra });
       c.rels = {};
       c.usage = { prompt: 0, completion: 0, calls: 0, real: 0 };
@@ -8335,7 +8398,7 @@
       const sm = document.createElement("summary"); sm.append(el("span", null, title), el("span", "stat", extra || "")); d.appendChild(sm);
       return d;
     };
-    for (const key of ["preset", "fixed", "char", "lore", "rag", "history"]) {
+    for (const key of ["preset", "fixed", "char", "lore", "notes", "rag", "history"]) {
       const list = groups.get(key);
       if (!list || !list.length) continue;
       const tokens = list.reduce((n, x) => n + x.tokens, 0);
@@ -8533,7 +8596,7 @@
   }
   async function runMemoryJobs(c, jobs) {
     rebuildCtl = new AbortController();
-    let ok = 0, fail = 0;
+    let ok = 0, fail = 0, notesAdded = 0, notesClosed = 0;
     try {
       for (let i = 0; i < jobs.length; i++) {
         const j = jobs[i];
@@ -8541,9 +8604,12 @@
         try {
           const prompt = j.kind === "char" ? buildMainMemPrompt(c, j.from, j.to, memPromptTemplate()) : buildNpcMemPrompt(c, j.npc, j.msgs, j.npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
           const res = await complete(prompt, { signal: rebuildCtl.signal });
-          const text = stripReasoning(res.text).trim();
+          const parsed = extractNotes(stripReasoning(res.text).trim());
+          const text = parsed.summary;
           if (!text) { fail++; continue; }
           if (j.kind === "char") saveMainMem(c, j.from, j.to, text, j.scope); else memSaveNpc(c, j.npc, text, j.msgs, null, true);
+          const nr = j.kind === "char" ? applyNotes(c, parsed, j.to, j.scope === "public" ? "public" : "char", null, null) : applyNotes(c, parsed, floorCount(c), j.npc.isGroup ? "public" : "npc:" + j.npc.id, j.npc.isGroup ? "group:" + j.npc.group.id : j.npc.id, null);
+          notesAdded += nr.added; notesClosed += nr.closed;
           ok++;
         } catch (e) {
           if (e && (e.code === "cancelled" || e.name === "AbortError")) throw e;
@@ -8551,7 +8617,7 @@
         }
       }
       $("rebuildProg").textContent = `完成：存了 ${ok} 段${fail ? `，失败 ${fail} 段` : ""}。`;
-      toast(`总结完成：${ok} 段${fail ? `，失败 ${fail} 段` : ""}`);
+      toast(`总结完成：${ok} 段${fail ? `，失败 ${fail} 段` : ""}${notesAdded || notesClosed ? ` · 便签 +${notesAdded}${notesClosed ? ` / 划掉 ${notesClosed}` : ""}` : ""}`);
     } catch (e) {
       $("rebuildProg").textContent = `已停止：存了 ${ok} 段，剩下的没做。`;
     } finally {
@@ -9254,6 +9320,162 @@ npcs（${npcLine}）：每个：
   $("rebuildStart").onclick = () => (rebuildMode === "merge" ? mergeAllMemory() : rebuildMemory());
   $("rebuildStop").onclick = () => { if (rebuildCtl) rebuildCtl.abort(); };
   $("rebuildClose").onclick = () => { if (rebuildCtl) { toast("正在重建，先点「停止」", true); return; } $("rebuildBack").hidden = true; };
+  // ============================================================
+  // 不能忘的事 — short structured facts that ride along on every send
+  // ============================================================
+  const noteTypeOf = (label) => { const t = String(label || "").trim(); for (const [k, v] of Object.entries(NOTE_TYPES)) if (t === v || t === k) return k; return "other"; };
+  const notesOn = (c) => !!c && c.notesOn !== false;
+  const openNotes = (c) => ((c && c.notes) || []).filter((n) => n.status !== "done");
+  const noteKey = (t) => String(t || "").replace(/[\s，。,.！!？?、；;：:「」『』“”"'（）()【】\[\]\-–—]/g, "").toLowerCase();
+  function noteVisible(c, n, audience) {
+    if (n.scope === "public") return true;
+    if (audience == null) return n.scope === "char";
+    if (typeof audience === "string" && audience.startsWith("group:")) { const g = groupById(c, audience.slice(6)); const mem = g ? g.members : []; return n.scope === "char" ? mem.includes("char") : n.scope.startsWith("npc:") && mem.includes(n.scope.slice(4)); }
+    return n.scope === "npc:" + audience;
+  }
+  function notesBlock(c, audience) {
+    if (!notesOn(c)) return "";
+    const list = openNotes(c).filter((n) => noteVisible(c, n, audience)).slice(0, NOTE_LIMIT);
+    if (!list.length) return "";
+    return `## 不能忘的事\n（已经确定的事实和悬而未决的约定。回复必须与之一致；不要逐条复述，也不要提起不该由你知道的事。）\n${list.map((n) => `- [${NOTE_TYPES[n.type]}] ${n.text}`).join("\n")}`;
+  }
+  // appended to a summary prompt: ask for new notes, and for old ones that got resolved
+  function notesInstruction(c, audience) {
+    if (!notesOn(c)) return "";
+    const cur = openNotes(c).filter((n) => noteVisible(c, n, audience));
+    const existing = cur.length ? `\n现有便签：\n${cur.map((n, i) => `#${i + 1} [${NOTE_TYPES[n.type]}] ${n.text}`).join("\n")}` : "";
+    return `\n\n---\n写完总结后，另起一段，严格按下面的标签输出（没有内容就输出空标签）：\n<notes>\n- [承诺|秘密|约定|认知|其他] 一句话事实\n</notes>\n<notes-done>\n- #编号 一句话说明它怎么完成或变化了\n</notes-done>\n只列以后还会影响剧情的：承诺、秘密和谁知道谁不知道、没做完的约定、重要物件、对对方的看法。已经在总结里写清、以后不会再牵动剧情的不要列；和现有便签重复的不要列。${existing}`;
+  }
+  function extractNotes(text) {
+    const out = { summary: String(text || ""), add: [], done: [] };
+    const m1 = out.summary.match(/<notes>([\s\S]*?)<\/notes>/i);
+    const m2 = out.summary.match(/<notes-done>([\s\S]*?)<\/notes-done>/i);
+    if (m1) for (const line of m1[1].split("\n")) { const m = line.match(/^\s*[-•*]?\s*(?:\[([^\]]+)\]|【([^】]+)】)?\s*(.+?)\s*$/); if (m && m[3] && m[3].trim() && !/^(无|没有|暂无)[。.]?$/.test(m[3].trim())) out.add.push({ type: noteTypeOf(m[1] || m[2]), text: m[3].trim() }); }
+    if (m2) for (const line of m2[1].split("\n")) { const m = line.match(/^\s*[-•*]?\s*#?(\d+)\s*[:：\-–—]?\s*(.*)$/); if (m) out.done.push({ idx: parseInt(m[1], 10) - 1, note: (m[2] || "").trim() }); }
+    out.summary = out.summary.replace(/<notes>[\s\S]*?<\/notes>/gi, "").replace(/<notes-done>[\s\S]*?<\/notes-done>/gi, "").replace(/\n-{3,}\s*$/, "").trim();
+    return out;
+  }
+  // apply what a summary proposed; pick = { add:Set, done:Set } of accepted indexes, or null for everything
+  function applyNotes(c, parsed, floor, scope, audience, pick) {
+    c.notes = c.notes || [];
+    const cur = openNotes(c).filter((n) => noteVisible(c, n, audience));
+    const keys = new Set(openNotes(c).map((n) => noteKey(n.text)));
+    let added = 0, closed = 0;
+    parsed.add.forEach((a, i) => {
+      if (pick && !pick.add.has(i)) return;
+      const k = noteKey(a.text); if (!k || keys.has(k)) return;
+      keys.add(k);
+      c.notes.push(normalizeNote({ text: a.text, type: a.type, floor, scope, status: "open" }));
+      added++;
+    });
+    parsed.done.forEach((d, i) => {
+      if (pick && !pick.done.has(i)) return;
+      const n = cur[d.idx]; if (!n || n.status === "done") return;
+      n.status = "done"; n.note = d.note; n.doneFloor = floor; closed++;
+    });
+    return { added, closed };
+  }
+  // ---- review box inside the memory dialog ----
+  let memPendingNotes = null;
+  function renderPendingNotes() {
+    const box = $("memNotesBox"); const p = memPendingNotes;
+    const c = active();
+    if (!p || (!p.add.length && !p.done.length) || !c) { box.hidden = true; return; }
+    box.hidden = false;
+    const addL = $("memNotesAdd"), doneL = $("memNotesDone");
+    addL.innerHTML = ""; doneL.innerHTML = "";
+    const audience = memNpc ? (memNpc.isGroup ? "group:" + memNpc.group.id : memNpc.id) : null;
+    const cur = openNotes(c).filter((n) => noteVisible(c, n, audience));
+    const existing = new Set(openNotes(c).map((n) => noteKey(n.text)));
+    p.add.forEach((a, i) => {
+      const dup = existing.has(noteKey(a.text));
+      const row = el("label", "note-pick" + (dup ? " dup" : ""));
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !dup; cb.dataset.kind = "add"; cb.dataset.i = i;
+      row.append(cb, el("span", "tg", NOTE_TYPES[a.type]), el("span", "", a.text + (dup ? "（已有）" : "")));
+      addL.appendChild(row);
+    });
+    p.done.forEach((d, i) => {
+      const n = cur[d.idx]; if (!n) return;
+      const row = el("label", "note-pick");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true; cb.dataset.kind = "done"; cb.dataset.i = i;
+      row.append(cb, el("span", "tg off", "划掉"), el("span", "", `${n.text}${d.note ? ` → ${d.note}` : ""}`));
+      doneL.appendChild(row);
+    });
+    $("memNotesAddH").hidden = !p.add.length; $("memNotesDoneH").hidden = !doneL.children.length;
+  }
+  function commitPendingNotes(c, floor, scope, audience) {
+    const p = memPendingNotes; if (!p) return null;
+    const pick = { add: new Set(), done: new Set() };
+    for (const cb of $("memNotesBox").querySelectorAll("input[type=checkbox]:checked")) pick[cb.dataset.kind].add(Number(cb.dataset.i));
+    memPendingNotes = null;
+    const r = applyNotes(c, p, floor, scope, audience, pick);
+    if (r.added || r.closed) setTimeout(() => toast(`便签：新增 ${r.added} 条${r.closed ? `，划掉 ${r.closed} 条` : ""}`), 400);
+    return r;
+  }
+  // ---- the notes dialog ----
+  function noteScopeLabel(c, sc) { return sc === "public" ? "大家都知道" : sc === "char" ? `只有 ${c.name} 知道` : sc.startsWith("npc:") ? `只有 ${npcName(c, sc.slice(4))} 知道` : sc; }
+  function openNotesModal() {
+    const c = active(); if (!c) return;
+    c.notes = c.notes || [];
+    $("notesOn").checked = notesOn(c);
+    const sel = $("noteScope"); sel.innerHTML = "";
+    for (const [v, t] of [["char", `只有 ${c.name} 知道`], ["public", "大家都知道"], ...c.npcs.map((n) => ["npc:" + n.id, `只有 ${n.name} 知道`])]) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
+    $("noteText").value = "";
+    renderNotes();
+    $("notesBack").hidden = false;
+    closeOverlays();
+  }
+  function renderNotes() {
+    const c = active(); if (!c) return;
+    const list = $("notesList"), doneList = $("notesDoneList");
+    list.innerHTML = ""; doneList.innerHTML = "";
+    const open = openNotes(c), done = (c.notes || []).filter((n) => n.status === "done");
+    if (!open.length) list.appendChild(el("div", "rx-empty", "还没有便签。做记忆总结时模型会提议，也可以在上面自己加。"));
+    const row = (n) => {
+      const r = el("div", "note-row" + (n.status === "done" ? " done" : ""));
+      const top = el("div", "note-top");
+      top.append(el("span", "tg", NOTE_TYPES[n.type]));
+      const tx = el("span", "note-text", n.text); tx.title = "点击修改";
+      tx.onclick = () => {
+        const inp = document.createElement("input"); inp.value = n.text; inp.className = "note-edit";
+        const done = () => { const v = inp.value.trim(); if (v) n.text = v; save(); renderNotes(); refreshContextMeter(); };
+        inp.onblur = done; inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } if (e.key === "Escape") { inp.value = n.text; inp.blur(); } };
+        tx.replaceWith(inp); inp.focus();
+      };
+      top.appendChild(tx);
+      r.appendChild(top);
+      const meta = el("div", "note-meta");
+      meta.append(el("span", "", noteScopeLabel(c, n.scope)));
+      if (n.floor) { const f = el("button", "lnk", `#${n.floor}`); f.title = "跳到这一楼"; f.onclick = () => { $("notesBack").hidden = true; const i = idxAfterFloor(c, n.floor) - 1; jumpToFloor(c, Math.max(0, i)); }; meta.appendChild(f); }
+      if (n.status === "done" && n.note) meta.appendChild(el("span", "", `→ ${n.note}`));
+      const acts = el("span", "note-acts");
+      if (n.status === "done") { const b = el("button", "btn ghost", "恢复"); b.onclick = () => { n.status = "open"; n.note = ""; n.doneFloor = 0; save(); renderNotes(); refreshContextMeter(); }; acts.appendChild(b); }
+      else { const b = el("button", "btn ghost", "划掉"); b.title = "做完了 / 已经变了，不再发给模型"; b.onclick = () => { n.status = "done"; n.doneFloor = floorCount(c); save(); renderNotes(); refreshContextMeter(); }; acts.appendChild(b); }
+      const del = el("button", "btn ghost", "删除"); del.onclick = () => { c.notes = c.notes.filter((x) => x !== n); save(); renderNotes(); refreshContextMeter(); }; acts.appendChild(del);
+      meta.appendChild(acts);
+      r.appendChild(meta);
+      return r;
+    };
+    for (const n of open) list.appendChild(row(n));
+    for (const n of done.slice().reverse()) doneList.appendChild(row(n));
+    $("notesDoneSum").textContent = `已划掉 · ${done.length} 条`;
+    const bytes = utf8.enc.encode(notesBlock(c, null)).length;
+    $("notesStat").textContent = `进行中 ${open.length} 条${open.length > NOTE_LIMIT ? `，超过上限 ${NOTE_LIMIT} 条，多出的不会发` : ""} · 每次发送约 ${estTokens(notesBlock(c, null))} tok${!notesOn(c) ? " · 已关闭，不发给模型" : ""}`;
+    $("notesTitle").textContent = `📌 不能忘的事 · ${open.length}`;
+  }
+  $("notesClose").onclick = () => { $("notesBack").hidden = true; };
+  $("notesBack").addEventListener("click", (e) => { if (e.target === $("notesBack")) $("notesBack").hidden = true; });
+  $("notesOn").addEventListener("change", (e) => { const c = active(); if (!c) return; c.notesOn = e.target.checked; save(); renderNotes(); refreshContextMeter(); });
+  $("noteAdd").onclick = () => {
+    const c = active(); if (!c) return;
+    const text = $("noteText").value.trim(); if (!text) return $("noteText").focus();
+    c.notes = c.notes || [];
+    c.notes.push(normalizeNote({ text, type: $("noteType").value, scope: $("noteScope").value, floor: floorCount(c), status: "open" }));
+    $("noteText").value = ""; save(); renderNotes(); refreshContextMeter();
+  };
+  $("noteText").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("noteAdd").click(); } });
+  $("memNotesOpen").onclick = () => openNotesModal();
+
   $("memClose").onclick = closeMemory;
   $("memScope").addEventListener("change", () => { memScopeTouched = true; });
   $("memCancel").onclick = closeMemory;
@@ -9297,7 +9519,7 @@ npcs（${npcLine}）：每个：
   // ============================================================
   // Save slots (存档): snapshot the chat-side of a character and go back later
   // ============================================================
-  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups"];
+  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn"];
   function deep(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
   function saveSnapshot(c) {
     const d = {};
