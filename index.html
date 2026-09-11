@@ -2520,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.36"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.37"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3376,9 +3376,11 @@
     return x.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
   const textOnly = (t) => stripFrontend(stripStatus(stripReasoning(String(t || ""))));
-  // "quoted speech" → <q>, outside tags and inline code (SillyTavern does the same; card CSS styles q)
+  // "quoted speech" → <q>, outside tags and inline code (SillyTavern does the same; card CSS styles q).
+  // 「…」 and 『…』 count too, so a model that mixes bracket quotes with “…” still gets one look for every line of dialogue.
+  const QUOTE_RE = /(["“])([^"”\n]{1,400}?)(["”])|「([^」\n]{1,400}?)」|『([^』\n]{1,400}?)』/g;
   function wrapQuotes(t) {
-    return t.split(/(<[^>]+>|`[^`\n]*`|@@HTMLBLOCK\d+@@)/).map((seg, i) => (i % 2 ? seg : seg.replace(/(["“])([^"”\n]{1,400}?)(["”])/g, "<q>$2</q>"))).join("");
+    return t.split(/(<[^>]+>|`[^`\n]*`|@@HTMLBLOCK\d+@@)/).map((seg, i) => (i % 2 ? seg : seg.replace(QUOTE_RE, (m, o, a, cl, b, d) => `<q>${a ?? b ?? d}</q>`))).join("");
   }
   // ---- Frontend cards: ```html fences and whole HTML documents ----
   const FULL_DOC_RE = /<!doctype\s+html[^>]*>|<html[\s>]/i;
