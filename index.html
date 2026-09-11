@@ -1023,7 +1023,7 @@
         <div class="scene" id="headScene"></div>
       </div>
       <div class="tools">
-        <button class="btn ghost" id="statusBtn" title="好感度 / 关系 / 地点 / 心声">状态</button>
+        <button class="btn ghost" id="statusBtn" title="关系 / 心情 / 时间 / 地点 / 年龄 / 心声">状态</button>
         <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
@@ -2058,7 +2058,7 @@
         <summary>给模型的补充说明（可选）</summary>
         <div class="inner">
           <div class="field">
-            <textarea id="stExtra" placeholder="例如：好感度每次最多变化 5；关系只能是 陌生人/熟人/朋友/恋人 之一。"></textarea>
+            <textarea id="stExtra" placeholder="例如：关系只能是 陌生人/熟人/朋友/恋人 之一；心情用两个字。"></textarea>
           </div>
           <div class="book-note" id="stPromptPreview"></div>
         </div>
@@ -2520,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.33"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.34"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2719,6 +2719,21 @@
     state.migr.statusOn = 1;
     save();
     if (n) setTimeout(() => toast(`状态面板现在默认开启：${n} 个角色已打开，让模型每次回复后更新状态。不想要的在「状态」里关掉。`, false, 7000), 1500);
+  }
+  // v21.34: the character's 好感度 number is gone from the status panel; feelings develop from the card itself
+  function migrateCharAff() {
+    state.migr = state.migr && typeof state.migr === "object" ? state.migr : {};
+    if (state.migr.noCharAff) return;
+    let n = 0;
+    for (const c of state.characters) {
+      if (!c.status || !Array.isArray(c.status.fields)) continue;
+      const before = c.status.fields.length;
+      c.status.fields = c.status.fields.filter((f) => !(f.key === "好感度" && f.type === "number"));
+      if (c.status.fields.length !== before) n++;
+    }
+    state.migr.noCharAff = 1;
+    save();
+    if (n) setTimeout(() => toast(`已从 ${n} 个角色的状态面板里去掉「好感度」，感情按角色卡自己发展。`, false, 6000), 1500);
   }
   const STATUS_DEFAULT_FIELDS = () => [
     { key: "关系", type: "text", value: "陌生人" },
@@ -9970,6 +9985,7 @@ npcs（${npcLine}）：每个：
   try { applyTheme(); } catch (e) {}
   try { dropBuiltinLuxuryBook(); } catch (e) { console.error(e); }
   try { migrateStatusDefault(); } catch (e) { console.error(e); }
+  try { migrateCharAff(); } catch (e) { console.error(e); }
   if (!inArtifact() && state.settings.backend !== "custom") { state.settings.backend = "custom"; save(); }
   renderAll();
   { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
