@@ -2016,7 +2016,7 @@
           <button class="btn" id="relScan">🔍 扫描人物</button>
           <button class="btn" id="relAdd">＋ 新建</button>
           <button class="btn primary" id="relRefresh">让模型更新关系</button>
-          <button class="btn" id="relPersona" title="给还没写性格的人补上性格和说话方式：先照世界书，世界书没有就按剧情判断">补全性格</button>
+          <button class="btn" id="relPersona" title="给还没写性格或年龄的人补上性格、说话方式和年龄：先照世界书，世界书没有就按剧情判断">补全性格</button>
           <span class="stat" id="relMeta"></span>
         </div>
         <div class="rel-cards" id="relTable"></div>
@@ -2032,6 +2032,14 @@
       <div class="checks">
         <label><input type="checkbox" id="stEnabled"> 启用：每次回复末尾让模型更新状态（状态块不会显示，也不进上下文）</label>
         <label><input type="checkbox" id="stShow"> 在顶栏下面显示状态栏</label>
+      </div>
+      <div class="section">
+        <div class="section-title">年龄 <span class="stat">剧情时间推进时模型会自动改；不知道就留空，模型能推断时会填上</span></div>
+        <div class="row">
+          <div class="field"><label for="stAgeChar" id="stAgeCharL">主角</label><input id="stAgeChar" type="number" min="1" max="200" class="mono" placeholder="未知"></div>
+          <div class="field"><label for="stAgeUser" id="stAgeUserL">你</label><input id="stAgeUser" type="number" min="1" max="200" class="mono" placeholder="未知"></div>
+        </div>
+        <div class="help">NPC 的年龄在「关系图」里，每张卡片上显示，编辑人物可以改。</div>
       </div>
       <div class="section">
         <div class="section-title">当前状态 <span class="stat" id="stUpdated"></span></div>
@@ -2143,9 +2151,15 @@
           <input id="npcAliases" placeholder="陈叔, 陈建国">
         </div>
       </div>
-      <div class="field">
-        <label for="npcBrief">一句话身份</label>
-        <input id="npcBrief" placeholder="例如：书店隔壁修表铺的老板">
+      <div class="row">
+        <div class="field">
+          <label for="npcBrief">一句话身份</label>
+          <input id="npcBrief" placeholder="例如：书店隔壁修表铺的老板">
+        </div>
+        <div class="field">
+          <label for="npcAge">年龄</label>
+          <input id="npcAge" type="number" min="1" max="200" class="mono" placeholder="未知">
+        </div>
       </div>
       <div class="field">
         <label for="npcPersonality">性格</label>
@@ -2506,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.32"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.33"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2707,7 +2721,6 @@
     if (n) setTimeout(() => toast(`状态面板现在默认开启：${n} 个角色已打开，让模型每次回复后更新状态。不想要的在「状态」里关掉。`, false, 7000), 1500);
   }
   const STATUS_DEFAULT_FIELDS = () => [
-    { key: "好感度", type: "number", value: 20 },
     { key: "关系", type: "text", value: "陌生人" },
     { key: "心情", type: "text", value: "" },
     { key: "时间", type: "text", value: "" },
@@ -2721,14 +2734,16 @@
     out.extra = typeof out.extra === "string" ? out.extra : "";
     out.updatedFloor = Number(out.updatedFloor) || 0;
     out.manualTs = Number(out.manualTs) || 0;
-    out.showStrip = out.showStrip !== false;
+    out.showStrip = out.showStrip === true; // the strip under the header is collapsed unless you turn it on
     return out;
   }
   const STATUS_RE = /<status>\s*([\s\S]*?)\s*<\/status>/gi;
   const STATUS_OPEN_RE = /<status>[\s\S]*$/i;
   const CAST_RE = /<cast>\s*([\s\S]*?)\s*<\/cast>/gi;
   const CAST_OPEN_RE = /<cast>[\s\S]*$/i;
-  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").trim(); }
+  const AGES_RE = /<ages>\s*([\s\S]*?)\s*<\/ages>/gi;
+  const AGES_OPEN_RE = /<ages>[\s\S]*$/i;
+  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").trim(); }
   function statusInstruction(c) {
     const st = c.status;
     if (!st || !st.enabled) return "";
@@ -2767,6 +2782,39 @@
     return changed;
   }
   function statusSnapshot(c) { return JSON.parse(JSON.stringify({ fields: c.status.fields, voice: c.status.voice })); }
+  // ---------- Ages: the character, you and every NPC carry a current age; the model bumps them as story time passes ----------
+  function ageNum(v) { const n = parseInt(String(v ?? "").replace(/[^\d]/g, ""), 10); return n >= 1 && n <= 200 ? n : null; }
+  function agesPeople(c) { const u = state.persona.name || "用户"; return [[c.name, c.age], [u, c.userAge], ...(c.npcs || []).map((n) => [n.name, n.age])]; }
+  function agesInstruction(c) {
+    const people = agesPeople(c);
+    const known = people.filter((p) => p[1]).map((p) => `${p[0]} ${p[1]} 岁`);
+    const unknown = people.filter((p) => !p[1]).map((p) => p[0]);
+    return [
+      "## 年龄",
+      `目前：${known.length ? known.join("、") : "都还不知道"}${unknown.length ? `；未知：${unknown.join("、")}` : ""}。`,
+      `剧情时间推进让任何人的年龄变了（过生日、跨年、时间跳跃），或某人年龄未知但从设定、世界书或剧情能确定或合理推断时，在回复最末尾另起一行输出：<ages>{"名字":岁数}</ages>。只写变了或新确定的人，岁数写具体整数，推断的也猜一个最接近的数；名字限 ${people.map((p) => p[0]).join(" / ")}；没有就不输出。`,
+    ].join("\n");
+  }
+  function applyAgesFromText(c, text) {
+    const blocks = [...String(text || "").matchAll(AGES_RE)];
+    if (!blocks.length) return false;
+    const raw = blocks[blocks.length - 1][1];
+    const tryParse = (t) => { try { const v = JSON.parse(t); return v && typeof v === "object" ? v : null; } catch (e) { return null; } };
+    const obj = tryParse(raw) || (() => { const a = raw.indexOf("{"), b = raw.lastIndexOf("}"); return a >= 0 && b > a ? tryParse(raw.slice(a, b + 1)) : null; })();
+    if (!obj) return false;
+    const u = (state.persona.name || "").trim();
+    let changed = false;
+    for (const [k, v] of Object.entries(obj)) {
+      const name = String(k).trim(); const n = ageNum(v);
+      if (!n) continue;
+      if (name === c.name) { if (c.age !== n) { c.age = n; changed = true; } continue; }
+      if ((u && name === u) || /^(你|用户|user|\{\{user\}\})$/i.test(name)) { if (c.userAge !== n) { c.userAge = n; changed = true; } continue; }
+      const npc = (c.npcs || []).find((x) => x.name === name || x.aliases.includes(name));
+      if (npc && npc.age !== n) { npc.age = n; changed = true; }
+    }
+    return changed;
+  }
+  function afterAges(c) { if (!$("stBack").hidden) { renderRelTable(c); renderStatusAges(c); } }
   // delete everything after chat[index]; phone mode and the status panel follow what remains
   // face-to-face NPC scene: the newest scene divider still in the chat decides whether one is open
   function sceneFromDividers(c) {
@@ -2927,6 +2975,7 @@
     c.saves = Array.isArray(c.saves) ? c.saves.filter((s) => s && s.data && typeof s.data === "object") : [];
     c.usage = c.usage && typeof c.usage === "object" ? { prompt: Number(c.usage.prompt) || 0, completion: Number(c.usage.completion) || 0, calls: Number(c.usage.calls) || 0, real: Number(c.usage.real) || 0 } : { prompt: 0, completion: 0, calls: 0, real: 0 };
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
+    c.age = ageNum(c.age); c.userAge = ageNum(c.userAge);
     c.creatorNotes = c.creatorNotes || "";
     c.creator = c.creator || "";
     c.version = c.version || "";
@@ -3274,8 +3323,8 @@
   const REASON_RE = /<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi;
   const REASON_OPEN_RE = /<(think|thinking|reasoning)>([\s\S]*)$/i;
   function foldReasoning(t, streaming) {
-    t = t.replace(STATUS_RE, "").replace(CAST_RE, "");
-    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "");
+    t = t.replace(STATUS_RE, "").replace(CAST_RE, "").replace(AGES_RE, "");
+    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_OPEN_RE, "");
     t = t.replace(REASON_RE, (_, __, body) => `<details class="reasoning"><summary>思考过程</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     if (streaming) t = t.replace(REASON_OPEN_RE, (_, __, body) => `<details class="reasoning" open><summary>思考中…</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     return t;
@@ -3817,6 +3866,7 @@
         if (i < 0 || i >= m.swipes.length) return;
         m.si = i; m.content = m.swipes[i];
         if (c.status && c.status.enabled && applyStatusFromText(c, m.content, floorOf(c, c.chat.indexOf(m)))) renderStatusStrip();
+        if (applyAgesFromText(c, m.content)) afterAges(c);
         save(); renderMessages(); renderCharList();
       };
       left.disabled = !m.greeting && m.si === 0;
@@ -4253,6 +4303,7 @@
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
     const stIns = statusInstruction(c);
     if (stIns) { parts.push("\n" + stIns); seg("fixed", "状态面板", stIns); }
+    { const ag = agesInstruction(c); parts.push("\n" + ag); seg("fixed", "年龄", ag); }
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
       parts.push("\n" + pr, `- ${langHint()}`, ...(phoneStyleRule(c) ? [`- ${phoneStyleRule(c)}`] : []), `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
@@ -4338,7 +4389,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + (phoneStyleRule(c) ? "\n- " + phoneStyleRule(c) : "") + "\n- " + nsfwRule(c), c) : [lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + (phoneStyleRule(c) ? "\n- " + phoneStyleRule(c) : "") + "\n- " + nsfwRule(c), c) : [lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c), agesInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
@@ -4699,6 +4750,7 @@
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
       if (!msg.npc && applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); c.status.manualTs = 0; renderStatusStrip(); }
       if (msg.npc) applyNpcStatusFromText(c, msgNpcs(msg), res.text);
+      if (applyAgesFromText(c, res.text)) afterAges(c);
       if (!msg.npc && !(c.phone && c.phone.open)) { try { applyCastFromText(c, res.text, msg); } catch (e) { console.error(e); } }
       if (!msg.npc && !msg.error) setTimeout(() => maybeAutoRelRefresh(c), 0);
     } catch (e) {
@@ -4931,6 +4983,7 @@
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
       brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      age: ageNum(n.age),
       memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
   }
@@ -5022,6 +5075,7 @@
     }
     const nst = npcStatusInstruction(c, npc, others);
     parts.push("\n" + nst); seg("fixed", "关系变化", nst);
+    { const ag = agesInstruction(c); parts.push("\n" + ag); seg("fixed", "年龄", ag); }
     const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
     if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
     return sub(parts.join("\n"), c);
@@ -5122,7 +5176,7 @@
     // the character ↔ you card reads the status panel
     const cu = charUserRel(c);
     const cc = el("div", "rel-card");
-    const chd = el("div", "hd"); chd.appendChild(el("b", null, c.name)); chd.appendChild(el("span", "tg", "主角"));
+    const chd = el("div", "hd"); chd.appendChild(el("b", null, c.name)); if (c.age) chd.appendChild(el("small", null, `${c.age} 岁`)); chd.appendChild(el("span", "tg", "主角"));
     const ops0 = el("div", "ops"); const goSt = el("button", "btn ghost", "状态面板"); goSt.onclick = () => showStatusTab("panel"); ops0.appendChild(goSt); chd.appendChild(ops0);
     cc.appendChild(chd);
     const l0 = el("div", "ln"); l0.appendChild(el("div", "lb", `和 ${u}`)); l0.appendChild(el("div", "ro", `${cu.rel || "（未填）"}${cu.aff != null ? ` · 好感 ${cu.aff}` : ""}`)); l0.appendChild(el("span", "stat", "")); cc.appendChild(l0);
@@ -5131,7 +5185,7 @@
       const card = el("div", "rel-card");
       const hd = el("div", "hd");
       hd.appendChild(el("b", null, n.name));
-      hd.appendChild(el("small", null, n.brief || ""));
+      hd.appendChild(el("small", null, `${n.age ? `${n.age} 岁` : "年龄未知"}${n.brief ? " · " + n.brief : ""}`));
       if (!n.personality) { const warn = el("span", "tg", "没写性格"); warn.style.color = "var(--danger)"; warn.style.borderColor = "var(--danger)"; hd.appendChild(warn); }
       hd.appendChild(el("span", "tg", npcAppeared(c, n) ? "已出场" : "未出场"));
       const ops = el("div", "ops");
@@ -5257,8 +5311,8 @@
   async function fillPersonalities() {
     const c = active();
     if (!c || personaCtl || !chatReady()) return;
-    const targets = c.npcs.filter((n) => !n.personality || !n.speech);
-    if (!targets.length) { toast("每个人都已经有性格和说话方式了"); return; }
+    const targets = c.npcs.filter((n) => !n.personality || !n.speech || !n.age);
+    if (!targets.length) { toast("每个人都已经有性格、说话方式和年龄了"); return; }
     const u = state.persona.name || "用户";
     const clip = (m, k) => stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, k);
     const lines = targets.map((n) => {
@@ -5266,12 +5320,12 @@
       return `### ${n.name}${n.aliases.length ? `（${n.aliases.join("/")}）` : ""}\n身份：${n.brief || "（无）"}\n设定原文：${(n.desc || "（无）").slice(0, 600)}\n出场片段：\n${mine.length ? mine.map((m) => `${m.role === "user" ? u : (m.npc ? n.name : c.name)}：${clip(m, 200)}`).join("\n") : "（还没出场）"}`;
     });
     const prompt = [
-      `这是一场角色扮演的资料。主角「${c.name}」，用户「${u}」。请给下面每个人物写性格和说话方式。优先照搬设定原文里的描述；原文没写的，按出场片段里的表现判断；两者都没有的，按身份和世界观合理设定，但要具体、有棱角，不要写成温和万金油。`,
+      `这是一场角色扮演的资料。主角「${c.name}」，用户「${u}」。请给下面每个人物写性格、说话方式和年龄。优先照搬设定原文里的描述；原文没写的，按出场片段里的表现判断；两者都没有的，按身份和世界观合理设定，但要具体、有棱角，不要写成温和万金油。年龄：原文写了就照抄；没写就按描写和世界观猜一个最接近的具体整数，不要写范围。`,
       "",
       lines.join("\n\n"),
       "",
       "只输出 JSON：",
-      `{"people":[{"name":"名字","personality":"性格（30 到 60 字：脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）"}]}`,
+      `{"people":[{"name":"名字","personality":"性格（30 到 60 字：脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）","age":整数年龄}]}`,
     ].join("\n");
     personaCtl = new AbortController();
     $("relPersona").disabled = true; $("relPersona").textContent = "判断中…";
@@ -5285,6 +5339,7 @@
         if (!n) continue;
         if (!n.personality && r.personality) { n.personality = String(r.personality).slice(0, 200); k++; }
         if (!n.speech && r.speech) { n.speech = String(r.speech).slice(0, 120); k++; }
+        if (!n.age && ageNum(r.age)) { n.age = ageNum(r.age); k++; }
       }
       save(); renderRelTable(c);
       toast(k ? `已补上 ${k} 项` : "模型没有给出可用的内容");
@@ -5406,6 +5461,7 @@
     renderNpcAvatar();
     $("npcAliases").value = n ? n.aliases.join(", ") : "";
     $("npcBrief").value = n ? n.brief : "";
+    $("npcAge").value = n && n.age ? n.age : "";
     $("npcDesc").value = n ? n.desc : "";
     $("npcPersonality").value = n ? n.personality || "" : "";
     $("npcSpeech").value = n ? n.speech || "" : "";
@@ -5421,7 +5477,7 @@
     if (!name) { toast("名字不能为空", true); $("npcName").focus(); return; }
     const aliases = $("npcAliases").value.split(/[,，、]/).map((x) => x.trim()).filter((x) => x && x !== name);
     if (c.npcs.some((x) => x !== npcEditing && x.name === name)) { toast("已经有同名的联系人了", true); return; }
-    const fields = { name, aliases, brief: $("npcBrief").value.trim(), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), image: npcImageDraft };
+    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), image: npcImageDraft };
     if (npcEditing) Object.assign(npcEditing, fields);
     else c.npcs.push(normalizeNpc(fields));
     save(); closeNpcEditor(); renderPhone(); renderMessages();
@@ -5761,6 +5817,7 @@
       if (!msgs.length) toast("这一轮没人说话", true);
       for (const x of msgs) c.chat.push({ id: uid(), role: "assistant", channel: "phone", group: gid, speaker: x.speaker, batch, content: x.text, ts: Date.now() });
       applyNpcStatusFromText(c, g.members.filter((id) => id !== "char"), res.text);
+      if (applyAgesFromText(c, res.text)) afterAges(c);
       lastGroupNudge = opts.nudge || "";
     } catch (e) {
       const cancelled = e && (e.code === "cancelled" || e.name === "AbortError");
@@ -6385,7 +6442,7 @@
   function renderStatusStrip() {
     const c = active();
     const strip = $("statusStrip");
-    if (!c || !c.status || !c.status.enabled || c.status.showStrip === false) { strip.hidden = true; return; }
+    if (!c || !c.status || !c.status.enabled || c.status.showStrip !== true) { strip.hidden = true; return; }
     strip.innerHTML = "";
     for (const f of c.status.fields) {
       if (f.type !== "number" && !f.value) continue;
@@ -6409,7 +6466,8 @@
     if (!c) return;
     $("stTitle").textContent = `状态面板 · ${c.name}`;
     $("stEnabled").checked = !!c.status.enabled;
-    $("stShow").checked = c.status.showStrip !== false;
+    $("stShow").checked = c.status.showStrip === true;
+    renderStatusAges(c);
     $("stVoice").value = c.status.voice || "";
     $("stExtra").value = c.status.extra || "";
     renderStatusFields();
@@ -6417,6 +6475,10 @@
     $("stBack").hidden = false;
   }
   function openRelations() { openStatus(); showStatusTab("rel"); }
+  function renderStatusAges(c) {
+    $("stAgeCharL").textContent = c.name; $("stAgeUserL").textContent = state.persona.name || "你";
+    $("stAgeChar").value = c.age || ""; $("stAgeUser").value = c.userAge || "";
+  }
   function renderStatusFields() {
     const c = active();
     const st = c.status;
@@ -7531,7 +7593,6 @@
         }
         const c = fromStCard(card);
         if (image) c.image = image;
-        if (cardHasOwnStatus(c)) c.status = normalizeStatus({ enabled: false });
         state.characters.unshift(c);
         state.activeId = c.id;
         ok++;
@@ -8559,6 +8620,8 @@
   $("stClose").onclick = () => { $("stBack").hidden = true; };
   $("stDone").onclick = () => { $("stBack").hidden = true; };
   $("stBack").addEventListener("click", (e) => { if (e.target === $("stBack")) $("stBack").hidden = true; });
+  $("stAgeChar").addEventListener("change", (e) => { const c = active(); c.age = ageNum(e.target.value); e.target.value = c.age || ""; save(); if (!$("stTabRel").hidden) renderRelTable(c); });
+  $("stAgeUser").addEventListener("change", (e) => { const c = active(); c.userAge = ageNum(e.target.value); e.target.value = c.userAge || ""; save(); });
   $("stEnabled").addEventListener("change", (e) => { const c = active(); c.status.enabled = e.target.checked; save(); renderStatusStrip(); renderStatusFields(); refreshContextMeter(); });
   $("stShow").addEventListener("change", (e) => { const c = active(); c.status.showStrip = e.target.checked; save(); renderStatusStrip(); });
   $("stVoice").addEventListener("change", (e) => { const c = active(); c.status.voice = e.target.value.trim(); markStatusManual(c); save(); renderStatusStrip(); });
@@ -9089,7 +9152,7 @@
     if (!c.npcs || !c.npcs.length) return "";
     const u = state.persona.name || "用户";
     const p = presentNow(c);
-    const line = (n) => `- ${n.name}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}`;
+    const line = (n) => `- ${n.name}${n.age ? `（${n.age} 岁）` : ""}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}`;
     const rule = `如果通讯录里的人在这段里来了或走了，在回复最末尾另起一行输出 <cast>名字 来了；名字 走了</cast>（只写变化，一行写完，名字必须是 ${c.npcs.map((n) => n.name).join(" / ")} 之一；路人不用写；没变化就不输出）。不在名单上的这些人不要出现，除非剧情合理地让 TA 进场并如实标出；路人和群众可以自由出现。`;
     if (p) {
       const here = p.ids.map((id) => npcById(c, id)).filter(Boolean);
@@ -9495,9 +9558,9 @@ npcs（${npcLine}）：每个：
     // status panel: relation + affinity from the card, opening state
     const rel = {}; for (const line of (ch.sections["关系"] || "").split("\n")) { const m = line.match(/^\s*(初始关系|初始好感)\s*[:：]\s*(.+)$/); if (m) rel[m[1]] = m[2].trim(); }
     c.status.enabled = true;
+    { const m = String(ch.sections["基本"] || "").match(/年龄\s*[:：]\s*(\d{1,3})/); if (m) c.age = ageNum(m[1]); }
     const setF = (key, val, type) => { if (val == null || val === "") return; let f = c.status.fields.find((x) => x.key === key); if (!f) { f = { key, type: type || "text", value: "" }; c.status.fields.push(f); } f.value = type === "number" ? Math.max(0, Math.min(100, Number(val) || 0)) : String(val); };
     if (rel["初始关系"]) setF("关系", rel["初始关系"]);
-    if (rel["初始好感"]) setF("好感度", parseInt(rel["初始好感"], 10), "number");
     const st = ch.statusText != null ? Object.fromEntries(ch.statusText.split("\n").map((l) => l.split(/[:：]/)).filter((a) => a.length >= 2).map((a) => [a[0].trim(), a.slice(1).join(":").trim()])) : ch.status;
     for (const k of ["地点", "时间", "心情", "穿着"]) if (st && st[k]) setF(k, st[k]);
     // world book bound to the card
@@ -9510,7 +9573,7 @@ npcs（${npcLine}）：每个：
     for (const n of r.npcs) add(`人物 · ${n.name}`, [n.name, ...n.aliases].filter(Boolean), `【${n.name}】${[n.gender, n.age, n.height].filter(Boolean).join(" · ")}${n.relation ? `，${n.relation}` : ""}\n${WIZ_NPC_SECTIONS.filter((k) => n.sections[k] && !(k === "财富" && /^(无|没有|不适用)/.test(n.sections[k].trim()))).map((k) => `${k}:\n${n.sections[k].split("\n").map((l) => "  " + l).join("\n")}`).join("\n")}`, false);
     c.books.push(book);
     // contacts + relations
-    c.npcs = r.npcs.map((n) => normalizeNpc({ name: n.name, aliases: n.aliases, brief: n.relation.slice(0, 60), desc: `${n.sections["外貌"] || ""}\n${n.sections["基本"] || ""}`.slice(0, 600), personality: (n.sections["性格"] || "").slice(0, 300), speech: (n.sections["说话"] || "").slice(0, 300) })).filter(Boolean);
+    c.npcs = r.npcs.map((n) => normalizeNpc({ name: n.name, aliases: n.aliases, age: ageNum(n.age), brief: n.relation.slice(0, 60), desc: `${n.sections["外貌"] || ""}\n${n.sections["基本"] || ""}`.slice(0, 600), personality: (n.sections["性格"] || "").slice(0, 300), speech: (n.sections["说话"] || "").slice(0, 300) })).filter(Boolean);
     for (const npc of c.npcs) { const src = r.npcs.find((x) => x.name === npc.name); if (!src) continue; relSet(c, "c", npc.id, src.relation, 65, "", "建卡时设定"); if (src.relToUser) relSet(c, "u", npc.id, src.relToUser, src.aff, "", "建卡时设定"); }
     c.chat = [greeting(c)];
     state.characters.push(c); state.activeId = c.id;
