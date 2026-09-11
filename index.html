@@ -988,7 +988,7 @@
       <button class="btn ghost block" id="wizBtn" title="给几句提示，让模型补全角色卡、世界书和 NPC，每块都能重刷">✨ 让 AI 帮我建一张卡</button>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
-      <div class="stat" id="storeStat">v21.23 · 本地保存 · 仅此浏览器</div>
+      <div class="stat" id="storeStat">v21.24 · 本地保存 · 仅此浏览器</div>
     </div>
   </aside>
 
@@ -2428,7 +2428,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.23"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.24"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2612,6 +2612,22 @@
   }
 
   // ---------- Status panel model ----------
+  // a card that ships its own status bar (HTML front-end, <status> block, a "状态栏" regex) should not get a second one
+  const cardHasOwnStatus = (c) => /<status|状态栏|状态面板|<!doctype|<html[\s>]/i.test([c.firstMessage, c.description, ...(c.altGreetings || []), ...((c.regex || []).map((r) => r.scriptName))].filter(Boolean).join("\n"));
+  // one-time: characters that never used the panel get it switched on (it used to default to off)
+  function migrateStatusDefault() {
+    state.migr = state.migr && typeof state.migr === "object" ? state.migr : {};
+    if (state.migr.statusOn) return;
+    let n = 0;
+    for (const c of state.characters) {
+      if (!c.status || c.status.enabled) continue;
+      const used = (c.status.updatedFloor || 0) > 0 || c.status.manualTs || c.chat.some((m) => m.statusSnap);
+      if (!used && !cardHasOwnStatus(c)) { c.status.enabled = true; n++; }
+    }
+    state.migr.statusOn = 1;
+    save();
+    if (n) setTimeout(() => toast(`状态面板现在默认开启：${n} 个角色已打开，让模型每次回复后更新状态。不想要的在「状态」里关掉。`, false, 7000), 1500);
+  }
   const STATUS_DEFAULT_FIELDS = () => [
     { key: "好感度", type: "number", value: 20 },
     { key: "关系", type: "text", value: "陌生人" },
@@ -2621,7 +2637,7 @@
   ];
   function normalizeStatus(st) {
     const out = st && typeof st === "object" ? { ...st } : {};
-    out.enabled = !!out.enabled;
+    out.enabled = out.enabled !== false; // on by default: the model keeps the panel updated unless the card brings its own status bar
     out.fields = Array.isArray(out.fields) && out.fields.length ? out.fields.filter((f) => f && f.key).map((f) => ({ key: String(f.key), type: f.type === "number" ? "number" : "text", value: f.type === "number" ? Math.max(0, Math.min(100, Number(f.value) || 0)) : String(f.value ?? "") })) : STATUS_DEFAULT_FIELDS();
     out.voice = typeof out.voice === "string" ? out.voice : "";
     out.extra = typeof out.extra === "string" ? out.extra : "";
@@ -7359,13 +7375,14 @@
         }
         const c = fromStCard(card);
         if (image) c.image = image;
+        if (cardHasOwnStatus(c)) c.status = normalizeStatus({ enabled: false });
         state.characters.unshift(c);
         state.activeId = c.id;
         ok++;
         const bookN = c.books.reduce((n, b) => n + b.entries.length, 0);
         const embedded = c.worldName && c.books.some((b) => b.name === c.worldName);
         const bound = c.worldName && state.books.find((b) => b.name === c.worldName);
-        details.push(`${c.name}：正则 ${c.regex.length} 条，世界书 ${bookN ? bookN + " 条" : "未嵌入"}${c.worldName && !embedded ? `，绑定「${c.worldName}」${bound ? "（已关联全局）" : "（需另外导入）"}` : ""}`);
+        details.push(`${c.name}：正则 ${c.regex.length} 条，世界书 ${bookN ? bookN + " 条" : "未嵌入"}${c.worldName && !embedded ? `，绑定「${c.worldName}」${bound ? "（已关联全局）" : "（需另外导入）"}` : ""}${c.status && !c.status.enabled ? "，自带状态栏（面板已关）" : ""}`);
       } catch (e) {
         console.error("import failed", f.name, e);
         fail.push(`${f.name}：${e && e.message ? e.message : "读取失败"}`);
@@ -9693,6 +9710,7 @@ npcs（${npcLine}）：每个：
   bootStorage().then(() => {
   try { applyTheme(); } catch (e) {}
   try { dropBuiltinLuxuryBook(); } catch (e) { console.error(e); }
+  try { migrateStatusDefault(); } catch (e) { console.error(e); }
   if (!inArtifact() && state.settings.backend !== "custom") { state.settings.backend = "custom"; save(); }
   renderAll();
   { const d = daysSinceBackup(); if (backupWorthIt() && (d == null || d >= 7)) setTimeout(() => toast(d == null ? "数据只存在这个浏览器里，还没备份过：左下角「💾 备份全部」一键导出" : `已经 ${d} 天没备份了：左下角「💾 备份全部」一键导出`, false, 7000), 1200); }
