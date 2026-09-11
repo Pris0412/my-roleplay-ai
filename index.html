@@ -2520,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.38"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.39"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3995,14 +3995,55 @@
     bubble.appendChild(ta);
     const actions = wrap.querySelector(".actions");
     actions.innerHTML = "";
-    const ok = el("button", "btn primary", "保存");
+    const isUser = m.role === "user";
+    const ok = el("button", "btn primary", isUser ? "仅保存" : "保存");
     const cancel = el("button", "btn ghost", "取消");
-    ok.onclick = () => { m.content = ta.value.trim() || m.content; m.swipes[m.si] = m.content; save(); renderMessages(); renderCharList(); };
+    const commit = () => { m.content = ta.value.trim() || m.content; if (Array.isArray(m.swipes)) m.swipes[m.si] = m.content; save(); renderMessages(); renderCharList(); };
+    ok.onclick = commit;
     cancel.onclick = () => renderMessages();
     ta.onkeydown = (e) => { if (e.key === "Escape") renderMessages(); if ((e.metaKey || e.ctrlKey) && e.key === "Enter") ok.click(); };
-    actions.append(ok, cancel);
+    if (isUser) {
+      const again = el("button", "btn", "保存并从这里重来"); again.title = "删掉这一楼之后的楼层，让模型接着改过的这句重新回";
+      again.onclick = async () => { commit(); await replyFromHere(c, m); };
+      const resend = el("button", "btn", "保存并重发到最后"); resend.title = "后面的楼层不动，把改过的这句作为一条新消息发到最后";
+      resend.onclick = async () => { commit(); await resendAtEnd(c, m); };
+      actions.append(ok, again, resend, cancel);
+    } else actions.append(ok, cancel);
     ta.focus();
     ta.style.height = Math.max(96, ta.scrollHeight) + "px";
+  }
+
+  // After editing your own message: reply again from here (later floors dropped) or resend it as a new message at the end
+  function optsForUserMsg(c, m) {
+    if (m.channel === "phone") return m.group ? { group: m.group } : { channel: "phone", npc: m.npc || undefined };
+    if (m.channel === "scene" || m.npc) { const ids = msgNpcs(m); return { npc: ids[0], npcs: ids, channel: "scene" }; }
+    return {};
+  }
+  async function replyFromHere(c, m) {
+    if (busy) return;
+    const index = c.chat.indexOf(m); if (index < 0) return;
+    const later = c.chat.slice(index + 1).filter((x) => x.kind !== "divider").length;
+    if (later && !(await askConfirm(`从第 ${floorOf(c, index)} 楼重来？之后的 ${later} 条会被删除，然后让模型接着这句重新回。`, "重来", true))) return;
+    if (c.chat.length - 1 > index) await truncateAfter(c, index);
+    if (!chatReady()) { toast("接口未就绪：已保存并删掉后面的楼层，接口好了再按发送让模型回", true); return; }
+    const o = optsForUserMsg(c, m);
+    if (o.group) return generateGroup(c, o.group, {});
+    return generate(c, null, o);
+  }
+  async function resendAtEnd(c, m) {
+    if (busy) return;
+    const o = optsForUserMsg(c, m);
+    const copy = { id: uid(), role: "user", content: m.content, ts: Date.now() };
+    if (o.group) Object.assign(copy, { channel: "phone", group: o.group, speaker: null });
+    else if (o.channel === "phone") { copy.channel = "phone"; if (o.npc) copy.npc = o.npc; else if (!(c.phone && c.phone.open)) c.phone = { ...(c.phone || {}), open: true }; }
+    else if (o.channel === "scene") Object.assign(copy, { npc: o.npc, npcs: o.npcs, channel: "scene" });
+    c.chat.push(copy);
+    feEmit("message_sent", c.chat.length - 1);
+    save(); renderMessages(); renderCharList();
+    if (!$("phoneBack").hidden) renderPhone(true);
+    if (!chatReady()) { toast("接口未就绪：已重发，接口好了再按发送让模型回", true); return; }
+    if (o.group) return generateGroup(c, o.group, {});
+    return generate(c, null, o);
   }
 
   function renderSettings() {
@@ -6358,18 +6399,26 @@
     ta.value = m.content;
     ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(240, ta.scrollHeight) + "px"; });
     const row = el("div", "row");
-    const cancel = el("button", null, "取消"); const ok = el("button", null, "保存");
+    const isUser = m.role === "user";
+    const cancel = el("button", null, "取消"); const ok = el("button", null, isUser ? "仅保存" : "保存");
     const done = () => { phoneEdit = null; renderPhone(); };
     const commit = () => {
       const v = ta.value.trim();
-      if (!v) { toast("内容不能为空；想去掉就用「删除」", true); return; }
+      if (!v) { toast("内容不能为空；想去掉就用「删除」", true); return false; }
       m.content = v; if (m.swipes) m.swipes[m.si] = v;
       save(); renderMessages(); done();
+      return true;
     };
     cancel.onclick = (e) => { e.stopPropagation(); done(); };
     ok.onclick = (e) => { e.stopPropagation(); commit(); };
     ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); commit(); } if (e.key === "Escape") { e.stopPropagation(); done(); } });
-    row.append(cancel, ok);
+    if (isUser) {
+      const again = el("button", null, "从这里重来"); again.title = "删掉这条之后的消息，让对方接着改过的这句重新回";
+      again.onclick = async (e) => { e.stopPropagation(); if (commit()) await replyFromHere(c, m); };
+      const resend = el("button", null, "重发"); resend.title = "后面的消息不动，把改过的这句作为新消息发到最后";
+      resend.onclick = async (e) => { e.stopPropagation(); if (commit()) await resendAtEnd(c, m); };
+      row.append(cancel, ok, again, resend);
+    } else row.append(cancel, ok);
     box.append(ta, row);
     return box;
   }
