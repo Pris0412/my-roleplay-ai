@@ -716,6 +716,7 @@
   #chatStat { white-space: pre-line; line-height: 1.6; }
   .ctx-grp .inner { gap: 6px; }
   .ctx-item { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--raised); }
+  select.btn.rewrite { padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
   .note-row { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--raised); display: flex; flex-direction: column; gap: 4px; }
   .note-row.done { opacity: 0.6; }
   .note-row.done .note-text { text-decoration: line-through; }
@@ -988,7 +989,7 @@
       <button class="btn ghost block" id="wizBtn" title="给几句提示，让模型补全角色卡、世界书和 NPC，每块都能重刷">✨ 让 AI 帮我建一张卡</button>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
-      <div class="stat" id="storeStat">v21.24 · 本地保存 · 仅此浏览器</div>
+      <div class="stat" id="storeStat">v21.25 · 本地保存 · 仅此浏览器</div>
     </div>
   </aside>
 
@@ -1182,6 +1183,15 @@
               <option value="long">长 · 1200–2000 字</option>
               <option value="custom">自定义…</option>
             </select>
+          </div>
+          <div class="field">
+            <label for="sEmotion">情感浓度</label>
+            <select id="sEmotion">
+              <option value="restrained">克制 · 含蓄留白</option>
+              <option value="normal">正常（默认）</option>
+              <option value="intense">浓烈 · 允许失态、说重话、写到位</option>
+            </select>
+            <div class="help">每张卡可以在「编辑角色」里单独设。哪一楼不满意，回复下面还有「换写法」可以单独重写。</div>
           </div>
           <div class="field">
             <label for="sLang">回复语言</label>
@@ -1394,6 +1404,15 @@
           <div class="field">
             <label for="edSys">系统提示词（system_prompt）</label>
             <textarea id="edSys" placeholder="留空则用本页默认的扮演规则。写了就会替换默认规则；可以用 {{original}} 把默认规则插回来。"></textarea>
+          </div>
+          <div class="field">
+            <label for="edEmotion">情感浓度（这张卡）</label>
+            <select id="edEmotion">
+              <option value="inherit">跟随全局设置</option>
+              <option value="restrained">克制 · 含蓄留白</option>
+              <option value="normal">正常</option>
+              <option value="intense">浓烈 · 允许失态、说重话、写到位</option>
+            </select>
           </div>
           <div class="field">
             <label for="edCss">自定义 CSS（这张卡）</label>
@@ -2428,7 +2447,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.24"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.25"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3761,6 +3780,14 @@
       const bRegen = el("button", "btn ghost", "重新生成");
       bRegen.onclick = () => regenerate();
       actions.appendChild(bRegen);
+      if (!(c.phone && c.phone.open)) {
+        const sel = document.createElement("select");
+        sel.className = "btn ghost rewrite";
+        sel.title = "带着一条额外要求重写这一楼（会生成一个新版本，旧版本还在 ‹ › 里）";
+        for (const [v, t] of [["", "换写法…"], ["intense", "更浓烈"], ["restrained", "更克制"], ["shorter", "更短"], ["colloquial", "更口语"], ["action", "少心理多动作"], ["fresh", "换个开头和结构"]]) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
+        sel.onchange = () => { const v = sel.value; sel.value = ""; if (v) rewriteLast(v); };
+        actions.appendChild(sel);
+      }
     }
     const lastMsg = [...c.chat].reverse().find((x) => x.kind !== "divider");
     if (!isUser && lastMsg && lastMsg.id === m.id && !(c.phone && c.phone.open)) {
@@ -3849,6 +3876,7 @@
     $("sMemCustom").hidden = memPresets.includes(memVal);
     $("sMemCustom").value = memVal;
     $("sVoice").value = state.settings.voice || "strict";
+    $("sEmotion").value = EMOTION_LABELS[state.settings.emotion] ? state.settings.emotion : "normal";
     $("sHtmlMode").value = state.settings.htmlMode === "iframe" ? "iframe" : "inline";
     $("sFeKeep").value = state.settings.feKeep == null ? "2" : String(state.settings.feKeep);
     $("sCss").value = state.settings.css || "";
@@ -3922,6 +3950,27 @@
       default: return `只描写 ${c.name} 的言行和周围环境；绝不替 ${u} 说话、做决定，也不描写 ${u} 的动作、表情或内心。`;
     }
   }
+  // Anti-template writing rules and the emotion dial. Sent with every reply (main scene, NPC scene, preset marker).
+  const EMOTION_LABELS = { restrained: "克制", normal: "正常", intense: "浓烈" };
+  function emotionLevel(c) { const v = c && c.emotion && c.emotion !== "inherit" ? c.emotion : state.settings.emotion; return EMOTION_LABELS[v] ? v : "normal"; }
+  function emotionRule(c) {
+    const lv = emotionLevel(c);
+    if (lv === "intense") return "情绪要浓：真的动心就写到位，真的生气就摔话、说重话，真的委屈就失态；身体先于理智；允许语无伦次、失控、越界的举动，只要符合人设。不要收着，不要只给三分。";
+    if (lv === "restrained") return "情绪克制含蓄，多留白少直说；但克制是人物在忍，不是叙述在省，忍的痕迹要写出来。";
+    return "";
+  }
+  function styleRules(c, u) {
+    return [
+      "文风：不要套模板。不要每楼都「环境一句、动作、对白、动作、意味深长收尾」；段落长短不齐，允许只有一两句话的短楼。",
+      "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」。",
+      `不要以留白句收尾（「他没有再说什么」「夜还很长」之类），不要以抛问题收尾，不要替 ${u} 总结感受（「你感到…」「你知道…」）。`,
+      "情绪写过程不写结论：不说「他慌了」，写他把杯子放歪、话说到一半停住。身体反应不只写脸，写手、呼吸、姿势、距离。",
+      "对白像真人：会打断、说半句、重复、答非所问，不要每句都完整得体。",
+      "场景没变就不要重描环境和光线。冲突不要在同一楼和解。",
+      emotionRule(c) || null,
+    ].filter(Boolean);
+  }
+  const PHONE_STYLE_RULE = "不用破折号「——」，不用「一丝 / 一抹 / 几分」这类模糊量词。";
   function defaultRules(c, u) {
     return [
       `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
@@ -4121,14 +4170,14 @@
     if (stIns) { parts.push("\n" + stIns); seg("fixed", "状态面板", stIns); }
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
-      parts.push("\n" + pr, `- ${langHint()}`); seg("fixed", "手机聊天规则", pr);
+      parts.push("\n" + pr, `- ${langHint()}`, `- ${PHONE_STYLE_RULE}`); seg("fixed", "手机聊天规则", pr);
       return sub(parts.join("\n"), c);
     }
     parts.push("\n## 规则");
     const ruleLines = [];
     if (!(c.systemPrompt && c.systemPrompt.trim())) ruleLines.push(rules);
     else if (!c.systemPrompt.includes("{{original}}") && voiceRule(c, u)) ruleLines.push(`- ${voiceRule(c, u)}`);
-    ruleLines.push(`- ${lengthHint()}`, `- ${langHint()}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
+    ruleLines.push(`- ${lengthHint()}`, `- ${langHint()}`, ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
     parts.push(...ruleLines); seg("fixed", "回复规则", ruleLines.join("\n"));
     return sub(parts.join("\n"), c);
   }
@@ -4203,7 +4252,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint(), c) : [`- ${lengthHint()}`, `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + "\n- " + PHONE_STYLE_RULE, c) : [`- ${lengthHint()}`, `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
@@ -4879,11 +4928,11 @@
     const rel = met ? `${npc.name} 和 ${u} 在故事里已经打过交道，按两人现有的熟悉程度说话。` : `这是 ${npc.name} 第一次直接和 ${u} 说话，按初次接触的分寸来，不要自来熟。`;
     parts.push("", rel); seg("fixed", "关系", rel);
     if (sceneMode) {
-      const rules = [defaultRules({ name: all }, u), `- ${lengthHint()}`, `- ${langHint()}`, "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].join("\n");
+      const rules = [defaultRules({ name: all }, u), `- ${lengthHint()}`, `- ${langHint()}`, ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].join("\n");
       parts.push("\n## 规则", rules); seg("fixed", "回复规则", rules);
     } else {
       const pr = phoneRulesFor(npc.name, u, false, "");
-      parts.push("\n" + pr, `- ${langHint()}`); seg("fixed", "手机聊天规则", pr);
+      parts.push("\n" + pr, `- ${langHint()}`, `- ${PHONE_STYLE_RULE}`); seg("fixed", "手机聊天规则", pr);
     }
     const nst = npcStatusInstruction(c, npc, others);
     parts.push("\n" + nst); seg("fixed", "关系变化", nst);
@@ -7032,6 +7081,21 @@
     await generate(c, null, sceneOpts);
   }
 
+  const REWRITE_NUDGES = {
+    intense: "（这一楼重写。情绪写浓：真的动心就写到位，真的生气就摔话，身体先于理智，允许失态和越界，不要收着，不要当楼和解。其他要求不变。）",
+    restrained: "（这一楼重写。情绪收住：不直说，用动作和沉默写，留白多一点，但要看得出人物在忍。其他要求不变。）",
+    shorter: "（这一楼重写，长度砍一半以上：只留最有分量的一两个动作和一两句话，不描环境。其他要求不变。）",
+    colloquial: "（这一楼重写，对白更口语：会打断、说半句、重复、带语气词，不要书面腔。其他要求不变。）",
+    action: "（这一楼重写：把心理描写全部换成可见的动作、姿势、距离和呼吸，不解释他在想什么。其他要求不变。）",
+    fresh: "（这一楼重写：换一个完全不同的开头和结构，不要以环境描写起笔，不要以留白句或问题收尾。其他要求不变。）",
+  };
+  function rewriteLast(kind) {
+    const c = active();
+    if (!c || busy) return;
+    const last = [...c.chat].reverse().find((x) => x.kind !== "divider");
+    if (!last || last.role !== "assistant" || last.greeting) return;
+    generate(c, last, { nudge: REWRITE_NUDGES[kind] || "" });
+  }
   function regenerate() {
     const c = active();
     if (!c || busy) return;
@@ -7061,7 +7125,7 @@
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || "";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit";
     renderEdBook();
     refreshCharRx();
     $("editorDelete").hidden = !c;
@@ -7108,6 +7172,7 @@
     d.systemPrompt = $("edSys").value.trim();
     d.postHistory = $("edPost").value.trim();
     d.css = $("edCss").value.trim();
+    d.emotion = $("edEmotion").value === "inherit" ? "" : $("edEmotion").value;
     d.worldName = $("edWorld").value;
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
@@ -8242,6 +8307,7 @@
   $("sFeKeep").addEventListener("change", (e) => { state.settings.feKeep = e.target.value; save(); refreshContextMeter(); });
   $("sCss").addEventListener("change", (e) => { state.settings.css = e.target.value; save(); applyUserCss(); renderMessages(); });
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
+  $("sEmotion").addEventListener("change", (e) => { state.settings.emotion = e.target.value; save(); refreshContextMeter(); toast("情感浓度：" + e.target.options[e.target.selectedIndex].textContent); });
   $("inspire").onclick = inspire;
   // ▶ 再写一段: the character (or the NPC you're alone with) carries on without a new message from you
   function continueStory() {
