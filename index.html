@@ -2030,7 +2030,7 @@
       </div>
       <div id="stTabPanel">
       <div class="checks">
-        <label><input type="checkbox" id="stEnabled"> 启用：每次回复末尾让模型更新状态（状态块不会显示，也不进上下文）</label>
+        <label><input type="checkbox" id="stEnabled"> 启用：每次回复末尾让模型更新状态。当前状态每次都发给模型；回复里的状态块本身不显示、不留在聊天记录里</label>
         <label><input type="checkbox" id="stShow"> 在顶栏下面显示状态栏</label>
       </div>
       <div class="section">
@@ -2520,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.34"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.35"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2750,6 +2750,7 @@
     out.updatedFloor = Number(out.updatedFloor) || 0;
     out.manualTs = Number(out.manualTs) || 0;
     out.showStrip = out.showStrip === true; // the strip under the header is collapsed unless you turn it on
+    out.lastDelta = Array.isArray(out.lastDelta) ? out.lastDelta.filter((d) => d && d.key).map((d) => ({ key: String(d.key), from: String(d.from ?? ""), to: String(d.to ?? "") })) : [];
     return out;
   }
   const STATUS_RE = /<status>\s*([\s\S]*?)\s*<\/status>/gi;
@@ -2768,7 +2769,7 @@
     example["心声"] = `${c.name}此刻不会说出口的真实想法，一两句，第一人称`;
     return [
       "## 状态面板",
-      `当前状态：${cur}${st.voice ? `。上一次的心声：${st.voice}` : ""}`,
+      `当前状态：${cur}${st.lastDelta && st.lastDelta.length ? `。上一楼刚变的：${st.lastDelta.map((d) => `${d.key} ${d.from || "（未知）"}→${d.to || "（未知）"}`).join("、")}` : ""}${st.voice ? `。上一次的心声：${st.voice}` : ""}`,
       "在每次回复的最末尾，另起一行输出一个状态块来更新这些值：只改真的变了的项，数值要合理渐变（一次通常不超过 5），文字项简短。格式严格如下，键名照抄，不要加别的内容：",
       `<status>${JSON.stringify(example)}</status>`,
       st.extra.trim() ? st.extra.trim() : "",
@@ -2785,15 +2786,18 @@
     obj = tryParse(raw) || (() => { const a = raw.indexOf("{"), b = raw.lastIndexOf("}"); return a >= 0 && b > a ? tryParse(raw.slice(a, b + 1)) : null; })();
     if (!obj) return false;
     let changed = false;
+    const delta = [];
     for (const [k, v] of Object.entries(obj)) {
       const key = String(k).trim();
       if (key === "心声" || key.toLowerCase() === "voice") { st.voice = String(v ?? "").trim(); changed = true; continue; }
       const f = st.fields.find((x) => x.key === key);
       if (!f) continue;
+      const before = f.value;
       if (f.type === "number") { const n = Number(String(v).replace(/[^\d.-]/g, "")); if (!Number.isNaN(n)) { f.value = Math.max(0, Math.min(100, Math.round(n))); changed = true; } }
       else { f.value = String(v ?? "").trim(); changed = true; }
+      if (String(f.value) !== String(before)) delta.push({ key: f.key, from: String(before), to: String(f.value) });
     }
-    if (changed) st.updatedFloor = floor || floorCount(c);
+    if (changed) { st.updatedFloor = floor || floorCount(c); st.lastDelta = delta; } // what moved this floor rides along next turn ("上一楼刚变的")
     return changed;
   }
   function statusSnapshot(c) { return JSON.parse(JSON.stringify({ fields: c.status.fields, voice: c.status.voice })); }
@@ -2950,7 +2954,7 @@
     if ((c.memory.lastFloor || 0) > n) c.memory.lastFloor = n;
     save(); updateStats();
   }
-  const markStatusManual = (c) => { if (c && c.status) c.status.manualTs = Date.now(); };
+  const markStatusManual = (c) => { if (c && c.status) { c.status.manualTs = Date.now(); c.status.lastDelta = []; } };
   // After floors are deleted: if any of them carried a status snapshot, the panel came from them,
   // so roll it back to the newest snapshot that is still in the chat (or the initial values).
   async function rollbackStatusAfterDelete(c, removed) {
@@ -2972,6 +2976,7 @@
       f.value = d ? d.value : f.type === "number" ? 50 : "";
     }
     c.status.voice = snap ? String(snap.voice || "") : "";
+    c.status.lastDelta = [];
     c.status.updatedFloor = floor;
     c.status.manualTs = 0;
     save(); renderStatusStrip();
