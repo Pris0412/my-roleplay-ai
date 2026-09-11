@@ -2520,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.37"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.38"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2759,7 +2759,9 @@
   const CAST_OPEN_RE = /<cast>[\s\S]*$/i;
   const AGES_RE = /<ages>\s*([\s\S]*?)\s*<\/ages>/gi;
   const AGES_OPEN_RE = /<ages>[\s\S]*$/i;
-  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").trim(); }
+  const REL_RE = /<rel>\s*([\s\S]*?)\s*<\/rel>/gi;
+  const REL_OPEN_RE = /<rel>[\s\S]*$/i;
+  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").trim(); }
   function statusInstruction(c) {
     const st = c.status;
     if (!st || !st.enabled) return "";
@@ -3357,8 +3359,8 @@
   const REASON_RE = /<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi;
   const REASON_OPEN_RE = /<(think|thinking|reasoning)>([\s\S]*)$/i;
   function foldReasoning(t, streaming) {
-    t = t.replace(STATUS_RE, "").replace(CAST_RE, "").replace(AGES_RE, "");
-    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_OPEN_RE, "");
+    t = t.replace(STATUS_RE, "").replace(CAST_RE, "").replace(AGES_RE, "").replace(REL_RE, "");
+    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_OPEN_RE, "").replace(REL_OPEN_RE, "");
     t = t.replace(REASON_RE, (_, __, body) => `<details class="reasoning"><summary>思考过程</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     if (streaming) t = t.replace(REASON_OPEN_RE, (_, __, body) => `<details class="reasoning" open><summary>思考中…</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     return t;
@@ -4335,6 +4337,7 @@
     }
     const castIns = castInstruction(c, history);
     if (castIns) { parts.push("\n" + castIns); seg("char", "在场的人物", castIns); }
+    { const pn = !(c.phone && c.phone.open) && presentNow(c); const here = pn ? pn.ids.map((id) => npcById(c, id)).filter(Boolean) : []; if (here.length) { const pr = presentRelInstruction(c, here); parts.push("\n" + pr); seg("fixed", "在场人物的关系", pr); } }
     const relIns = relationsInstruction(c, null);
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
     const stIns = statusInstruction(c);
@@ -4786,6 +4789,7 @@
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
       if (!msg.npc && applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); c.status.manualTs = 0; renderStatusStrip(); }
       if (msg.npc) applyNpcStatusFromText(c, msgNpcs(msg), res.text);
+      if (!msg.npc) { const pn = presentNow(c); if (pn && pn.ids.length && applyPresentRelFromText(c, pn.ids, res.text) && !$("stBack").hidden) renderRelTable(c); }
       if (applyAgesFromText(c, res.text)) afterAges(c);
       if (!msg.npc && !(c.phone && c.phone.open)) { try { applyCastFromText(c, res.text, msg); } catch (e) { console.error(e); } }
       if (!msg.npc && !msg.error) setTimeout(() => maybeAutoRelRefresh(c), 0);
@@ -5342,6 +5346,44 @@
       relCtl = null;
       $("relRefresh").disabled = false; $("relRefresh").textContent = "让模型更新关系";
     }
+  }
+  // Main scene with contacts present: the reply also carries a small <rel> block for those people's relations with you and with the character
+  function presentRelInstruction(c, here) {
+    const u = state.persona.name || "用户";
+    const fmt = (r) => r.set ? `${r.rel || "（未定）"}（好感 ${r.aff}/100）` : "还没有明确关系";
+    const cur = here.map((n) => `${n.name}：和 ${u} ${fmt(relGet(c, "u", n.id))}；和 ${c.name} ${fmt(relGet(c, "c", n.id))}`).join("。");
+    const ex = JSON.stringify({ [here[0].name]: { "和你": { "关系": "关系词", "好感度": 50, "原因": "变化原因" }, "和主角": { "关系": "关系词", "好感度": 50, "原因": "变化原因" } } });
+    return [
+      "## 在场人物的关系",
+      `目前：${cur}。`,
+      `这一楼里在场的通讯录人物如果和 ${u}（写作"和你"）或和 ${c.name}（写作"和主角"）的关系、好感真的变了，在回复最末尾另起一行输出：<rel>${ex}</rel>。只写变了的人和变了的那一侧，好感数值渐变（一次通常不超过 5），关系词 2 到 6 个字；没人变就不输出。`,
+    ].join("\n");
+  }
+  function applyPresentRelFromText(c, ids, text) {
+    const blocks = [...String(text || "").matchAll(REL_RE)];
+    if (!blocks.length) return false;
+    const raw = blocks[blocks.length - 1][1];
+    const tryParse = (t) => { try { const v = JSON.parse(t); return v && typeof v === "object" ? v : null; } catch (e) { return null; } };
+    const obj = tryParse(raw) || (() => { const a = raw.indexOf("{"), b = raw.lastIndexOf("}"); return a >= 0 && b > a ? tryParse(raw.slice(a, b + 1)) : null; })();
+    if (!obj) return false;
+    const u = state.persona.name || "用户";
+    const sideOf = (k) => /^(和你|withUser|与你)$/i.test(k) || k === `和${u}` || k === `与${u}` ? "u" : /^(和主角|withChar|与主角)$/i.test(k) || k === `和${c.name}` || k === `与${c.name}` ? "c" : null;
+    let changed = false;
+    for (const [name, sides] of Object.entries(obj)) {
+      const n = c.npcs.find((x) => x.name === name || x.aliases.includes(name));
+      if (!n || !sides || typeof sides !== "object") continue; // any known contact: the same reply may have just brought someone in
+      for (const [k, o] of Object.entries(sides)) {
+        const side = sideOf(String(k).trim());
+        if (!side || !o || typeof o !== "object") continue;
+        const cur = relGet(c, side, n.id);
+        const rel = typeof o["关系"] === "string" ? o["关系"] : cur.rel;
+        const affRaw = o["好感度"] != null ? Number(String(o["好感度"]).replace(/[^\d.-]/g, "")) : NaN;
+        const aff = Number.isNaN(affRaw) ? (cur.set ? cur.aff : 50) : affRaw;
+        const why = typeof o["原因"] === "string" && !/没变|省略/.test(o["原因"]) ? o["原因"] : "";
+        if (relSet(c, side, n.id, rel, aff, undefined, why)) changed = true;
+      }
+    }
+    return changed;
   }
   let personaCtl = null;
   async function fillPersonalities() {
