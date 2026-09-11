@@ -988,7 +988,7 @@
       <button class="btn ghost block" id="wizBtn" title="给几句提示，让模型补全角色卡、世界书和 NPC，每块都能重刷">✨ 让 AI 帮我建一张卡</button>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
-      <div class="stat" id="storeStat">v21.20 · 本地保存 · 仅此浏览器</div>
+      <div class="stat" id="storeStat">v21.21 · 本地保存 · 仅此浏览器</div>
     </div>
   </aside>
 
@@ -2428,7 +2428,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.20"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.21"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3947,7 +3947,7 @@
     const globals = (state.books || []).filter((b) => b && b.enabled !== false && !bound.includes(b));
     const own = c ? (c.books || []).filter((b) => b.enabled !== false) : [];
     const books = [...own, ...bound, ...globals].filter((b) => b && b.entries && b.entries.length);
-    const empty = { before: [], after: [], labels: { before: [], after: [] } };
+    const empty = { before: [], after: [], labels: { before: [], after: [] }, flags: { before: [], after: [] } };
     if (!books.length) { loreTrace = { skipped: [] }; return empty; }
     const msgs = history.map((m) => sub(m.content, c));
     const hayAt = (depth) => msgs.slice(-Math.max(1, depth)).join("\n");
@@ -3999,15 +3999,15 @@
     // budget: rough 1 token ≈ 2 characters of mixed text
     let budget = Math.max(2000, books.reduce((n, b) => n + (b.token_budget || 1000), 0) * 2);
     picked.sort((a, b) => (b.e.insertion_order - a.e.insertion_order)); // higher order = higher priority for budget
-    const out = { before: [], after: [], labels: { before: [], after: [] } };
+    const out = { before: [], after: [], labels: { before: [], after: [] }, flags: { before: [], after: [] } };
     for (const { e, book } of picked) {
       const text = applyRegex(sub(e.content, c), { placement: 5, stage: "prompt", c }).trim();
       if (!text) continue;
       if (text.length > budget) { skip(book, e, "世界书预算不够，被挤掉"); continue; }
       budget -= text.length;
-      out[e.position === "before_char" ? "before" : "after"].push({ order: e.insertion_order, text, label: `${book.name} › ${e.comment || (e.keys && e.keys[0]) || "（无标题）"}` });
+      out[e.position === "before_char" ? "before" : "after"].push({ order: e.insertion_order, text, label: `${book.name} › ${e.comment || (e.keys && e.keys[0]) || "（无标题）"}`, stable: !!e.constant });
     }
-    for (const k of ["before", "after"]) { const sorted = out[k].sort((a, b) => a.order - b.order); out.labels[k] = sorted.map((x) => x.label); out[k] = sorted.map((x) => x.text); }
+    for (const k of ["before", "after"]) { const sorted = out[k].sort((a, b) => a.order - b.order); out.labels[k] = sorted.map((x) => x.label); out.flags[k] = sorted.map((x) => x.stable); out[k] = sorted.map((x) => x.text); }
     loreTrace = trace;
     return out;
   }
@@ -4026,6 +4026,26 @@
   const estTokens = (text) => Math.round(rawTokens(text) * tokCalib());
   const fmtTok = (n) => (n >= 10000 ? (n / 1000).toFixed(1) + "k" : String(n));
   let segments = []; // [{group, label, text}] collected while the prompt is assembled
+  // Prompt caching: everything that changes from turn to turn (status values, who is present, notes, retrieved floors,
+  // keyword-triggered lore) is collected here and sent at the END, attached to the newest user message, so the
+  // system prompt and the history stay byte-identical across turns and the provider can serve them from cache.
+  let dynParts = [];
+  function dyn(group, label, text, head) { if (!text || !String(text).trim()) return; dynParts.push({ group, label, text: String(text).trim(), head: head || "" }); seg(group, label, text); }
+  function loreSplit(lore, side) {
+    const out = { stable: [], labels: [], dyn: [] };
+    (lore[side] || []).forEach((t, i) => {
+      const lb = (lore.labels && lore.labels[side][i]) || `世界书条目 ${i + 1}`;
+      if (lore.flags && lore.flags[side][i] === false) out.dyn.push({ text: t, label: lb }); else { out.stable.push(t); out.labels.push(lb); }
+    });
+    return out;
+  }
+  function dynBlock() {
+    if (!dynParts.length) return "";
+    const lines = ["【当前情况】（本轮补充，以此为准）"];
+    let lastHead = null;
+    for (const p of dynParts) { if (p.head && p.head !== lastHead) lines.push("\n" + p.head); lastHead = p.head || lastHead; lines.push(p.text); }
+    return lines.join("\n");
+  }
   const seg = (group, label, text) => { if (text && String(text).trim()) segments.push({ group, label, text: String(text) }); };
 
   // How a stored message reads in the prompt: phone texts get a [手机 时间] prefix, dividers are scene notes
@@ -4079,18 +4099,17 @@
     }
     parts.push("");
     const lore = activeLore(c, history || c.chat);
-    if (lore.before.length) { parts.push(`## 世界设定\n${lore.before.join("\n\n")}\n`); lore.before.forEach((t, i) => seg("lore", (lore.labels && lore.labels.before[i]) || `世界书（前）条目 ${i + 1}`, t)); }
+    { const L = loreSplit(lore, "before"); if (L.stable.length) { parts.push(`## 世界设定\n${L.stable.join("\n\n")}\n`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
     parts.push(`## ${c.name} 的设定`);
     if (c.description) { parts.push(c.description); seg("char", "角色描述", c.description); }
     if (c.personality) { parts.push(`性格：${c.personality}`); seg("char", "性格", c.personality); }
     if (c.scenario) { parts.push(`\n## 场景\n${c.scenario}`); seg("char", "场景", c.scenario); }
-    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
-    { const nb = notesBlock(c, null); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
+    { const L = loreSplit(lore, "after"); if (L.stable.length) { parts.push(`\n## 补充设定\n${L.stable.join("\n\n")}`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
+    { const nb = notesBlock(c, null); if (nb) dyn("notes", "不能忘的事", nb); }
     if (retrieved && retrieved.length) {
       const u = state.persona.name || "用户";
       const lines = retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : c.name}：${h.text}`);
-      parts.push(`\n## 相关记忆（从更早的楼层里检索到的片段，按需参考，不要复述）\n${lines.join("\n")}`);
-      retrieved.forEach((h, i) => seg("rag", `检索 #${h.floor}`, lines[i]));
+      retrieved.forEach((h, i) => dyn("rag", `检索 #${h.floor}`, lines[i], "## 相关记忆（从更早的楼层里检索到的片段，按需参考，不要复述）"));
     }
     if (state.persona.desc) { parts.push(`\n## 关于 ${u}\n${state.persona.desc}`); seg("char", "你的人设", state.persona.desc); }
     if (c.examples && c.examples.trim()) {
@@ -4098,11 +4117,11 @@
       parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`); seg("char", "对话示例", ex);
     }
     const castIns = castInstruction(c, history);
-    if (castIns) { parts.push("\n" + castIns); seg("char", "在场的人物", castIns); }
+    if (castIns) dyn("char", "在场的人物", castIns);
     const relIns = relationsInstruction(c, null);
-    if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
+    if (relIns) dyn("fixed", "人际关系", relIns);
     const stIns = statusInstruction(c);
-    if (stIns) { parts.push("\n" + stIns); seg("fixed", "状态面板", stIns); }
+    if (stIns) dyn("fixed", "状态面板", stIns);
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
       parts.push("\n" + pr, `- ${langHint()}`); seg("fixed", "手机聊天规则", pr);
@@ -4180,17 +4199,21 @@
     const mainPrompt = byId.main ? sub(byId.main.content, c) : "";
     const markerContent = (id) => {
       switch (id) {
-        case "worldInfoBefore": return wi(lore.before);
-        case "worldInfoAfter": return [wi(lore.after), memLines, notesBlock(c, null)].filter(Boolean).join("\n\n");
+        case "worldInfoBefore": return wi(loreSplit(lore, "before").stable);
+        case "worldInfoAfter": return wi(loreSplit(lore, "after").stable);
         case "charDescription": return sub(c.description || "", c);
         case "charPersonality": return sub(fmtTemplate(raw.personality_format, "personality", c.personality || ""), c);
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint(), c) : [`- ${lengthHint()}`, `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint(), c) : [`- ${lengthHint()}`, `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), ].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
+    for (const side of ["before", "after"]) loreSplit(lore, side).dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定"));
+    if (memLines) dyn("rag", "相关记忆", memLines);
+    { const nb = notesBlock(c, null); if (nb) dyn("notes", "不能忘的事", nb); }
+    { const st = statusInstruction(c); if (st) dyn("fixed", "状态面板", st); }
     const pre = [], post = [], inChat = [];
     let afterHistory = false;
     for (const o of ps.order) {
@@ -4237,13 +4260,27 @@
   let pendingNudge = ""; // one-off user-role instruction appended for the next generation only
   const CONTINUE_NUDGE = "__continue__"; // placeholder: replaced by the preset's continue_nudge_prompt in buildTurns
   function buildTurns(c, upto, npcId, sceneMode, npcIds) {
-    segments = [];
+    segments = []; dynParts = [];
     const npc = npcId ? npcById(c, npcId) : null;
     const others = npc ? (npcIds || []).filter((id) => id !== npc.id).map((id) => npcById(c, id)).filter(Boolean) : [];
     const mem = parseInt(state.settings.mem, 10) || 40;
     // the character never sees NPC private threads; an NPC only sees its own thread
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto).filter((m) => npc ? visibleToNpc(c, m, npc.id) : visibleToChar(c, m));
-    const kept = history.filter((m) => !m.error && !m.hidden).slice(-mem);
+    const visible = history.filter((m) => !m.error && !m.hidden);
+    // Sticky window: the first included floor stays put until the window has grown past mem + step, then jumps once.
+    // A window that slides one floor per turn changes the prompt prefix every turn and defeats provider-side caching.
+    const akey = npc ? (sceneMode ? "scene:" : "npc:") + npc.id : "char";
+    c.ctxAnchor = c.ctxAnchor && typeof c.ctxAnchor === "object" ? c.ctxAnchor : {};
+    const step = Math.max(4, Math.round(mem / 4));
+    let start = Math.max(0, visible.length - mem);
+    const anchor = c.ctxAnchor[akey];
+    if (anchor && anchor.id) {
+      const ai = visible.findIndex((m) => m.id === anchor.id);
+      const cover = ai >= 0 ? visible.length - ai : -1;
+      if (ai >= 0 && cover <= mem + step && (anchor.cap || cover >= Math.min(mem, visible.length))) start = ai;
+    }
+    if (visible[start] && (!anchor || anchor.id !== visible[start].id)) c.ctxAnchor[akey] = { id: visible[start].id, cap: false };
+    const kept = visible.slice(start);
     const keptIds = new Set(kept.map((m) => m.id));
     // front-end code (status bars, ```html cards) only rides along on the newest few replies; older floors keep just their text
     const feKeep = state.settings.feKeep == null ? "2" : String(state.settings.feKeep);
@@ -4289,7 +4326,19 @@
       turns.splice(i, 1);
       dropped++;
     }
+    // attach the turn-specific block to the newest user message (or as its own user turn) so the prefix before it is unchanged
+    const dynText = dynBlock();
+    let dynTurn = -1;
+    if (dynText) {
+      let li = -1;
+      for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === "user" && turns[i].hist) { li = i; break; }
+      if (li >= 0) turns[li] = { ...turns[li], content: dynText + "\n\n---\n" + turns[li].content };
+      else { turns.push({ role: "user", content: dynText }); dynTurn = turns.length - 1; }
+      total = turns.reduce((n, t) => n + bytes(t.content), 0);
+      while (total > CAP && turns.length > 2) { let i = turns.findIndex((t) => t.hist); if (i < 0) break; total -= bytes(turns[i].content); turns.splice(i, 1); dropped++; }
+    }
     const inContext = kept.slice(dropped);
+    if (dropped && inContext[0]) c.ctxAnchor[akey] = { id: inContext[0].id, cap: true }; // next turn starts from the same floor instead of re-cutting
     const u = state.persona.name || "你";
     for (const m of inContext) seg("history", `${m.kind === "divider" ? "场景" : "#" + floorOf(c, c.chat.indexOf(m)) + " "}${m.kind === "divider" ? "" : (m.channel === "phone" ? "📱 " : "") + (m.role === "user" ? u : c.name)}`, promptText(m, c));
     if (!ps && c.postHistory && c.postHistory.trim()) seg("fixed", "对话后指令", c.postHistory);
@@ -4303,8 +4352,8 @@
       segments: segments.map((x) => ({ ...x, chars: x.text.length, tokens: estTokens(x.text) })),
     };
     const presetNudge = ps && ps.raw && typeof ps.raw.continue_nudge_prompt === "string" && ps.raw.continue_nudge_prompt.trim() ? sub(ps.raw.continue_nudge_prompt, c) : "";
-    if (pendingNudge) turns.push({ role: "user", content: pendingNudge === CONTINUE_NUDGE && presetNudge ? presetNudge : pendingNudge });
-    else if (turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: npc && !sceneMode ? `（${npc.name} 接着发消息。）` : !npc && c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : presetNudge || "（继续，接着刚才的情节写下去。）" });
+    const nudgeText = pendingNudge ? (pendingNudge === CONTINUE_NUDGE && presetNudge ? presetNudge : pendingNudge) : (turns[turns.length - 1].role !== "user" ? (npc && !sceneMode ? `（${npc.name} 接着发消息。）` : !npc && c.phone && c.phone.open ? `（${c.name} 接着发消息。）` : presetNudge || "（继续，接着刚才的情节写下去。）") : "");
+    if (nudgeText) { if (dynTurn >= 0 && dynTurn === turns.length - 1) turns[dynTurn] = { role: "user", content: turns[dynTurn].content + "\n\n" + nudgeText }; else turns.push({ role: "user", content: nudgeText }); }
     // assistant prefill: the reply continues from this text (only an API with real roles can take it)
     if (ps && ps.raw && isCustom() && typeof ps.raw.assistant_prefill === "string" && ps.raw.assistant_prefill.trim()) {
       const pf = sub(ps.raw.assistant_prefill, c).trim();
@@ -4402,12 +4451,27 @@
     return arr.map((m) => (typeof m === "string" ? m : m.id || m.name || m.model)).filter(Boolean).sort();
   }
   // OpenAI-compatible chat completion with SSE streaming. Resolves { text, truncated }.
+  // Anthropic's OpenAI-compatible endpoint takes cache_control on content parts: mark the end of the system prompt and the
+  // end of the history (the message before the newest one) so both are served from cache next turn.
+  function withCacheMarks(messages) {
+    if (!/api\.anthropic\.com/i.test(apiBase()) || state.api.noCacheCtl) return messages;
+    const out = messages.map((m) => ({ ...m }));
+    const mark = (i) => { const m = out[i]; if (!m || typeof m.content !== "string" || !m.content.trim()) return; m.content = [{ type: "text", text: m.content, cache_control: { type: "ephemeral" } }]; };
+    if (out[0] && out[0].role === "system") mark(0);
+    if (out.length >= 3) mark(out.length - 2);
+    return out;
+  }
   async function apiChat(messages, { onText, signal } = {}) {
-    const body = { model: state.api.model, messages, stream: !!state.api.stream, ...samplerParams() };
+    const body = { model: state.api.model, messages: withCacheMarks(messages), stream: !!state.api.stream, ...samplerParams() };
     if (body.stream) body.stream_options = { include_usage: true };
     const estimate = messages.reduce((n, m) => n + rawTokens(m.content), 0);
     let usage = null;
-    const res = await fetch(apiBase() + "/chat/completions", { method: "POST", headers: apiHeaders(), body: JSON.stringify(body), signal });
+    let res = await fetch(apiBase() + "/chat/completions", { method: "POST", headers: apiHeaders(), body: JSON.stringify(body), signal });
+    if (res.status === 400 && body.messages !== messages) {
+      // the endpoint did not like the cache markers: remember that and send the plain form
+      const t = await res.clone().text().catch(() => "");
+      if (/cache_control|content/i.test(t)) { state.api.noCacheCtl = true; save(); body.messages = messages; res = await fetch(apiBase() + "/chat/completions", { method: "POST", headers: apiHeaders(), body: JSON.stringify(body), signal }); }
+    }
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       let msg = `HTTP ${res.status}`;
@@ -4453,7 +4517,9 @@
       }
     }
     if (usage && typeof usage.prompt_tokens === "number" && usage.prompt_tokens > 0 && estimate > 50) {
-      state.lastUsage = { prompt: usage.prompt_tokens, completion: usage.completion_tokens || 0, at: Date.now(), model: state.api.model };
+      const pd = usage.prompt_tokens_details || {};
+      const cached = Number(pd.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.cache_read_input_tokens ?? 0) || 0;
+      state.lastUsage = { prompt: usage.prompt_tokens, completion: usage.completion_tokens || 0, cached, at: Date.now(), model: state.api.model };
       const k = usage.prompt_tokens / estimate;
       state.tokenCalib = Math.max(0.3, Math.min(3, (typeof state.tokenCalib === "number" ? state.tokenCalib * 0.5 : k * 0.5) + k * 0.5));
       save();
@@ -4832,7 +4898,7 @@
       : `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 之间的手机私聊；「${c.name}」不在场，也不知道这段对话的内容。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
     const lore = activeLore(c, history || c.chat, npc.id);
-    if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", (lore.labels && lore.labels.before[i]) || `世界书（前）条目 ${i + 1}`, t)); }
+    { const L = loreSplit(lore, "before"); if (L.stable.length) { parts.push(`\n## 世界设定\n${L.stable.join("\n\n")}`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
     parts.push(`\n## ${npc.name} 的设定`);
     const desc = [npc.brief, npc.desc].filter((x) => x && x.trim()).join("\n");
     if (desc) { parts.push(desc); seg("char", `${npc.name} 的设定`, desc); }
@@ -4850,14 +4916,13 @@
     const aboutChar = `${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}。${all} 只知道关于 ${c.name} 的公开信息，不知道 ${c.name} 和 ${u} 私下发生的事，除非 ${u} 在这段私聊里说了。`;
     parts.push(`\n## 关于 ${c.name}`, aboutChar); seg("char", `关于 ${c.name}`, aboutChar);
     const relIns = relationsInstruction(c, npc, others);
-    if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
+    if (relIns) dyn("fixed", "人际关系", relIns);
     if (state.persona.desc && state.persona.desc.trim()) { parts.push(`\n## ${u} 的人设`, state.persona.desc); seg("char", "用户人设", state.persona.desc); }
-    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
-    { const nb = notesBlock(c, npc.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
+    { const L = loreSplit(lore, "after"); if (L.stable.length) { parts.push(`\n## 补充设定\n${L.stable.join("\n\n")}`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
+    { const nb = notesBlock(c, npc.id); if (nb) dyn("notes", "不能忘的事", nb); }
     if (retrieved && retrieved.length) {
       const lines = retrieved.map((h) => `#${h.floor} ${h.m.role === "user" ? u : npc.name}：${h.text}`);
-      parts.push(`\n## 相关记忆（从更早的私聊里检索到的片段，按需参考，不要复述）\n${lines.join("\n")}`);
-      retrieved.forEach((h, i) => seg("rag", `检索 #${h.floor}`, lines[i]));
+      retrieved.forEach((h, i) => dyn("rag", `检索 #${h.floor}`, lines[i], "## 相关记忆（从更早的私聊里检索到的片段，按需参考，不要复述）"));
     }
     const met = npcAppeared(c, npc);
     const rel = met ? `${npc.name} 和 ${u} 在故事里已经打过交道，按两人现有的熟悉程度说话。` : `这是 ${npc.name} 第一次直接和 ${u} 说话，按初次接触的分寸来，不要自来熟。`;
@@ -4870,7 +4935,7 @@
       parts.push("\n" + pr, `- ${langHint()}`); seg("fixed", "手机聊天规则", pr);
     }
     const nst = npcStatusInstruction(c, npc, others);
-    parts.push("\n" + nst); seg("fixed", "关系变化", nst);
+    dyn("fixed", "关系变化", nst);
     const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
     if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
     return sub(parts.join("\n"), c);
@@ -5520,7 +5585,7 @@
     const intro = `这是一个沉浸式角色扮演里的手机群聊。群名「${g.name}」，成员：${[u + "（用户扮演）", ...names].join("、")}。你同时扮演除 ${u} 以外的所有成员，每个人按各自的性格和说话方式发言。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
     const lore = activeLore(c, history, "group:" + g.id);
-    if (lore.before.length) { parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`); lore.before.forEach((t, i) => seg("lore", (lore.labels && lore.labels.before[i]) || `世界书（前）条目 ${i + 1}`, t)); }
+    { const L = loreSplit(lore, "before"); if (L.stable.length) { parts.push(`\n## 世界设定\n${L.stable.join("\n\n")}`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
     for (const s of speakers) {
       if (s.id === "char") {
         const d = [c.tag ? sub(c.tag, c) : "", (c.description || "").slice(0, 900), c.personality ? `性格：${c.personality.slice(0, 400)}` : ""].filter(Boolean).join("\n");
@@ -5542,8 +5607,8 @@
       if (b.set && g.members.includes("char")) relLines.push(`${s.name} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100，${relStage(b.aff)}）${b.note ? ` · ${b.note}` : ""}`);
     }
     if (relLines.length) { const rl = `## 人际关系\n${relLines.map((x) => "- " + x).join("\n")}`; parts.push("\n" + rl); seg("fixed", "人际关系", rl); }
-    if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
-    { const nb = notesBlock(c, "group:" + g.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
+    { const L = loreSplit(lore, "after"); if (L.stable.length) { parts.push(`\n## 补充设定\n${L.stable.join("\n\n")}`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
+    { const nb = notesBlock(c, "group:" + g.id); if (nb) dyn("notes", "不能忘的事", nb); }
     const rules = [
       "## 群聊规则",
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
@@ -6533,7 +6598,9 @@
     const r = lastReport;
     if (!r) return;
     const rec = Math.max(4, r.floors); // what actually fits this time
-    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}${r.dropped ? ` · 丢了 ${r.dropped} 条 · 建议带入 ${rec} 条` : ""}`;
+    const lu = state.lastUsage;
+    const cacheNote = isCustom() && lu && lu.at && Date.now() - lu.at < 6 * 3600 * 1000 && typeof lu.cached === "number" ? ` · 缓存命中 ${fmtTok(lu.cached)}/${fmtTok(lu.prompt)}` : "";
+    btn.textContent = `🧠 ≈${fmtTok(r.tokens)} tok · 第 ${r.firstFloor}–${r.lastFloor} 楼${r.hidden ? ` · 隐藏 ${r.hidden}` : ""}${r.retrieved ? ` · 检索 ${r.retrieved}` : ""}${r.dropped ? ` · 丢了 ${r.dropped} 条 · 建议带入 ${rec} 条` : ""}${cacheNote}`;
     btn.classList.toggle("warn", r.dropped > 0);
     updateStats();
   }
@@ -6587,7 +6654,7 @@
     row("total", "合计", r.segments.reduce((n, x) => n + x.chars, 0), r.tokens, null);
     const lu = state.lastUsage;
     $("tokNote").textContent = tokCalib() !== 1 ? `· 已按接口返回的真实用量校准（×${tokCalib().toFixed(2)}）` : "· 估算：中文约 1 字 1 token，英文约 4 字节 1 token";
-    $("tokHelp").textContent = lu ? `上一次请求接口实际计费：输入 ${fmtTok(lu.prompt)} token，输出 ${fmtTok(lu.completion)} token（${lu.model || ""}）。` : (isCustom() ? "发过一条消息后，这里会显示接口返回的真实 prompt_tokens，并用它校准估算。" : "页内 Claude 接口不返回用量，这里只能估算。");
+    $("tokHelp").textContent = lu ? `上一次请求接口实际计费：输入 ${fmtTok(lu.prompt)} token（其中命中缓存 ${fmtTok(lu.cached || 0)}），输出 ${fmtTok(lu.completion)} token（${lu.model || ""}）。命中缓存的部分按接口的折扣价计费；开头不变的部分越多，命中越多。` : (isCustom() ? "发过一条消息后，这里会显示接口返回的真实 prompt_tokens，并用它校准估算。" : "页内 Claude 接口不返回用量，这里只能估算。");
   }
   function renderContextPanel() {
     const c = active();
