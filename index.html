@@ -988,7 +988,7 @@
       <button class="btn ghost block" id="wizBtn" title="给几句提示，让模型补全角色卡、世界书和 NPC，每块都能重刷">✨ 让 AI 帮我建一张卡</button>
       <button class="btn ghost block" id="openLib3">📚 全局库 · 世界书 / 预设 / 正则</button>
       <button class="btn ghost block" id="backupBtn" title="把角色、对话、NPC、群、记忆书、设置打包成一个 JSON 文件（不含 API Key）">💾 备份全部</button>
-      <div class="stat" id="storeStat">v21.22 · 本地保存 · 仅此浏览器</div>
+      <div class="stat" id="storeStat">v21.23 · 本地保存 · 仅此浏览器</div>
     </div>
   </aside>
 
@@ -1009,8 +1009,8 @@
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
         <button class="btn ghost" id="openLib" title="世界书 · 预设 · 正则（对所有角色生效）">全局库</button>
-        <button class="btn ghost icon" id="bgBtn" title="聊天背景" aria-label="聊天背景">🖼</button>
-        <button class="btn ghost" id="searchBtn" title="在这个角色的全部记录里找一句话">🔍</button>
+        <button class="btn ghost" id="bgBtn" title="聊天背景">背景</button>
+        <button class="btn ghost" id="searchBtn" title="在这个角色的全部记录里找一句话">搜索</button>
         <button class="btn ghost" id="saveBtn" title="存档 / 读档：在这里存个档，之后随时回到这条线">存档</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
@@ -2428,7 +2428,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.22"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.23"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
