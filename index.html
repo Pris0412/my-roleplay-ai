@@ -1182,6 +1182,7 @@
               <option value="mlong">中长 · 800–1200 字</option>
               <option value="long">长 · 1200–2000 字</option>
               <option value="custom">自定义…</option>
+              <option value="follow">跟随预设 / 不注入 · 不给字数要求</option>
             </select>
           </div>
           <div class="field">
@@ -1192,6 +1193,7 @@
               <option value="normal">正常 · 会表达，不主动改变局面</option>
               <option value="mild">微浓烈 · 感情驱动行动，吃醋就介入</option>
               <option value="intense">浓烈 · 全部放开</option>
+              <option value="follow">跟随预设 / 不注入 · 不给情感浓度要求</option>
             </select>
             <div class="help">管的是感情怎么驱动行动。每张卡可以在「编辑角色」里单独设；哪一楼不满意，回复下面的「换写法」可以单独重写。</div>
           </div>
@@ -1201,8 +1203,15 @@
               <option value="none">无（默认）· 不进入性场面，到临界点切开</option>
               <option value="subtle">含蓄 · 写氛围和感受，不写过程</option>
               <option value="explicit">直白 · 写具体过程，按人设和关系来</option>
+              <option value="follow">跟随预设 / 不注入 · 只保留成年人这一句</option>
             </select>
-            <div class="help">管的是亲密场面写多细，和情感浓度互相独立。所有角色均为成年人这一条固定不变。这是告诉模型「写到哪一档」，能不能写出来还看模型和预设自己的规则。每张卡可以单独设。</div>
+            <div class="help">管的是亲密场面写多细，和情感浓度互相独立。所有角色均为成年人这一条固定不变，选「跟随预设」也会发。这是告诉模型「写到哪一档」，能不能写出来还看模型和预设自己的规则。每张卡可以单独设。</div>
+          </div>
+          <div class="field" style="flex-basis:100%">
+            <label for="sStyle">文风规则</label>
+            <textarea id="sStyle" rows="7" placeholder="留空就不注入文风规则。"></textarea>
+            <div class="help">每行一条，随每次回复一起发给模型。可以随便删改、加自己讨厌的八股词；留空就等于「跟随预设 / 不注入」。可用 {{user}} 代表你。情感浓度和尺度不在这里，它们单独发。</div>
+            <div style="margin-top:6px"><button class="btn ghost" id="sStyleReset" type="button" style="font-size:12px;padding:4px 10px">恢复默认文风规则</button></div>
           </div>
           <div class="field">
             <label for="sLang">回复语言</label>
@@ -1425,6 +1434,7 @@
               <option value="normal">正常 · 会表达，不主动改变局面</option>
               <option value="mild">微浓烈 · 感情驱动行动</option>
               <option value="intense">浓烈 · 全部放开</option>
+              <option value="follow">跟随预设 / 不注入</option>
             </select>
           </div>
           <div class="field">
@@ -1434,6 +1444,14 @@
               <option value="none">无 · 不进入性场面</option>
               <option value="subtle">含蓄 · 写氛围不写过程</option>
               <option value="explicit">直白 · 写具体过程</option>
+              <option value="follow">跟随预设 / 不注入 · 只保留成年人这一句</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="edStyle">文风规则（这张卡）</label>
+            <select id="edStyle">
+              <option value="inherit">跟随全局设置</option>
+              <option value="off">不注入 · 这张卡不发文风规则</option>
             </select>
           </div>
           <div class="field">
@@ -2469,7 +2487,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.26"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.27"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3885,7 +3903,8 @@
     $("pDesc").value = state.persona.desc || "";
     renderAvatar($("pAvatar"), personaAv(), "lg");
     $("sTier").value = state.settings.tier;
-    $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" ? state.settings.len : "medium";
+    $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" || state.settings.len === "follow" ? state.settings.len : "medium";
+    $("sStyle").value = styleText();
     $("sLenMin").value = state.settings.lenMin || 600;
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
@@ -3957,6 +3976,7 @@
     return LEN_PRESETS[st.len] || LEN_PRESETS.medium;
   }
   function lengthHint() {
+    if (state.settings.len === "follow") return "";
     const [lo, hi] = lengthRange();
     const tone = hi <= 300 ? "短而有力，不要铺陈。" : hi <= 800 ? "有细节但不拖沓。" : hi <= 1200 ? "可以慢慢铺陈场景、动作和心理描写。" : "充分展开：环境、动作、对白、神态和节奏都要写到，像小说的一节。";
     return `每次回复控制在 ${lo} 到 ${hi} 字之间（中文按字数，英文按词数），${tone}写到该停的地方自然收住，不要为凑字数注水。`;
@@ -3976,7 +3996,7 @@
     }
   }
   // Anti-template writing rules and the emotion dial. Sent with every reply (main scene, NPC scene, preset marker).
-  const EMOTION_LABELS = { auto: "自动", restrained: "克制", normal: "正常", mild: "微浓烈", intense: "浓烈" };
+  const EMOTION_LABELS = { auto: "自动", restrained: "克制", normal: "正常", mild: "微浓烈", intense: "浓烈", follow: "跟随预设" };
   function emotionLevel(c) { const v = c && c.emotion && c.emotion !== "inherit" ? c.emotion : state.settings.emotion; return EMOTION_LABELS[v] ? v : "auto"; }
   const EMOTION_RULES = {
     restrained: "情感浓度·克制：有感情，但不行动。最多一个小动作、一句没说完的话，然后选择退让。",
@@ -3985,9 +4005,9 @@
     intense: "情感浓度·浓烈：全部放开。占有、深情、患得患失直接写；会越线、会难看、会失态；张力拉满。",
     auto: "情感浓度按人设和此刻的情境定：日常和过渡收着；到了情绪节点（告白、争吵、重逢、失去、被戳到软肋、吃醋、越界）就放开写到位，感情要驱动行动，不当旁观者。该淡的楼淡到底，该浓的楼浓到底，不要一直停在中间；浓也得是这个人自己的浓法。",
   };
-  function emotionRule(c) { return EMOTION_RULES[emotionLevel(c)] || ""; }
+  function emotionRule(c) { return EMOTION_RULES[emotionLevel(c)] || ""; } // "follow" has no rule: nothing is injected
   // ---- intimacy level: how far intimate scenes are written. One fixed line rides along at every level. ----
-  const NSFW_LABELS = { none: "无", subtle: "含蓄", explicit: "直白" };
+  const NSFW_LABELS = { none: "无", subtle: "含蓄", explicit: "直白", follow: "跟随预设" };
   function nsfwLevel(c) { const v = c && c.nsfw && c.nsfw !== "inherit" ? c.nsfw : state.settings.nsfw; return NSFW_LABELS[v] ? v : "none"; }
   const NSFW_FIXED = "所有角色均为成年人（18 岁及以上）。";
   const NSFW_RULES = {
@@ -3995,20 +4015,28 @@
     subtle: "尺度·含蓄：亲密场面写氛围、感受和前后，不写具体过程。",
     explicit: "尺度·直白：亲密场面写具体过程，不切镜、不淡化、不自我审查；身体部位和动作用最直接的词，器官直接写器官的名称，不用比喻或代称绕开；节奏、用词、主动被动全按人设和两人关系来。",
   };
-  function nsfwRule(c) { return `${NSFW_FIXED}${NSFW_RULES[nsfwLevel(c)]}`; }
+  // "follow" keeps only the fixed adult line so the preset's own rules decide the rest.
+  function nsfwRule(c) { return `${NSFW_FIXED}${NSFW_RULES[nsfwLevel(c)] || ""}`; }
+  // Editable in 设置 › 生成. settings.style == null → default text; "" → nothing injected; a card can opt out with c.style === "off".
+  const DEFAULT_STYLE_RULES = [
+    "文风：不要套模板。不要每楼都「环境一句、动作、对白、动作、意味深长收尾」；段落长短不齐，允许只有一两句话的短楼。",
+    "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」。",
+    "不要以留白句收尾（「他没有再说什么」「夜还很长」之类），不要以抛问题收尾，不要替 {{user}} 总结感受（「你感到…」「你知道…」）。",
+    "情绪写过程不写结论：不说「他慌了」，写他把杯子放歪、话说到一半停住。身体反应不只写脸，写手、呼吸、姿势、距离。",
+    "对白像真人：会打断、说半句、重复、答非所问，不要每句都完整得体。",
+    "场景没变就不要重描环境和光线。冲突不要在同一楼和解。",
+  ].join("\n");
+  function styleText() { const t = state.settings.style; return typeof t === "string" ? t : DEFAULT_STYLE_RULES; }
+  function styleOff(c) { return (c && c.style === "off") || !styleText().trim(); }
+  function styleLines(c, u) {
+    if (styleOff(c)) return [];
+    return styleText().split("\n").map((x) => x.trim()).filter(Boolean).map((x) => x.replace(/\{\{user\}\}/gi, u));
+  }
   function styleRules(c, u) {
-    return [
-      "文风：不要套模板。不要每楼都「环境一句、动作、对白、动作、意味深长收尾」；段落长短不齐，允许只有一两句话的短楼。",
-      "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」。",
-      `不要以留白句收尾（「他没有再说什么」「夜还很长」之类），不要以抛问题收尾，不要替 ${u} 总结感受（「你感到…」「你知道…」）。`,
-      "情绪写过程不写结论：不说「他慌了」，写他把杯子放歪、话说到一半停住。身体反应不只写脸，写手、呼吸、姿势、距离。",
-      "对白像真人：会打断、说半句、重复、答非所问，不要每句都完整得体。",
-      "场景没变就不要重描环境和光线。冲突不要在同一楼和解。",
-      emotionRule(c) || null,
-      nsfwRule(c),
-    ].filter(Boolean);
+    return [...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
   }
   const PHONE_STYLE_RULE = "不用破折号「——」，不用「一丝 / 一抹 / 几分」这类模糊量词。";
+  function phoneStyleRule(c) { return styleOff(c) ? "" : PHONE_STYLE_RULE; }
   function defaultRules(c, u) {
     return [
       `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
@@ -4208,14 +4236,15 @@
     if (stIns) { parts.push("\n" + stIns); seg("fixed", "状态面板", stIns); }
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
-      parts.push("\n" + pr, `- ${langHint()}`, `- ${PHONE_STYLE_RULE}`, `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
+      parts.push("\n" + pr, `- ${langHint()}`, ...(phoneStyleRule(c) ? [`- ${phoneStyleRule(c)}`] : []), `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
       return sub(parts.join("\n"), c);
     }
     parts.push("\n## 规则");
     const ruleLines = [];
     if (!(c.systemPrompt && c.systemPrompt.trim())) ruleLines.push(rules);
     else if (!c.systemPrompt.includes("{{original}}") && voiceRule(c, u)) ruleLines.push(`- ${voiceRule(c, u)}`);
-    ruleLines.push(`- ${lengthHint()}`, `- ${langHint()}`, ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
+    ruleLines.push(lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。");
+    while (ruleLines.includes("")) ruleLines.splice(ruleLines.indexOf(""), 1);
     parts.push(...ruleLines); seg("fixed", "回复规则", ruleLines.join("\n"));
     return sub(parts.join("\n"), c);
   }
@@ -4290,7 +4319,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(state.persona.desc || "", c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + "\n- " + PHONE_STYLE_RULE + "\n- " + nsfwRule(c), c) : [`- ${lengthHint()}`, `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + (phoneStyleRule(c) ? "\n- " + phoneStyleRule(c) : "") + "\n- " + nsfwRule(c), c) : [lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
@@ -4966,11 +4995,11 @@
     const rel = met ? `${npc.name} 和 ${u} 在故事里已经打过交道，按两人现有的熟悉程度说话。` : `这是 ${npc.name} 第一次直接和 ${u} 说话，按初次接触的分寸来，不要自来熟。`;
     parts.push("", rel); seg("fixed", "关系", rel);
     if (sceneMode) {
-      const rules = [defaultRules({ name: all }, u), `- ${lengthHint()}`, `- ${langHint()}`, ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].join("\n");
+      const rules = [defaultRules({ name: all }, u), lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).join("\n");
       parts.push("\n## 规则", rules); seg("fixed", "回复规则", rules);
     } else {
       const pr = phoneRulesFor(npc.name, u, false, "");
-      parts.push("\n" + pr, `- ${langHint()}`, `- ${PHONE_STYLE_RULE}`, `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
+      parts.push("\n" + pr, `- ${langHint()}`, ...(phoneStyleRule(c) ? [`- ${phoneStyleRule(c)}`] : []), `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
     }
     const nst = npcStatusInstruction(c, npc, others);
     parts.push("\n" + nst); seg("fixed", "关系变化", nst);
@@ -7166,7 +7195,7 @@
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit";
     renderEdBook();
     refreshCharRx();
     $("editorDelete").hidden = !c;
@@ -7215,6 +7244,7 @@
     d.css = $("edCss").value.trim();
     d.emotion = $("edEmotion").value === "inherit" ? "" : $("edEmotion").value;
     d.nsfw = $("edNsfw").value === "inherit" ? "" : $("edNsfw").value;
+    d.style = $("edStyle").value === "off" ? "off" : "";
     d.worldName = $("edWorld").value;
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
@@ -8351,6 +8381,8 @@
   $("sVoice").addEventListener("change", (e) => { state.settings.voice = e.target.value; save(); toast("已切换：" + e.target.options[e.target.selectedIndex].textContent); });
   $("sEmotion").addEventListener("change", (e) => { state.settings.emotion = e.target.value; save(); refreshContextMeter(); toast("情感浓度：" + e.target.options[e.target.selectedIndex].textContent); });
   $("sNsfw").addEventListener("change", (e) => { state.settings.nsfw = e.target.value; save(); refreshContextMeter(); renderMessages(); toast("尺度：" + e.target.options[e.target.selectedIndex].textContent); });
+  $("sStyle").addEventListener("input", (e) => { state.settings.style = e.target.value === DEFAULT_STYLE_RULES ? null : e.target.value; save(); refreshContextMeter(); });
+  $("sStyleReset").onclick = () => { state.settings.style = null; $("sStyle").value = DEFAULT_STYLE_RULES; save(); refreshContextMeter(); toast("已恢复默认文风规则"); };
   $("inspire").onclick = inspire;
   // ▶ 再写一段: the character (or the NPC you're alone with) carries on without a new message from you
   function continueStory() {
