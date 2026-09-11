@@ -8,6 +8,10 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%231e1d25'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%23d9a066'/%3E%3C/svg%3E">
 <title>Side Story</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<div class="zoom-back" id="zoomBack" hidden>
+  <div class="zoom-head"><b id="zoomTitle">编辑</b><span class="help">改的内容会同步回原来的框</span><span class="spacer"></span><button class="btn primary" id="zoomDone" type="button">完成</button></div>
+  <textarea id="zoomTa"></textarea>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
 <!-- confirm dialog: the sandbox blocks window.confirm(), so the page brings its own -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.7/purify.min.js"></script>
@@ -701,6 +705,20 @@
     background: var(--raised);
   }
   .field textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
+  /* 放大: any long textarea can open full-screen; 完成 puts it back at its old size */
+  .zoom-wrap { position: relative; display: flex; flex-direction: column; }
+  .zoom-wrap > textarea { width: 100%; }
+  .zoom-btn { font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0.8; font-family: inherit; font-weight: normal; }
+  label > .zoom-btn { float: right; margin-top: -2px; }
+  .zoom-wrap > .zoom-btn { position: absolute; top: 5px; right: 16px; }
+  .zoom-btn:hover { opacity: 1; color: var(--text); border-color: var(--accent); }
+  .zoom-back { position: fixed; inset: 0; z-index: 200; background: var(--surface); display: flex; flex-direction: column; height: var(--vvh, 100dvh); }
+  .zoom-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line-strong); flex: none; }
+  .zoom-head b { font-size: 14px; }
+  .zoom-head .help { margin: 0; }
+  .zoom-head .spacer { flex: 1; }
+  .zoom-back textarea { flex: 1; min-height: 0; width: 100%; border: 0; outline: none; resize: none; box-sizing: border-box; padding: 18px max(18px, calc((100% - 860px) / 2)); font: inherit; font-size: 15px; line-height: 1.7; background: transparent; color: var(--text); }
+  .zoom-back textarea.mono { font-family: var(--font-mono); font-size: 13px; }
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); outline: none; }
   .field .help { font-size: 11px; color: var(--faint); }
   .section-title {
@@ -2488,7 +2506,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.31"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.32"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -7695,10 +7713,46 @@
       box.appendChild(card);
     });
   }
+  // ---------- 放大: full-screen view/edit of a long textarea. Typing syncs back to the source box; 完成 (or Esc) closes and the box keeps its old size. ----------
+  let zoomSrc = null;
+  function zoomable(ta, title) {
+    if (!ta || ta.dataset.zoom || !ta.parentNode) return ta;
+    ta.dataset.zoom = "1";
+    const wrap = el("div", "zoom-wrap");
+    ta.parentNode.insertBefore(wrap, ta); wrap.appendChild(ta);
+    const b = el("button", "zoom-btn", "⤢ 放大"); b.type = "button"; b.title = "放大到整屏看 / 改，完成后恢复原来的大小";
+    b.onclick = () => openZoom(ta, title || zoomLabel(ta));
+    // the button lives at the right end of the field's label so it never covers the text; fall back to the box corner
+    const lab = wrap.previousElementSibling;
+    if (lab && lab.tagName === "LABEL") lab.appendChild(b); else wrap.appendChild(b);
+    return ta;
+  }
+  function zoomLabel(ta) { const f = ta.closest(".field"); const l = f && f.querySelector("label"); return l ? l.textContent.trim() : "编辑"; }
+  function openZoom(ta, title) {
+    zoomSrc = ta;
+    const z = $("zoomTa");
+    z.value = ta.value; z.className = ta.classList.contains("mono") ? "mono" : ""; z.placeholder = ta.placeholder || "";
+    $("zoomTitle").textContent = title || "编辑";
+    $("zoomBack").hidden = false;
+    z.focus(); z.setSelectionRange(0, 0); z.scrollTop = 0;
+  }
+  function closeZoom() {
+    if (!zoomSrc) return;
+    const src = zoomSrc; zoomSrc = null;
+    $("zoomBack").hidden = true;
+    src.dispatchEvent(new Event("change", { bubbles: true }));
+    if (!matchMedia("(pointer: coarse)").matches) src.focus();
+  }
+  $("zoomTa").addEventListener("input", () => { if (!zoomSrc) return; zoomSrc.value = $("zoomTa").value; zoomSrc.dispatchEvent(new Event("input", { bubbles: true })); });
+  $("zoomDone").onclick = closeZoom;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && zoomSrc) { e.stopImmediatePropagation(); e.preventDefault(); closeZoom(); } }, true);
+  for (const id of ["edDesc", "edPersonality", "edScenario", "edFirst", "edExamples", "edAlt", "edNotes", "edSys", "edPost", "edCss", "memPrompt", "memResult", "ppContent", "npcPersonality", "npcDesc", "pDesc", "sStyle", "sCss", "stVoice", "stExtra"]) zoomable($(id));
+
   function field(labelText, input, help) {
     const f = el("div", "field");
     const l = el("label", null, labelText); f.appendChild(l); f.appendChild(input);
     if (help) f.appendChild(el("div", "help", help));
+    if (input.tagName === "TEXTAREA") zoomable(input, labelText);
     return f;
   }
   function entryForm(e, onChange) {
