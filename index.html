@@ -1186,6 +1186,26 @@
             </select>
           </div>
           <div class="field">
+            <label for="sLang">回复语言</label>
+            <select id="sLang">
+              <option value="auto">跟随我</option>
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="sLenCustomRow" hidden>
+          <div class="field">
+            <label for="sLenMin">最少字数</label>
+            <input id="sLenMin" type="number" min="50" step="50" class="mono">
+          </div>
+          <div class="field">
+            <label for="sLenMax">最多字数</label>
+            <input id="sLenMax" type="number" min="100" step="50" class="mono">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
             <label for="sEmotion">情感浓度</label>
             <select id="sEmotion">
               <option value="auto">自动（默认）· 按人设和情境定，该浓就浓</option>
@@ -1195,7 +1215,7 @@
               <option value="intense">浓烈 · 全部放开</option>
               <option value="follow">跟随预设 / 不注入 · 不给情感浓度要求</option>
             </select>
-            <div class="help">管的是感情怎么驱动行动。每张卡可以在「编辑角色」里单独设；哪一楼不满意，回复下面的「换写法」可以单独重写。</div>
+            <div class="help">管感情怎么驱动行动。每张卡可单独设；某一楼不满意，用回复下面的「换写法」。</div>
           </div>
           <div class="field">
             <label for="sNsfw">尺度</label>
@@ -1205,22 +1225,13 @@
               <option value="explicit">直白 · 写具体过程，按人设和关系来</option>
               <option value="follow">跟随预设 / 不注入</option>
             </select>
-            <div class="help">管的是亲密场面写多细，和情感浓度互相独立。所有角色均为成年人这一条固定不变。这是告诉模型「写到哪一档」，能不能写出来还看模型和预设自己的规则。每张卡可以单独设。</div>
+            <div class="help">管亲密场面写多细，和情感浓度独立。成年人这条固定。能不能写出来还看模型和预设。每张卡可单独设。</div>
           </div>
-          <div class="field" style="flex-basis:100%">
-            <label for="sStyle">文风规则</label>
-            <textarea id="sStyle" rows="7" placeholder="留空就不注入文风规则。"></textarea>
-            <div class="help">每行一条，随每次回复一起发给模型。可以随便删改、加自己讨厌的八股词；留空就等于「跟随预设 / 不注入」。可用 {{user}} 代表你。情感浓度和尺度不在这里，它们单独发。</div>
-            <div style="margin-top:6px"><button class="btn ghost" id="sStyleReset" type="button" style="font-size:12px;padding:4px 10px">恢复默认文风规则</button></div>
-          </div>
-          <div class="field">
-            <label for="sLang">回复语言</label>
-            <select id="sLang">
-              <option value="auto">跟随我</option>
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-            </select>
-          </div>
+        </div>
+        <div class="field">
+          <label for="sStyle">文风规则</label>
+          <textarea id="sStyle" class="mono" rows="8" style="font-size:12px;min-height:150px" placeholder="留空就不注入文风规则。"></textarea>
+          <div class="help">每行一条，随每次回复一起发给模型。可以随便删改、加自己讨厌的八股词；留空就等于「跟随预设 / 不注入」。可用 {{user}} 代表你。情感浓度和尺度不在这里，它们单独发。 <button class="btn ghost" id="sStyleReset" type="button" style="font-size:12px;padding:2px 8px;vertical-align:baseline">恢复默认</button></div>
         </div>
         <div class="field">
           <label for="sTheme">外观</label>
@@ -1241,16 +1252,6 @@
             <option value="full">满 · 铺满聊天区</option>
           </select>
           <div class="help">只管聊天区的最大宽度：大屏全屏时选宽一点，手机上本来就不到这个宽度，不受影响。</div>
-        </div>
-        <div class="row" id="sLenCustomRow" hidden>
-          <div class="field">
-            <label for="sLenMin">最少字数</label>
-            <input id="sLenMin" type="number" min="50" step="50" class="mono">
-          </div>
-          <div class="field">
-            <label for="sLenMax">最多字数</label>
-            <input id="sLenMax" type="number" min="100" step="50" class="mono">
-          </div>
         </div>
         <div class="field">
           <label for="sHtmlMode">前端卡渲染方式</label>
@@ -2487,7 +2488,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.30"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.31"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
