@@ -2520,7 +2520,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.35"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.36"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2803,6 +2803,20 @@
   function statusSnapshot(c) { return JSON.parse(JSON.stringify({ fields: c.status.fields, voice: c.status.voice })); }
   // ---------- Ages: the character, you and every NPC carry a current age; the model bumps them as story time passes ----------
   function ageNum(v) { const n = parseInt(String(v ?? "").replace(/[^\d]/g, ""), 10); return n >= 1 && n <= 200 ? n : null; }
+  // "年龄：28" / "28 岁" / "二十八岁" written in a description → 28; the first match wins
+  const CN_NUM = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  function cnNum(t) {
+    if (/^\d+$/.test(t)) return Number(t);
+    let n = 0, cur = 0;
+    for (const ch of t) { if (ch === "十") { n += (cur || 1) * 10; cur = 0; } else if (ch === "百") { n += (cur || 1) * 100; cur = 0; } else if (ch in CN_NUM) cur = CN_NUM[ch]; else return NaN; }
+    return n + cur;
+  }
+  function ageFromText(text) {
+    const t = String(text || "");
+    let m = t.match(/年[龄纪齡]\s*[:：]?\s*(\d{1,3}|[零一二两三四五六七八九十百]{1,4})/);
+    if (!m) m = t.match(/(?:^|[^\d])(\d{1,3}|[零一二两三四五六七八九十百]{1,4})\s*(?:周)?岁/);
+    return m ? ageNum(cnNum(m[1])) : null;
+  }
   function agesPeople(c) { const u = state.persona.name || "用户"; return [[c.name, c.age], [u, c.userAge], ...(c.npcs || []).map((n) => [n.name, n.age])]; }
   function agesInstruction(c) {
     const people = agesPeople(c);
@@ -5550,8 +5564,8 @@
       `## 角色简介\n${c.name}${c.tag ? `：${sub(c.tag, c)}` : ""}\n${(c.description || "").slice(0, 600)}`,
       "",
       "只输出 JSON，格式：",
-      `{"people":[{"name":"名字","aliases":["别名"],"brief":"一句话身份（20 字内）","personality":"性格（30 到 60 字，具体到脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）","entry":条目编号或null,"met":true或false,"withChar":{"rel":"和${c.name}的关系词（2 到 6 字）","aff":0到100,"note":"现状一句话（20 字内）"}}]}`,
-      `entry 填这个人主要来自哪条世界书条目的编号，没有就 null。met 表示 ${u} 在聊天记录里已经和这个人说过话或见过面。withChar 是这个人和 ${c.name} 的关系，资料里看不出来就省略。personality 和 speech 优先照搬世界书里的描述，世界书没写就按这个人在剧情里的表现判断，判断不了就省略。不要编造资料里没有的人，最多 30 个。`,
+      `{"people":[{"name":"名字","aliases":["别名"],"brief":"一句话身份（20 字内）","personality":"性格（30 到 60 字，具体到脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）","age":整数年龄或null,"entry":条目编号或null,"met":true或false,"withChar":{"rel":"和${c.name}的关系词（2 到 6 字）","aff":0到100,"note":"现状一句话（20 字内）"}}]}`,
+      `entry 填这个人主要来自哪条世界书条目的编号，没有就 null。met 表示 ${u} 在聊天记录里已经和这个人说过话或见过面。withChar 是这个人和 ${c.name} 的关系，资料里看不出来就省略。personality 和 speech 优先照搬世界书里的描述，世界书没写就按这个人在剧情里的表现判断，判断不了就省略。age 是这个人现在的年龄：资料里写了（「28 岁」「年龄：28」「二十八岁」都算）就照抄成整数；没写但能从身份、辈分、描写合理推断就猜一个最接近的整数；完全没线索才 null。不要编造资料里没有的人，最多 30 个。`,
     ].join("\n");
     scanning = new AbortController();
     renderPhone();
@@ -5566,7 +5580,8 @@
         const ent = Number.isInteger(p.entry) ? entries.find((x) => x.n === p.entry) : null;
         const existing = c.npcs.find((x) => x.name === name || x.aliases.includes(name) || aliases.includes(x.name));
         const withChar = p.withChar && typeof p.withChar === "object" && (p.withChar.rel || p.withChar.aff != null) ? { rel: String(p.withChar.rel || ""), aff: Number(p.withChar.aff), note: String(p.withChar.note || "") } : null;
-        return { name, aliases, brief: String(p.brief || "").slice(0, 60), personality: String(p.personality || "").slice(0, 200), speech: String(p.speech || "").slice(0, 120), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
+        const age = ageNum(p.age) || (ent ? ageFromText(ent.e.content) : null);
+        return { name, aliases, age, brief: String(p.brief || "").slice(0, 60), personality: String(p.personality || "").slice(0, 200), speech: String(p.speech || "").slice(0, 120), met: !!p.met, entry: ent ? ent.e : null, entryTitle: ent ? ent.title : "", existing, withChar };
       }).filter(Boolean);
       if (focus) scanFound = scanFound.filter((x) => !x.existing).map((x) => ({ ...x, preselect: true }));
       if (!scanFound.length) toast(focus ? "最近这几楼没有新人物" : "没有找到别的人物");
@@ -5590,7 +5605,7 @@
       if (p.aliases.length) nm.appendChild(el("small", null, p.aliases.join(" / ")));
       if (p.existing) nm.appendChild(el("small", null, "已在联系人"));
       t.appendChild(nm);
-      t.appendChild(el("div", "br", [p.brief, p.entryTitle ? `来自条目「${p.entryTitle}」` : ""].filter(Boolean).join(" · ")));
+      t.appendChild(el("div", "br", [p.age ? `${p.age} 岁` : "", p.brief, p.entryTitle ? `来自条目「${p.entryTitle}」` : ""].filter(Boolean).join(" · ")));
       row.append(cb, t, el("span", "stat", p.met ? "已出场" : "未出场"));
       list.appendChild(row);
     });
@@ -5615,10 +5630,11 @@
         if (!p.existing.desc && p.entry) { p.existing.desc = p.entry.content.trim(); p.existing.entryId = p.entry.id; }
         if (!p.existing.personality && p.personality) p.existing.personality = p.personality;
         if (!p.existing.speech && p.speech) p.existing.speech = p.speech;
+        if (!p.existing.age && p.age) p.existing.age = p.age;
         if (p.withChar && !relGet(c, "c", p.existing.id).set) relSet(c, "c", p.existing.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff, p.withChar.note, "扫描世界书");
         updated++;
       } else {
-        const n = normalizeNpc({ name: p.name, aliases: p.aliases, brief: p.brief, desc: p.entry ? p.entry.content.trim() : "", personality: p.personality, speech: p.speech, entryId: p.entry ? p.entry.id : null });
+        const n = normalizeNpc({ name: p.name, aliases: p.aliases, age: p.age, brief: p.brief, desc: p.entry ? p.entry.content.trim() : "", personality: p.personality, speech: p.speech, entryId: p.entry ? p.entry.id : null });
         c.npcs.push(n);
         if (p.withChar) relSet(c, "c", n.id, p.withChar.rel, Number.isNaN(p.withChar.aff) ? 50 : p.withChar.aff, p.withChar.note, "扫描世界书");
         added++;
