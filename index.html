@@ -15,6 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
 <!-- confirm dialog: the sandbox blocks window.confirm(), so the page brings its own -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.7/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
 <style>
   :root {
     /* dark-first: the tavern at night */
@@ -1024,6 +1025,7 @@
       </div>
       <div class="tools">
         <button class="btn ghost" id="statusBtn" title="关系 / 心情 / 时间 / 地点 / 年龄 / 心声">状态</button>
+        <button class="btn ghost" id="mvuBtn" title="这张卡的 MVU 变量（[InitVar] 初值 + 模型每楼的 _.set 更新）" hidden>变量</button>
         <button class="btn ghost" id="editChar" title="编辑这个角色">编辑角色</button>
         <button class="btn ghost" id="memBtn" title="把一段楼层的剧情总结成记忆，存进这个角色的记忆世界书">记忆</button>
         <button class="btn ghost" id="ctxBtnHead" title="上下文用量 / 隐藏楼层 / 记忆索引">索引</button>
@@ -2004,6 +2006,29 @@
   </div>
 </div>
 
+<div class="modal-back" id="mvuBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mvuTitle" style="width:min(760px,100%)">
+    <div class="modal-head">
+      <span id="mvuTitle">变量 · MVU</span>
+      <button class="btn ghost icon" id="mvuClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help">这张卡带 MVU 变量框架：世界书里的 <code>[InitVar]</code> 给初值，每楼的 <code>&lt;UpdateVariable&gt;</code> 里的 <code>_.set / _.insert / _.delete</code> 更新它们，当前值每次发送都会以 <code>&lt;status_current_variable&gt;</code> 发给模型，前端状态栏通过 <code>getVariables</code> / <code>Mvu.getMvuData</code> 读到。回退楼层会自动重算。</div>
+      <div class="stat" id="mvuMeta"></div>
+      <div class="field">
+        <label for="mvuText">当前值（YAML，可以改）</label>
+        <textarea id="mvuText" class="mono" style="min-height:260px;font-size:12px"></textarea>
+        <div class="help">改完点「保存」会记成一次手动修改，从最后一楼开始生效；之后模型的更新照常叠加。</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost danger" id="mvuReset">重置为初值</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="mvuCancel">取消</button>
+      <button class="btn primary" id="mvuSave">保存</button>
+    </div>
+  </div>
+</div>
 <div class="modal-back" id="stBack" hidden style="z-index:60">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stTitle" style="width:min(760px,100%)">
     <div class="modal-head">
@@ -2537,7 +2562,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.41"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.42"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2778,7 +2803,9 @@
   const AGES_OPEN_RE = /<ages>[\s\S]*$/i;
   const REL_RE = /<rel>\s*([\s\S]*?)\s*<\/rel>/gi;
   const REL_OPEN_RE = /<rel>[\s\S]*$/i;
-  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").trim(); }
+  const MVU_RE = /<UpdateVariable>\s*([\s\S]*?)\s*<\/UpdateVariable>/gi;
+  const MVU_OPEN_RE = /<UpdateVariable>[\s\S]*$/i;
+  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").replace(MVU_RE, "").replace(MVU_OPEN_RE, "").trim(); }
   function statusInstruction(c) {
     const st = c.status;
     if (!st || !st.enabled) return "";
@@ -3383,8 +3410,8 @@
   const REASON_RE = /<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi;
   const REASON_OPEN_RE = /<(think|thinking|reasoning)>([\s\S]*)$/i;
   function foldReasoning(t, streaming) {
-    t = t.replace(STATUS_RE, "").replace(CAST_RE, "").replace(AGES_RE, "").replace(REL_RE, "");
-    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_OPEN_RE, "").replace(REL_OPEN_RE, "");
+    t = t.replace(STATUS_RE, "").replace(CAST_RE, "").replace(AGES_RE, "").replace(REL_RE, "").replace(MVU_RE, "");
+    if (streaming) t = t.replace(STATUS_OPEN_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_OPEN_RE, "").replace(REL_OPEN_RE, "").replace(MVU_OPEN_RE, "");
     t = t.replace(REASON_RE, (_, __, body) => `<details class="reasoning"><summary>思考过程</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     if (streaming) t = t.replace(REASON_OPEN_RE, (_, __, body) => `<details class="reasoning" open><summary>思考中…</summary><div>${esc(body.trim()).replace(/\n/g, "<br>")}</div></details>\n\n`);
     return t;
@@ -3576,6 +3603,7 @@
       save();
       return;
     }
+    if (d.lt === "setMvu" && d.data && typeof d.data === "object") { if (mvuInitEntry(c)) mvuSetOverride(c, d.data); return; }
     if (d.lt === "toast") { toast(String(d.text || ""), d.kind === "error"); return; }
     if (d.lt === "slash") {
       let value = "";
@@ -3608,7 +3636,9 @@
     const msgs = c.chat.map((m, i) => ({ message_id: i, name: m.role === "user" ? u : c.name, role: m.role, is_hidden: !!m.hidden, is_user: m.role === "user", message: m.content, data: m.vars || {}, swipe_id: m.si || 0, swipes: m.swipes || [m.content] }));
     const charData = { name: c.name, description: c.description || "", personality: c.personality || "", scenario: c.scenario || "", first_mes: c.firstMessage || "", mes_example: c.examples || "", avatar: "", tags: c.tags || [], system_prompt: c.systemPrompt || "", post_history_instructions: c.postHistory || "", alternate_greetings: c.altGreetings || [] };
     // the JSON rides inside a <script>: a literal closing script tag or comment opener in any message would end the tag early
-    const payload = JSON.stringify({ frameId, msgs, charData, msgIndex, vars: c.vars || {}, gvars: state.vars || {}, user: u })
+    const mvuCur = mvuData(c);
+    const mvuAt = mvuCur ? mvuData(c, msgIndex) : null;
+    const payload = JSON.stringify({ frameId, msgs, charData, msgIndex, vars: c.vars || {}, gvars: state.vars || {}, user: u, mvu: mvuCur ? { current: mvuCur, at: mvuAt } : null })
       .replace(/<\//g, "<\\/").replace(/<!-{2}/g, "<\\!--").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
     return `<script>(function(){
       var D=${payload};
@@ -3631,7 +3661,9 @@
       function store(o){ if(o&&o.type==='global')return D.gvars; if(o&&o.type==='message'){var id=o.message_id==null?D.msgIndex:o.message_id; if(id<0)id=last+1+id; var m=D.msgs[id]; if(!m)return {}; m.data=m.data||{}; return m.data;} return D.vars; }
       function scopeOf(o){ return o&&o.type==='global'?'global':o&&o.type==='message'?'message':'chat'; }
       function midOf(o){ var id=o&&o.message_id!=null?o.message_id:D.msgIndex; return id<0?last+1+id:id; }
-      window.getVariables=function(o){return JSON.parse(JSON.stringify(store(o)));};
+      function mvuFor(o){ if(!D.mvu)return null; var sd=(o&&o.type==='message'&&(o.message_id==null||midOf(o)===D.msgIndex))?D.mvu.at:D.mvu.current; return {stat_data:sd,display_data:sd,delta_data:{}}; }
+      window.getVariables=function(o){var v=JSON.parse(JSON.stringify(store(o))); var mv=mvuFor(o); if(mv&&!(o&&o.type==='global'))Object.assign(v,JSON.parse(JSON.stringify(mv))); return v;};
+      window.Mvu={getMvuData:function(o){var mv=mvuFor(o); return mv?JSON.parse(JSON.stringify(mv)):{stat_data:{},display_data:{},delta_data:{}};},setMvuData:function(d,o){ if(d&&d.stat_data){ D.mvu=D.mvu||{}; D.mvu.current=d.stat_data; D.mvu.at=d.stat_data; post({lt:'setMvu',data:d.stat_data}); } return Promise.resolve(true); },replaceMvuData:function(d,o){return window.Mvu.setMvuData(d,o);},parseMessage:function(){return Promise.resolve(null);},events:{SINGLE_VARIABLE_UPDATED:'mag_variable_updated',VARIABLE_UPDATE_STARTED:'mag_variable_update_started',VARIABLE_UPDATE_ENDED:'mag_variable_update_ended'}};
       window.replaceVariables=function(v,o){var s=store(o); for(var k in s)delete s[k]; for(var k2 in v)s[k2]=v[k2]; post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:v,replace:true});};
       window.insertOrAssignVariables=function(v,o){var s=store(o); for(var k in v)s[k]=v[k]; post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:v});};
       window.insertVariables=function(v,o){var s=store(o),add={}; for(var k in v)if(!(k in s)){s[k]=v[k];add[k]=v[k];} post({lt:'setVariables',scope:scopeOf(o),message_id:midOf(o),vars:add});};
@@ -3776,6 +3808,7 @@
   function renderAll() {
     renderCharList();
     renderHead();
+    { const c = active(); $("mvuBtn").hidden = !(c && mvuInitEntry(c)); }
     renderMessages();
     renderSettings();
     updateStats();
@@ -4409,6 +4442,7 @@
     const stIns = statusInstruction(c);
     if (stIns) { parts.push("\n" + stIns); seg("fixed", "状态面板", stIns); }
     { const ag = agesInstruction(c); parts.push("\n" + ag); seg("fixed", "年龄", ag); }
+    { const mv = mvuInstruction(c); if (mv) { parts.push("\n" + mv); seg("fixed", "MVU 变量", mv); } }
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
       parts.push("\n" + pr, `- ${langHint()}`, ...(phoneStyleRule(c) ? [`- ${phoneStyleRule(c)}`] : []), `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
@@ -4494,7 +4528,7 @@
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
         case "personaDescription": return sub(personaText(c), c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
-        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + (phoneStyleRule(c) ? "\n- " + phoneStyleRule(c) : "") + "\n- " + nsfwRule(c), c) : [lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c), agesInstruction(c)].filter(Boolean).join("\n\n");
+        case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + (phoneStyleRule(c) ? "\n- " + phoneStyleRule(c) : "") + "\n- " + nsfwRule(c), c) : [lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c), agesInstruction(c), mvuInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
       }
     };
@@ -4857,6 +4891,7 @@
       if (msg.npc) applyNpcStatusFromText(c, msgNpcs(msg), res.text);
       if (!msg.npc) { const pn = presentNow(c); if (pn && pn.ids.length && applyPresentRelFromText(c, pn.ids, res.text) && !$("stBack").hidden) renderRelTable(c); }
       if (applyAgesFromText(c, res.text)) afterAges(c);
+      if (mvuInitEntry(c) && /<UpdateVariable>/i.test(res.text || "")) { const d = mvuData(c); feEmit("mag_variable_updated", { stat_data: d }); feEmit("mag_variable_update_ended", { stat_data: d }); }
       if (!msg.npc && !(c.phone && c.phone.open)) { try { applyCastFromText(c, res.text, msg); } catch (e) { console.error(e); } }
       if (!msg.npc && !msg.error) setTimeout(() => maybeAutoRelRefresh(c), 0);
     } catch (e) {
@@ -5129,6 +5164,128 @@
     const own = c ? (c.books || []).filter((b) => b.enabled !== false) : [];
     return [...own, ...bound, ...globals].filter((b) => b && b.entries && b.entries.length);
   }
+  // ============================================================
+  // MVU (MagVarUpdate) variables: [InitVar] in a lorebook gives the initial stat_data; each reply's
+  // <UpdateVariable> block carries _.set / _.insert / _.delete commands. State is recomputed from the
+  // chat so swipes, edits and rollbacks stay consistent; manual edits are kept as dated overrides.
+  // ============================================================
+  const yamlLoad = (t) => (window.jsyaml ? window.jsyaml.load(t) : JSON.parse(t));
+  const yamlDump = (v) => (window.jsyaml ? window.jsyaml.dump(v, { lineWidth: 200, noRefs: true, sortKeys: false }) : JSON.stringify(v, null, 2));
+  function mvuInitEntry(c) {
+    for (const b of booksFor(c)) for (const e of b.entries) {
+      if (e.enabled === false || !e.content || !e.content.trim()) continue;
+      const name = String(e.comment || "");
+      if (/\[?\s*initvar\s*\]?/i.test(name) || /^\s*\[InitVar\]/i.test(e.content)) return e;
+    }
+    return null;
+  }
+  function mvuParseInit(text) {
+    let t = String(text || "").replace(/^\s*\[InitVar\]\s*/i, "").trim();
+    const fence = t.match(/^```[a-z]*\s*([\s\S]*?)```\s*$/i); if (fence) t = fence[1].trim();
+    let v = null;
+    try { v = JSON.parse(t); } catch (e) { try { v = yamlLoad(t); } catch (e2) { v = null; } }
+    if (!v || typeof v !== "object") return null;
+    if (v.stat_data && typeof v.stat_data === "object" && Object.keys(v).length <= 3) v = v.stat_data;
+    return v;
+  }
+  function mvuHasRule(c) { return booksFor(c).some((b) => b.entries.some((e) => e.enabled !== false && /UpdateVariable/i.test(e.content || ""))) || /UpdateVariable/i.test((c.systemPrompt || "") + (c.postHistory || "") + (c.description || "")); }
+  // ---- a tiny JS-literal reader for the command arguments: 'str', "str", numbers, true/false/null, [..], {..} ----
+  function mvuArgs(src) {
+    let i = 0; const s = String(src);
+    const ws = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+    const str = (q) => { let o = ""; i++; while (i < s.length && s[i] !== q) { if (s[i] === "\\" && i + 1 < s.length) { i++; const e = s[i]; o += e === "n" ? "\n" : e === "t" ? "\t" : e; } else o += s[i]; i++; } i++; return o; };
+    const val = () => {
+      ws(); const ch = s[i];
+      if (ch === "'" || ch === '"' || ch === "`") return str(ch);
+      if (ch === "[") { i++; const a = []; ws(); if (s[i] === "]") { i++; return a; } while (i < s.length) { a.push(val()); ws(); if (s[i] === ",") { i++; ws(); if (s[i] === "]") { i++; return a; } continue; } if (s[i] === "]") { i++; return a; } break; } return a; }
+      if (ch === "{") { i++; const o = {}; ws(); if (s[i] === "}") { i++; return o; } while (i < s.length) { ws(); let k; if (s[i] === "'" || s[i] === '"') k = str(s[i]); else { const m = s.slice(i).match(/^[^:\s,}]+/); k = m ? m[0] : ""; i += k.length; } ws(); if (s[i] === ":") i++; o[k] = val(); ws(); if (s[i] === ",") { i++; continue; } if (s[i] === "}") { i++; return o; } break; } return o; }
+      const m = s.slice(i).match(/^(-?\d+(?:\.\d+)?|true|false|null|undefined)(?=[\s,)\]}]|$)/);
+      if (m) { i += m[0].length; return m[0] === "true" ? true : m[0] === "false" ? false : m[0] === "null" || m[0] === "undefined" ? null : Number(m[0]); }
+      const raw = s.slice(i).match(/^[^,)]+/); i += raw ? raw[0].length : 1; return raw ? raw[0].trim() : null;
+    };
+    const out = [];
+    while (i < s.length) { ws(); if (i >= s.length) break; out.push(val()); ws(); if (s[i] === ",") { i++; continue; } break; }
+    return out;
+  }
+  function mvuCommands(text) {
+    const out = [];
+    for (const blk of String(text || "").matchAll(MVU_RE)) {
+      const body = blk[1].replace(/<Analysis>[\s\S]*?<\/Analysis>/gi, "");
+      const re = /_\.(set|assign|insert|delete|remove|unset|add)\s*\(/g; let m;
+      while ((m = re.exec(body))) {
+        let depth = 1, j = re.lastIndex, q = null;
+        for (; j < body.length && depth > 0; j++) { const ch = body[j]; if (q) { if (ch === "\\") j++; else if (ch === q) q = null; } else if (ch === "'" || ch === '"' || ch === "`") q = ch; else if (ch === "(" || ch === "[" || ch === "{") depth++; else if (ch === ")" || ch === "]" || ch === "}") depth--; }
+        const args = mvuArgs(body.slice(re.lastIndex, j - 1));
+        const why = (body.slice(j).match(/^\s*;?\s*\/\/\s*([^\n]*)/) || [])[1] || "";
+        out.push({ op: m[1], args, why: why.trim() });
+        re.lastIndex = j;
+      }
+    }
+    return out;
+  }
+  const mvuPath = (p) => String(p).replace(/\[(\d+)\]/g, ".$1").split(".").map((x) => x.trim()).filter((x) => x !== "");
+  function mvuApplyOne(data, cmd) {
+    const segs = mvuPath(cmd.args[0] == null ? "" : cmd.args[0]); if (!segs.length) return false;
+    let cur = data;
+    for (let i = 0; i < segs.length - 1; i++) { const k = segs[i]; if (cur[k] == null || typeof cur[k] !== "object") { if (cmd.op === "delete" || cmd.op === "remove" || cmd.op === "unset") return false; cur[k] = /^\d+$/.test(segs[i + 1]) ? [] : {}; } cur = cur[k]; }
+    const last = segs[segs.length - 1];
+    const isDesc = (v) => Array.isArray(v) && v.length === 2 && typeof v[1] === "string" && !Array.isArray(v[0]);
+    if (cmd.op === "delete" || cmd.op === "remove" || cmd.op === "unset") { if (Array.isArray(cur) && /^\d+$/.test(last)) cur.splice(Number(last), 1); else delete cur[last]; return true; }
+    if (cmd.op === "add") { const d = Number(cmd.args[cmd.args.length - 1]) || 0; const v = cur[last]; if (isDesc(v)) v[0] = (Number(v[0]) || 0) + d; else cur[last] = (Number(v) || 0) + d; return true; }
+    if (cmd.op === "insert" || cmd.op === "assign") { const v = cmd.args[1]; if (Array.isArray(cur[last]) && !isDesc(cur[last]) && !Array.isArray(v)) cur[last].push(v); else if (cur[last] && typeof cur[last] === "object" && v && typeof v === "object" && !Array.isArray(v) && !Array.isArray(cur[last])) Object.assign(cur[last], v); else cur[last] = v; return true; }
+    const nv = cmd.args.length >= 3 ? cmd.args[2] : cmd.args[1];
+    if (nv === undefined) return false;
+    const old = cur[last];
+    if (isDesc(old) && !Array.isArray(nv)) old[0] = nv; else cur[last] = nv;
+    return true;
+  }
+  const deepCopy = (v) => JSON.parse(JSON.stringify(v));
+  const mvuCaches = new WeakMap(); // per-character cache (holds a Map, so it must not be serialised with the state)
+  // recompute from the init entry through every reply, honouring manual overrides; cached by a chat signature
+  function mvuData(c, uptoIndex) {
+    if (!c) return null;
+    const entry = mvuInitEntry(c);
+    if (!entry) { mvuCaches.delete(c); return null; }
+    const edits = Array.isArray(c.mvuEdits) ? c.mvuEdits : [];
+    const sig = entry.content.length + "|" + edits.map((e) => e.msgId + ":" + e.ts).join(",") + "|" + c.chat.map((m) => m.id + ":" + (m.role === "assistant" ? (m.content || "").length : 0)).join(",");
+    let cache = mvuCaches.get(c);
+    if (!cache || cache.sig !== sig) {
+      const init = mvuParseInit(entry.content) || {};
+      const snaps = new Map(); let cur = deepCopy(init); let applied = 0;
+      const startEdit = edits.find((e) => e.msgId == null); if (startEdit) cur = deepCopy(startEdit.data);
+      c.chat.forEach((m) => {
+        if (m.role === "assistant" && !m.error) for (const cmd of mvuCommands(m.content)) { try { if (mvuApplyOne(cur, cmd)) applied++; } catch (e) { /* skip a bad command */ } }
+        const ed = edits.find((e) => e.msgId === m.id); if (ed) cur = deepCopy(ed.data);
+        snaps.set(m.id, deepCopy(cur));
+      });
+      cache = { sig, init, snaps, current: cur, applied }; mvuCaches.set(c, cache);
+    }
+    if (uptoIndex == null) return cache.current;
+    const m = c.chat[uptoIndex]; return (m && cache.snaps.get(m.id)) || cache.init;
+  }
+  function mvuInstruction(c) {
+    const data = mvuData(c);
+    if (!data) return "";
+    const body = ["## 当前变量", "<status_current_variable>", yamlDump(data).trim(), "</status_current_variable>"];
+    if (!mvuHasRule(c)) body.push("上面是当前变量。每次回复的最末尾另起一行输出一个更新块，只写真的变了的项，路径用点号、数组下标用 [0]，值为 [数值, \"说明\"] 的只改数值：", "<UpdateVariable>", "_.set('路径', 旧值, 新值); // 原因", "</UpdateVariable>", "没有变化就不输出这个块。");
+    return body.join("\n");
+  }
+  function openMvu() {
+    const c = active(); if (!c) return;
+    const data = mvuData(c); if (!data) { toast("这张卡没有 [InitVar] 条目", true); return; }
+    $("mvuText").value = yamlDump(data);
+    const cache = mvuCaches.get(c);
+    $("mvuMeta").textContent = `初值来自世界书条目「${(mvuInitEntry(c).comment || "[InitVar]")}」 · 已应用 ${cache.applied} 条更新 · 手动修改 ${(c.mvuEdits || []).length} 次`;
+    $("mvuBack").hidden = false;
+  }
+  function mvuSetOverride(c, data) {
+    c.mvuEdits = Array.isArray(c.mvuEdits) ? c.mvuEdits : [];
+    const last = c.chat[c.chat.length - 1];
+    c.mvuEdits = c.mvuEdits.filter((e) => e.msgId !== (last ? last.id : null));
+    c.mvuEdits.push({ msgId: last ? last.id : null, data: deepCopy(data), ts: Date.now() });
+    mvuCaches.delete(c); save();
+    feEmit("mag_variable_updated", { stat_data: mvuData(c) }); feEmit("mag_variable_update_ended", { stat_data: mvuData(c) });
+  }
   function buildNpcInstruction(c, npc, history, retrieved, sceneMode, others) {
     const u = state.persona.name || "用户";
     const parts = [];
@@ -5182,6 +5339,7 @@
     const nst = npcStatusInstruction(c, npc, others);
     parts.push("\n" + nst); seg("fixed", "关系变化", nst);
     { const ag = agesInstruction(c); parts.push("\n" + ag); seg("fixed", "年龄", ag); }
+    { const mv = mvuInstruction(c); if (mv) { parts.push("\n" + mv); seg("fixed", "MVU 变量", mv); } }
     const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
     if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
     return sub(parts.join("\n"), c);
@@ -8765,6 +8923,19 @@
   $("phoneTheme").onclick = () => { state.settings.phoneDark = !(state.settings.phoneDark === true); save(); $("phone").classList.toggle("dark", state.settings.phoneDark === true); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("phoneBack").hidden && !confirmResolve) { e.stopPropagation(); closePhoneView(); } }, true);
   $("statusBtn").onclick = openStatus;
+  $("mvuBtn").onclick = openMvu;
+  $("mvuClose").onclick = $("mvuCancel").onclick = () => { $("mvuBack").hidden = true; };
+  $("mvuSave").onclick = () => {
+    const c = active(); if (!c) return;
+    let v; try { v = yamlLoad($("mvuText").value); } catch (e) { toast("YAML 没解析通过：" + (e && e.message ? e.message.split("\n")[0] : e), true); return; }
+    if (!v || typeof v !== "object") { toast("要是一个对象", true); return; }
+    mvuSetOverride(c, v); $("mvuBack").hidden = true; renderMessages(); toast("变量已保存");
+  };
+  $("mvuReset").onclick = async () => {
+    const c = active(); if (!c) return;
+    if (!(await askConfirm("清掉所有手动修改，变量从 [InitVar] 初值开始按聊天记录重算？", "重置", true))) return;
+    c.mvuEdits = []; mvuCaches.delete(c); save(); openMvu(); renderMessages(); toast("已重算");
+  };
   $("stTabs").addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (b) showStatusTab(b.dataset.stab); });
   $("relRefresh").onclick = () => relRefresh(false);
   $("relScan").onclick = scanNpcs;
@@ -10013,7 +10184,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
   // ============================================================
   // Save slots (存档): snapshot the chat-side of a character and go back later
   // ============================================================
-  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn"];
+  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn", "mvuEdits"];
   function deep(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
   function saveSnapshot(c) {
     const d = {};
