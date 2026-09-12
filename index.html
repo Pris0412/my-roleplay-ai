@@ -1388,6 +1388,11 @@
         <textarea id="edScenario" placeholder="故事在哪里开始，此刻正发生什么。"></textarea>
       </div>
       <div class="field">
+        <label for="edUserRole">你在这个故事里的身份（这张卡）</label>
+        <textarea id="edUserRole" placeholder="身份、背景、和主角的初始关系。例如：靠奖学金进来的插班生，家里开小面馆，和他分在同一个宿舍。留空就只用设置里的全局人设。"></textarea>
+        <div class="help">设置里的人设是你的底子（名字、外貌、性格），换卡不变；这一栏跟卡走，发给模型时接在人设后面。</div>
+      </div>
+      <div class="field">
         <label for="edFirst">开场白</label>
         <textarea id="edFirst" placeholder="角色说的第一句话。可以用 {{user}} 指代你。"></textarea>
       </div>
@@ -2275,6 +2280,18 @@
     <div class="modal-body">
       <div id="wzStep1">
         <div class="help" id="wzHint"></div>
+        <div class="field">
+          <label for="wzPremise">一句话建卡（可空）：像写小说简介一样，书名 + #标签</label>
+          <textarea id="wzPremise" rows="2" placeholder="例如：《我在贵族学校当NPC》 #万人迷　或　《和死对头联姻的第三年》 #先婚后爱 #豪门"></textarea>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <button class="btn" id="wzRead" type="button">先解读</button>
+            <span class="help" style="margin:0">模型先把这句话读成题材、你的位置、主角色、阵容和基调，你看过改过再生成，免得理解歪了整张卡都歪。</span>
+          </div>
+          <div id="wzReadBox" hidden style="margin-top:8px">
+            <div class="wz-field-h"><span>解读（改哪里就改哪里，生成会照这份来）</span></div>
+            <textarea id="wzReading" rows="10" class="mono" style="font-size:12px"></textarea>
+          </div>
+        </div>
         <div class="field"><label>题材</label><div id="wzGenres" style="display:flex;gap:6px;flex-wrap:wrap"></div><input id="wzGenreCustom" placeholder="自己写：例如「民国上海滩」「赛博朋克黑帮」「校园 + 灵异」" hidden style="margin-top:6px"></div>
         <div class="field"><label for="wzLine">一句话想法（可空）</label><textarea id="wzLine" rows="2" placeholder="例如：冷傲的学生会长，我是刚转来的；或者：豪门继承人和家里安排的联姻对象；或者什么都不写"></textarea></div>
         <div class="field"><label for="wzGender">主角性别</label><select id="wzGender" style="max-width:200px"><option>男</option><option>女</option><option>其他</option></select></div>
@@ -2520,7 +2537,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.40"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.41"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3011,6 +3028,7 @@
     c.saves = Array.isArray(c.saves) ? c.saves.filter((s) => s && s.data && typeof s.data === "object") : [];
     c.usage = c.usage && typeof c.usage === "object" ? { prompt: Number(c.usage.prompt) || 0, completion: Number(c.usage.completion) || 0, calls: Number(c.usage.calls) || 0, real: Number(c.usage.real) || 0 } : { prompt: 0, completion: 0, calls: 0, real: 0 };
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
+    c.userRole = typeof c.userRole === "string" ? c.userRole : ""; // who you are in this story; the global persona stays the base
     c.age = ageNum(c.age); c.userAge = ageNum(c.userAge);
     c.creatorNotes = c.creatorNotes || "";
     c.creator = c.creator || "";
@@ -3164,6 +3182,12 @@
   }
   function splitArgs(body) { return body.includes("::") ? body.split("::") : body.split(/[,，]/); }
   function vars(scope, c) { if (scope === "global") { state.vars = state.vars || {}; return state.vars; } c.vars = c.vars || {}; return c.vars; }
+  // your persona = the global base + this card's "who you are in this story"
+  function personaText(c) {
+    const base = (state.persona.desc || "").trim();
+    const role = c && typeof c.userRole === "string" ? c.userRole.trim() : "";
+    return [base, role ? `在这个故事里：${role}` : ""].filter(Boolean).join("\n");
+  }
   function sub(text, c) {
     if (!text) return "";
     const ch = c || active() || { name: "角色" };
@@ -3177,7 +3201,7 @@
       switch (name) {
         case "char": case "group": return ch.name || "角色";
         case "user": return uname;
-        case "persona": return state.persona.desc || "";
+        case "persona": return personaText(ch) || "";
         case "description": return ch.description || "";
         case "personality": return ch.personality || "";
         case "scenario": return ch.scenario || "";
@@ -4372,7 +4396,7 @@
       parts.push(`\n## 相关记忆（从更早的楼层里检索到的片段，按需参考，不要复述）\n${lines.join("\n")}`);
       retrieved.forEach((h, i) => seg("rag", `检索 #${h.floor}`, lines[i]));
     }
-    if (state.persona.desc) { parts.push(`\n## 关于 ${u}\n${state.persona.desc}`); seg("char", "你的人设", state.persona.desc); }
+    { const pt = personaText(c); if (pt) { parts.push(`\n## 关于 ${u}\n${pt}`); seg("char", "你的人设", pt); } }
     if (c.examples && c.examples.trim()) {
       const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
       parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`); seg("char", "对话示例", ex);
@@ -4468,7 +4492,7 @@
         case "charDescription": return sub(c.description || "", c);
         case "charPersonality": return sub(fmtTemplate(raw.personality_format, "personality", c.personality || ""), c);
         case "scenario": return sub(fmtTemplate(raw.scenario_format, "scenario", c.scenario || ""), c);
-        case "personaDescription": return sub(state.persona.desc || "", c);
+        case "personaDescription": return sub(personaText(c), c);
         case "dialogueExamples": return c.examples && c.examples.trim() ? sub(c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim(), c) : "";
         case "lanternRules": return [c.phone && c.phone.open ? sub(phoneRules(c, u) + "\n- " + langHint() + (phoneStyleRule(c) ? "\n- " + phoneStyleRule(c) : "") + "\n- " + nsfwRule(c), c) : [lengthHint() ? `- ${lengthHint()}` : "", `- ${langHint()}`, voiceRule(c, u) ? `- ${voiceRule(c, u)}` : "", ...styleRules(c, u).map((r) => `- ${r}`), "- 不要输出任何标题、列表或元评论，只输出角色的回复本身。"].filter(Boolean).map((x) => sub(x, c)).join("\n"), statusInstruction(c), agesInstruction(c)].filter(Boolean).join("\n\n");
         default: return "";
@@ -4885,7 +4909,7 @@
       !sc && c.scenario ? `场景：${c.scenario.slice(0, 600)}` : "",
       "",
       `## ${u}（你要扮演的人）`,
-      state.persona.desc ? state.persona.desc : "（没有写人设，按一个普通人来写）",
+      personaText(c) || "（没有写人设，按一个普通人来写）",
       "",
       "## 最近的对话",
       lines || "（还没开始）",
@@ -5137,7 +5161,7 @@
     parts.push(`\n## 关于 ${c.name}`, aboutChar); seg("char", `关于 ${c.name}`, aboutChar);
     const relIns = relationsInstruction(c, npc, others);
     if (relIns) { parts.push("\n" + relIns); seg("fixed", "人际关系", relIns); }
-    if (state.persona.desc && state.persona.desc.trim()) { parts.push(`\n## ${u} 的人设`, state.persona.desc); seg("char", "用户人设", state.persona.desc); }
+    { const pt = personaText(c); if (pt) { parts.push(`\n## ${u} 的人设`, pt); seg("char", "用户人设", pt); } }
     if (lore.after.length) { parts.push(`\n## 补充设定\n${lore.after.join("\n\n")}`); lore.after.forEach((t, i) => seg("lore", (lore.labels && lore.labels.after[i]) || `世界书（后）条目 ${i + 1}`, t)); }
     { const nb = notesBlock(c, npc.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
     if (retrieved && retrieved.length) {
@@ -5860,7 +5884,7 @@
         const pb = npcPersonaBlock(s); if (pb) { parts.push(pb); seg("char", `${s.name} 的性格`, pb); }
       }
     }
-    if (state.persona.desc && state.persona.desc.trim()) { parts.push(`\n## ${u} 的人设`, state.persona.desc); seg("char", "用户人设", state.persona.desc); }
+    { const pt = personaText(c); if (pt) { parts.push(`\n## ${u} 的人设`, pt); seg("char", "用户人设", pt); } }
     const relLines = [];
     const cu = charUserRel(c);
     if (g.members.includes("char") && (cu.rel || cu.aff != null)) relLines.push(`${c.name} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100）` : ""}`);
@@ -6038,7 +6062,7 @@
     if (lore.before.length) parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`);
     parts.push(`\n## ${c.name}`, [c.tag ? sub(c.tag, c) : "", (c.description || "").slice(0, 700), c.personality ? `性格：${c.personality.slice(0, 300)}` : ""].filter(Boolean).join("\n") || "（主角）");
     for (const n of c.npcs) { parts.push(`\n## ${n.name}`, [n.brief, (n.desc || "").slice(0, 300)].filter((x) => x && x.trim()).join("\n") || "（按名字和上下文合理推断）"); const pb = npcPersonaBlock(n); if (pb) parts.push(pb); }
-    if (state.persona.desc && state.persona.desc.trim()) parts.push(`\n## ${u} 的人设`, state.persona.desc.slice(0, 500));
+    { const pt = personaText(c); if (pt) parts.push(`\n## ${u} 的人设`, pt.slice(0, 600)); }
     const rel = [];
     const cu = charUserRel(c);
     if (cu.rel || cu.aff != null) rel.push(`${c.name} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100）` : ""}`);
@@ -7406,7 +7430,7 @@
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edUserRole").value = d.userRole || "";
     renderEdBook();
     refreshCharRx();
     $("editorDelete").hidden = !c;
@@ -7447,6 +7471,7 @@
     d.firstMessage = $("edFirst").value.trim();
     d.examples = $("edExamples").value.trim();
     d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
+    d.userRole = $("edUserRole").value.trim();
     d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
     d.creator = $("edCreator").value.trim();
     d.creatorNotes = $("edNotes").value.trim();
@@ -7800,6 +7825,7 @@
     d.description = $("edDesc").value.trim(); d.personality = $("edPersonality").value.trim();
     d.scenario = $("edScenario").value.trim(); d.firstMessage = $("edFirst").value.trim(); d.examples = $("edExamples").value.trim();
     d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
+    d.userRole = $("edUserRole").value.trim();
     d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
     d.creator = $("edCreator").value.trim(); d.creatorNotes = $("edNotes").value.trim();
     d.systemPrompt = $("edSys").value.trim(); d.postHistory = $("edPost").value.trim();
@@ -7937,7 +7963,7 @@
   $("zoomTa").addEventListener("input", () => { if (!zoomSrc) return; zoomSrc.value = $("zoomTa").value; zoomSrc.dispatchEvent(new Event("input", { bubbles: true })); });
   $("zoomDone").onclick = closeZoom;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && zoomSrc) { e.stopImmediatePropagation(); e.preventDefault(); closeZoom(); } }, true);
-  for (const id of ["edDesc", "edPersonality", "edScenario", "edFirst", "edExamples", "edAlt", "edNotes", "edSys", "edPost", "edCss", "memPrompt", "memResult", "ppContent", "npcPersonality", "npcDesc", "pDesc", "sStyle", "sCss", "stVoice", "stExtra"]) zoomable($(id));
+  for (const id of ["edDesc", "edPersonality", "edScenario", "edUserRole", "edFirst", "edExamples", "edAlt", "edNotes", "edSys", "edPost", "edCss", "memPrompt", "memResult", "ppContent", "npcPersonality", "npcDesc", "pDesc", "sStyle", "sCss", "stVoice", "stExtra"]) zoomable($(id));
 
   function field(labelText, input, help) {
     const f = el("div", "field");
@@ -9373,7 +9399,7 @@
     const lore = activeLore(c, c.chat.filter((m) => !m.npc).slice(-8), null);
     if (lore.before.length) parts.push(`\n## 世界设定\n${lore.before.join("\n\n")}`);
     parts.push(`\n## ${c.name}`, [c.tag ? sub(c.tag, c) : "", (c.description || "").slice(0, 900), c.personality ? `性格：${c.personality.slice(0, 300)}` : "", c.scenario ? `场景：${c.scenario.slice(0, 300)}` : ""].filter(Boolean).join("\n"));
-    if (state.persona.desc && state.persona.desc.trim()) parts.push(`\n## ${u}`, state.persona.desc.slice(0, 500));
+    { const pt = personaText(c); if (pt) parts.push(`\n## ${u}`, pt.slice(0, 600)); }
     if (c.npcs.length) parts.push(`\n## 其他人物\n${c.npcs.map((n) => `- ${n.name}${n.brief ? `：${n.brief}` : ""}`).join("\n")}`);
     const rel = []; const cu = charUserRel(c);
     if (cu.rel || cu.aff != null) rel.push(`${c.name} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100）` : ""}`);
@@ -9506,7 +9532,7 @@
     if (genre === "自定义") genre = $("wzGenreCustom").value.trim() || "随机";
     let look = ($("wzLooks").querySelector(".on") || {}).dataset ? $("wzLooks").querySelector(".on").dataset.v : "随机";
     if (look === "自定义") look = $("wzLookCustom").value.trim() || "随机";
-    const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, random: !!random };
+    const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, random: !!random, premise: $("wzPremise").value.trim(), reading: $("wzReadBox").hidden ? "" : $("wzReading").value.trim() };
     if (!random) Object.assign(s, { name: $("wzName").value.trim(), age: $("wzAge").value.trim(), role: $("wzRole").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), rel: $("wzRel").value.trim(), xp: $("wzXP").value.trim(), world: $("wzWorld").value.trim(), npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint) });
     else Object.assign(s, { name: "", age: "", role: "", persona: "", family: "", rel: "", xp: "", world: "", npcs: [] });
     return s;
@@ -9518,9 +9544,29 @@
     return [
       `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。用户扮演 ${u}（${u} 的人设由用户自己写，你不要写）。${WORLD_RULE} 所有角色（主角和每一个 NPC）年龄不低于 18 岁；校园题材写成大学或刚成年，不写未成年人。`,
       `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.xp ? `\n- XP / 偏好方向：${seeds.xp}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
+      seeds.premise ? `\n## 一句话简介（书名 + 标签，网文 / 漫画式的写法，按圈内的常见含义理解标签）\n${seeds.premise}` : "",
+      seeds.reading ? `\n## 已确认的解读（用户看过并认可，必须照这个来：题材、你的位置、主角色、阵容、基调都以此为准）\n${seeds.reading}` : "",
+      state.persona.desc && state.persona.desc.trim() ? `\n## ${u} 的人设底子（用户自己写的，不要改写；身份和背景可以在 userRoles 里推荐）\n${state.persona.desc.trim().slice(0, 400)}` : "",
       `\n## 建卡偏好（必须遵守）\n${wizPrefs()}`,
       `\n## 顶奢与富人生活参考（家境好的角色从这里选牌子和生活方式，互不重复；家境普通的不用）\n${luxuryText()}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
+  }
+  function wizReadPrompt(seeds) {
+    const u = state.persona.name || "用户";
+    return [
+      `你是资深的角色扮演卡作者，熟悉网文、漫画、乙游的题材和标签用法。用户给了一句小说简介式的输入（书名 + #标签），请把它读成一份建卡用的解读，先不写卡。用户扮演 ${u}。${WORLD_RULE}`,
+      `\n## 输入\n${seeds.premise}${seeds.genre && seeds.genre !== "随机" ? `\n题材倾向：${seeds.genre}` : ""}${seeds.line ? `\n补充想法：${seeds.line}` : ""}`,
+      state.persona.desc && state.persona.desc.trim() ? `\n## ${u} 的人设底子\n${state.persona.desc.trim().slice(0, 400)}` : "",
+      `\n## 要求
+- 标签按圈内常见含义理解（如 万人迷 = 所有人都被 ${u} 吸引、群像多追求者；先婚后爱、穿书、重生、系统、无限流 等同理）。
+- yourPosition：${u} 在这个故事里的位置（书名里「当NPC」「炮灰」「路人」这类自嘲要读出来）。
+- structure：single（一个明确的对手戏对象）或 ensemble（群像 / 多个追求者）。
+- mainChar：主角色是谁（ensemble 时挑最有戏的一个当主角色，其余进 cast）；一句话定位。
+- cast：其他重要人物 2–5 个，每个 {type: 类型定位, hook: 一句话戏点}，类型互不重叠。
+- tone：基调（甜 / 爽 / 虐 / 悬疑 / 轻松，冲突从哪来）。
+- userRoles：给 ${u} 的 2–3 个身份选项 {title, text}，每个 40–80 字，写身份、背景、和主角色的初始关系，互相明显不同。
+只输出 JSON：{"genre":"","tone":"","structure":"single|ensemble","yourPosition":"","mainChar":{"who":"","hook":""},"cast":[{"type":"","hook":""}],"userRoles":[{"title":"","text":""}],"notes":"其他要注意的一句话"}`,
+    ].filter(Boolean).join("\n");
   }
   function wizCharPrompt(seeds) {
     const u = state.persona.name || "用户";
@@ -9566,7 +9612,8 @@ npcs（${npcLine}）：每个：
 - relation：和主角的关系一句话
 - relToUser：和 ${u} 的初始关系（一个词）；aff：初始好感 0–100
 - sections：YAML 文本，栏目 基本（姓名、性别、年龄、身高、身份、家世）、外貌（脸、眼、发、身材、气质、常穿写牌子、味道；类型和主角、和其他 NPC 都不同）、财富（家境好才写，否则「无」）、性格、喜好、关系（对主角、对 ${u}）、说话（语气、口头禅、示例 2 句）
-只输出 JSON：{"world":{"worldName":"","overview":"","places":[],"factions":[],"relations":""},"npcs":[{"name":"","gender":"","age":"","height":"","aliases":[],"relation":"","relToUser":"","aff":50,"sections":{}}]}`;
+userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title, text}，每个 40–80 字：身份、背景、和主角的初始关系，互相明显不同，和主角、NPC、世界自洽（用户的人设底子不要改写，只补身份和背景）。
+只输出 JSON：{"world":{"worldName":"","overview":"","places":[],"factions":[],"relations":""},"npcs":[{"name":"","gender":"","age":"","height":"","aliases":[],"relation":"","relToUser":"","aff":50,"sections":{}}],"userRoles":[{"title":"","text":""}]}`;
   }
   function wizRerollPrompt(kind, key, idx) {
     const r = wiz.result, seeds = wiz.seeds;
@@ -9615,7 +9662,8 @@ npcs（${npcLine}）：每个：
       for (const k of ["places", "factions"]) if (!Array.isArray(world[k])) world[k] = [];
       world.relations = yamlStr(world.relations);
       const npcs = ((wv && Array.isArray(wv.npcs)) ? wv.npcs : []).filter((n) => n && n.name).map((n) => ({ name: String(n.name), gender: String(n.gender || ""), age: String(n.age || ""), height: String(n.height || ""), aliases: Array.isArray(n.aliases) ? n.aliases.map(String).filter(Boolean) : [], relation: String(n.relation || ""), relToUser: String(n.relToUser || ""), aff: Math.max(0, Math.min(100, Number(n.aff) || 50)), sections: Object.fromEntries(WIZ_NPC_SECTIONS.map((k) => [k, yamlStr((n.sections || {})[k])])) }));
-      wiz = { seeds, result: { char: ch, world, npcs, greetingIdx: 0 } };
+      const userRoles = ((wv && Array.isArray(wv.userRoles)) ? wv.userRoles : []).filter((r) => r && (r.text || r.title)).map((r) => ({ title: String(r.title || "").slice(0, 30), text: String(r.text || "").trim() })).slice(0, 4);
+      wiz = { seeds, result: { char: ch, world, npcs, greetingIdx: 0, userRoles, userRoleIdx: userRoles.length ? 0 : -1 } };
       renderWizResult();
       $("wzStep1").hidden = true; $("wzStep2").hidden = false;
     } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
@@ -9659,6 +9707,22 @@ npcs（${npcLine}）：每个：
     r.char.greetings.forEach((g, i) => { const row = el("label", "rebuild-row"); row.style.alignItems = "flex-start"; const rb = document.createElement("input"); rb.type = "radio"; rb.name = "wzG"; rb.checked = i === r.greetingIdx; rb.onchange = () => { r.greetingIdx = i; }; const ta = document.createElement("textarea"); ta.value = g; ta.rows = 5; ta.style.flex = "1"; ta.oninput = () => { r.char.greetings[i] = ta.value; }; row.append(rb, ta); gWrap.appendChild(row); });
     sc.appendChild(gWrap);
     sc.appendChild(wizField("状态面板初值", yamlStr(r.char.status), (v) => { r.char.statusText = v; }, null, 3));
+    {
+      const u = state.persona.name || "你";
+      const su = sec(`${u} 在这个故事里的身份（选一个，可改；不要就选「不填」）`);
+      const wrap = el("div", "wz-field");
+      const opts = [...r.userRoles.map((o, i) => [i, o]), [-1, { title: "不填", text: "" }]];
+      for (const [i, o] of opts) {
+        const row = el("label", "rebuild-row"); row.style.alignItems = "flex-start";
+        const rb = document.createElement("input"); rb.type = "radio"; rb.name = "wzUR"; rb.checked = i === r.userRoleIdx; rb.onchange = () => { r.userRoleIdx = i; };
+        const body = el("div"); body.style.flex = "1";
+        body.appendChild(el("b", null, o.title || `选项 ${i + 1}`));
+        if (i >= 0) { const ta = document.createElement("textarea"); ta.value = o.text; ta.rows = 3; ta.style.width = "100%"; ta.oninput = () => { o.text = ta.value; }; body.appendChild(ta); }
+        row.append(rb, body); wrap.appendChild(row);
+      }
+      su.appendChild(wrap);
+      su.appendChild(el("div", "help", "设置里的人设是你的底子，换卡不变；这一栏跟这张卡走，建卡后在「编辑角色」里也能改。"));
+    }
     const sw = sec(`世界书 · ${r.world.worldName || ""}`);
     sw.appendChild(wizField("世界名字", r.world.worldName, (v) => { r.world.worldName = v; }, null, 1));
     sw.appendChild(wizField("世界背景", r.world.overview, (v) => { r.world.overview = v; }, () => wizReroll("world", "overview")));
@@ -9685,6 +9749,7 @@ npcs（${npcLine}）：每个：
       postHistory: ch.rules ? String(ch.rules).trim() : "", tags: ch.tags || [], chat: [], createdAt: Date.now(), worldName: r.world.worldName || "",
     };
     normalizeChar(c);
+    if (r.userRoleIdx >= 0 && r.userRoles[r.userRoleIdx]) c.userRole = String(r.userRoles[r.userRoleIdx].text || "").trim();
     // status panel: relation + affinity from the card, opening state
     const rel = {}; for (const line of (ch.sections["关系"] || "").split("\n")) { const m = line.match(/^\s*(初始关系|初始好感)\s*[:：]\s*(.+)$/); if (m) rel[m[1]] = m[2].trim(); }
     c.status.enabled = true;
@@ -9714,6 +9779,29 @@ npcs（${npcLine}）：每个：
   $("wizBtn").onclick = openWizard;
   $("wzClose").onclick = () => { $("wzBack").hidden = true; };
   $("wzAddNpc").onclick = () => wizAddNpc();
+  $("wzRead").onclick = async () => {
+    if (!chatReady()) { toast("接口未就绪", true); return; }
+    const seeds = wizSeeds(false);
+    if (!seeds.premise) { toast("先在上面写一句：书名 + #标签", true); $("wzPremise").focus(); return; }
+    const b = $("wzRead"); b.disabled = true; b.textContent = "解读中…";
+    try {
+      const r = await completeJson(wizReadPrompt(seeds), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      if (!r || typeof r !== "object") throw Object.assign(new Error("bad"), { code: "invalid_json" });
+      const lines = [
+        `题材: ${yamlStr(r.genre)}`, `基调: ${yamlStr(r.tone)}`, `结构: ${r.structure === "ensemble" ? "群像 · 多个追求者（挑一个当主角色，其余是 NPC）" : "单人对手戏"}`,
+        `你的位置: ${yamlStr(r.yourPosition)}`,
+        `主角色: ${r.mainChar ? `${yamlStr(r.mainChar.who)}${r.mainChar.hook ? ` · ${yamlStr(r.mainChar.hook)}` : ""}` : ""}`,
+        "阵容:", ...((Array.isArray(r.cast) ? r.cast : []).map((x) => `  - ${yamlStr(x.type)}：${yamlStr(x.hook)}`)),
+        "你的身份候选:", ...((Array.isArray(r.userRoles) ? r.userRoles : []).map((x) => `  - ${yamlStr(x.title)}：${yamlStr(x.text)}`)),
+        r.notes ? `备注: ${yamlStr(r.notes)}` : "",
+      ].filter(Boolean);
+      $("wzReading").value = lines.join("\n");
+      $("wzReadBox").hidden = false;
+      b.textContent = "重新解读";
+    } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); b.textContent = "先解读"; }
+    finally { b.disabled = false; }
+  };
+  $("wzPremise").addEventListener("input", () => { if (!$("wzReadBox").hidden) { $("wzReadBox").hidden = true; $("wzReading").value = ""; $("wzRead").textContent = "先解读"; } });
   $("wzRandom").onclick = () => wizGenerate(true);
   $("wzGo").onclick = () => wizGenerate(false);
   $("wzBackTo1").onclick = () => { $("wzStep1").hidden = false; $("wzStep2").hidden = true; };
