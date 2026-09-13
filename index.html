@@ -2580,7 +2580,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.46"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.47"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4243,15 +4243,13 @@
   function nsfwRule(c) { return `${NSFW_FIXED}${NSFW_RULES[nsfwLevel(c)] || ""}`; }
   // Editable in 设置 › 生成. settings.style == null → default text; "" → nothing injected; a card can opt out with c.style === "off".
   const DEFAULT_STYLE_RULES = [
-    "文风：不要套模板。不要每楼都「环境一句、动作、对白、动作、意味深长收尾」；段落长短不齐，允许只有一两句话的短楼。",
+    "结构：不要套模板。不要每楼都「环境一句、动作、对白、动作、意味深长收尾」；段落长短不齐，允许只有一两句话的短楼。",
     "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」。",
-    "不要以留白句收尾（「他没有再说什么」「夜还很长」之类），不要以抛问题收尾，不要替 {{user}} 总结感受（「你感到…」「你知道…」）。",
-    "情绪写过程不写结论：不说「他慌了」，写他把杯子放歪、话说到一半停住。身体反应不只写脸，写手、呼吸、姿势、距离。",
-    "对白像真人：会打断、说半句、重复、答非所问，不要每句都完整得体。",
-    "场景没变就不要重描环境和光线。冲突不要在同一楼和解。",
-    "回复里只要出现非普通话的内容（方言、粤语、英文、法语等任何语言），那句话后面必须紧跟一个括号（）写出中文意思，一句都不能漏。",
-    "关于过去：凡是和 {{user}} 有关的往事（角色和 {{user}}、{{user}} 和各 NPC 之间），只认角色卡、世界书、不能忘的事和正文里明确写过的内容。设定说有过去但没写细节，就只能说「以前」「那时候」「你知道的」，不要发明具体的事件、对话、地点、物件、日期、昵称，也不要发明告白、初吻、约定、定情物、关系进展。尤其不要替 {{user}} 记得：{{user}} 过去做过什么、说过什么、有什么习惯，没写过的就当不知道。{{user}} 在正文里说出的往事，「发生了什么」这一层就是既定事实，之后不能否认、不能改细节；但为什么、当时怎么想，两个人可以各有版本：角色可以有自己当时的感受、动机和误会，这是角色自己的内心，可以按人设补，也可以一直误会到剧情里说开为止；对 {{user}} 当时的动机和感受只能说「我以为」，不能当事实。角色自己先说出的往事，{{user}} 接了才算数，没接或反驳的以后不再提。角色和 NPC 之间、NPC 和 NPC 之间的过去可以按各自设定合理补充，说出来就要前后一致。",
-    "物件要有名字：穿的、开的、用的东西，角色卡里写了牌子、款式、颜色就用出来，没写的按人设和家境自己定一个，之后保持一致。每楼至少一两处具体物件的细节，写此刻用到、和动作连着的那一件，不开清单。家境好的角色，生活质感要写出来：住哪、开什么、穿什么、用什么、花钱的方式和随手的习惯，用具体的东西和动作让人感觉到他有钱，不要写得像普通人。",
+    "结尾：不以留白句收尾（「他没有再说什么」「夜还很长」之类），不以抛问题收尾，不替 {{user}} 总结感受（「你感到…」「你知道…」）。冲突不要在同一楼和解。",
+    "写法：情绪写过程不写结论，不说「他慌了」，写他把杯子放歪、话说到一半停住；身体反应不只写脸，写手、呼吸、姿势、距离。场景没变就不重描环境和光线，人身上、手上、用着的东西照写。",
+    "对白：像真人，会打断、说半句、重复、答非所问，不要每句都完整得体。出现非普通话的内容（方言、粤语、英文、法语等任何语言），那句话后面必须紧跟括号（）写出中文意思，一句都不能漏。",
+    "过去：凡是和 {{user}} 有关的往事（角色和 {{user}}、{{user}} 和各 NPC 之间），只认角色卡、世界书、不能忘的事和正文里明确写过的内容。设定说有过去但没写细节，就只能说「以前」「那时候」「你知道的」，不要发明具体的事件、对话、地点、物件、日期、昵称，也不要发明告白、初吻、约定、定情物、关系进展。尤其不要替 {{user}} 记得：{{user}} 过去做过什么、说过什么、有什么习惯，没写过的就当不知道。{{user}} 在正文里说出的往事，「发生了什么」这一层就是既定事实，之后不能否认、不能改细节；但为什么、当时怎么想，两个人可以各有版本：角色可以有自己当时的感受、动机和误会，这是角色自己的内心，可以按人设补，也可以一直误会到剧情里说开为止；对 {{user}} 当时的动机和感受只能说「我以为」，不能当事实。角色自己先说出的往事，{{user}} 接了才算数，没接或反驳的以后不再提。角色和 NPC 之间、NPC 和 NPC 之间的过去可以按各自设定合理补充，说出来就要前后一致。",
+    "物件：穿的、开的、用的东西要有名字，角色卡里写了牌子、款式、颜色就用出来，没写的按人设和家境自己定一个，之后保持一致。每楼至少一两处具体物件的细节，写此刻用到、和动作连着的那一件，不开清单。家境好的角色，生活质感要写出来：住哪、开什么、穿什么、用什么、花钱的方式和随手的习惯，用具体的东西和动作让人感觉到他有钱，不要写得像普通人。",
   ].join("\n");
   function styleText() { const t = state.settings.style; return typeof t === "string" ? t : DEFAULT_STYLE_RULES; }
   function styleOff(c) { return (c && c.style === "off") || !styleText().trim(); }
@@ -4264,6 +4262,15 @@
   }
   const PHONE_STYLE_RULE = "不用破折号「——」，不用「一丝 / 一抹 / 几分」这类模糊量词。";
   function phoneStyleRule(c) { return styleOff(c) ? "" : PHONE_STYLE_RULE; }
+  // A few words at the very end of the prompt, where instructions bite hardest: the rules that are easiest to forget.
+  function tailReminder(c, u) {
+    const items = [];
+    if (!styleOff(c)) items.push(`往事只认写过的，${u} 说出的算数`, "穿的、开的、用的写出牌子和款式");
+    const v = state.settings.voice;
+    if (v === "strict" || v === "restate") items.push(`不替 ${u} 说话，不写 ${u} 的动作和内心`);
+    else if (v === "describe" || v === "expand") items.push(`不替 ${u} 说话、做决定`);
+    return items.length ? `本楼提醒：${items.join("；")}。` : "";
+  }
   function defaultRules(c, u) {
     return [
       `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
@@ -4483,6 +4490,7 @@
     if (stIns) dyn("fixed", "状态面板", stIns);
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
+    if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
       parts.push("\n" + pr, `- ${langHint()}`, ...(phoneStyleRule(c) ? [`- ${phoneStyleRule(c)}`] : []), `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
@@ -4578,6 +4586,7 @@
     { const st = statusInstruction(c); if (st) dyn("fixed", "状态面板", st); }
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
+    if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
     const pre = [], post = [], inChat = [];
     let afterHistory = false;
     for (const o of ps.order) {
@@ -5432,6 +5441,7 @@
     dyn("fixed", "关系变化", npcStatusInstruction(c, npc, others));
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
+    if (sceneMode) dyn("fixed", "本楼提醒", tailReminder(c, u));
     const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
     if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
     return sub(parts.join("\n"), c);
