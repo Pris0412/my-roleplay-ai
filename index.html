@@ -2580,7 +2580,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.43"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.44"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4249,6 +4249,7 @@
     "对白像真人：会打断、说半句、重复、答非所问，不要每句都完整得体。",
     "场景没变就不要重描环境和光线。冲突不要在同一楼和解。",
     "回复里只要出现非普通话的内容（方言、粤语、英文、法语等任何语言），那句话后面必须紧跟一个括号（）写出中文意思，一句都不能漏。",
+    "关于过去：凡是和 {{user}} 有关的往事（角色和 {{user}}、{{user}} 和各 NPC 之间），只认角色卡、世界书、不能忘的事和正文里明确写过的内容。设定说有过去但没写细节，就只能说「以前」「那时候」「你知道的」，不要发明具体的事件、对话、地点、物件、日期、昵称，也不要发明告白、初吻、约定、定情物、关系进展。尤其不要替 {{user}} 记得：{{user}} 过去做过什么、说过什么、有什么习惯，没写过的就当不知道。{{user}} 在正文里说出的往事，「发生了什么」这一层就是既定事实，之后不能否认、不能改细节；但为什么、当时怎么想，两个人可以各有版本：角色可以有自己当时的感受、动机和误会，这是角色自己的内心，可以按人设补，也可以一直误会到剧情里说开为止；对 {{user}} 当时的动机和感受只能说「我以为」，不能当事实。角色自己先说出的往事，{{user}} 接了才算数，没接或反驳的以后不再提。角色和 NPC 之间、NPC 和 NPC 之间的过去可以按各自设定合理补充，说出来就要前后一致。",
   ].join("\n");
   function styleText() { const t = state.settings.style; return typeof t === "string" ? t : DEFAULT_STYLE_RULES; }
   function styleOff(c) { return (c && c.style === "off") || !styleText().trim(); }
