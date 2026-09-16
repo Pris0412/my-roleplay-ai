@@ -2064,7 +2064,7 @@
           <button class="btn" id="relScan">🔍 扫描人物</button>
           <button class="btn" id="relAdd">＋ 新建</button>
           <button class="btn primary" id="relRefresh">让模型更新关系</button>
-          <button class="btn" id="relPersona" title="给还没写性格或年龄的人补上性格、说话方式和年龄：先照世界书，世界书没有就按剧情判断">补全性格</button>
+          <button class="btn" id="relPersona" title="给还没写性格、年龄或人物关系的人补上：先照世界书，世界书没有就按剧情判断">补全性格</button>
           <span class="stat" id="relMeta"></span>
         </div>
         <div class="rel-cards" id="relTable"></div>
@@ -2212,6 +2212,10 @@
       <div class="field">
         <label for="npcPersonality">性格</label>
         <textarea id="npcPersonality" style="min-height:60px" placeholder="例如：嘴碎但热心，爱管闲事，认死理；对年轻人嘴上不留情，心里护着"></textarea>
+      </div>
+      <div class="field">
+        <label for="npcOthers">和其他人的关系</label>
+        <input id="npcOthers" placeholder="例如：和老陈是师徒；和阿花不对付；和主角从小认识">
       </div>
       <div class="field">
         <label for="npcSpeech">说话方式</label>
@@ -2580,7 +2584,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.48"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.49"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5226,7 +5230,7 @@
     if (!n || typeof n !== "object" || !n.name) return null;
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
-      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), others: String(n.others || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
       age: ageNum(n.age),
       memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
@@ -5245,6 +5249,7 @@
     const lines = [];
     if (n.personality && n.personality.trim()) lines.push(`性格：${n.personality.trim()}`);
     if (n.speech && n.speech.trim()) lines.push(`说话方式：${n.speech.trim()}`);
+    if (n.others && n.others.trim()) lines.push(`和其他人：${n.others.trim()}`);
     if (!lines.length) return "";
     lines.push(`（严格保持 ${n.name} 的这份性格和说话方式，哪怕是发短信、哪怕只有一两句，也不要滑成温和客气的通用口吻。）`);
     return lines.join("\n");
@@ -5397,7 +5402,7 @@
     const all = namesOf(everyone);
     const intro = sceneMode
       ? (others.length
-        ? `这是一个沉浸式角色扮演。你从现在起同时扮演「${all}」这 ${everyone.length} 个人，用户扮演「${u}」。这是他们和 ${u} 单独相处的一段当面剧情；「${c.name}」不在场，也不知道这里发生的事。每个人按各自的设定说话行事，谁开口就写谁，不要把几个人写成一个声音。`
+        ? `这是一个沉浸式角色扮演。你从现在起同时扮演「${all}」这 ${everyone.length} 个人，用户扮演「${u}」。这是他们和 ${u} 单独相处的一段当面剧情；「${c.name}」不在场，也不知道这里发生的事。每个人按各自的设定说话行事，谁开口就写谁，不要把几个人写成一个声音。他们之间也要有交流：按各自的关系互动、插话、接梗或呛声，不要所有台词都对着 ${u} 说。`
         : `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 单独相处的一段当面剧情；「${c.name}」不在场，也不知道这里发生的事。`)
       : `这是一个沉浸式角色扮演。你从现在起完全扮演「${npc.name}」，用户扮演「${u}」。这是 ${npc.name} 和 ${u} 之间的手机私聊；「${c.name}」不在场，也不知道这段对话的内容。`;
     parts.push(intro); seg("fixed", "开场指令", intro);
@@ -5715,8 +5720,8 @@
   async function fillPersonalities() {
     const c = active();
     if (!c || personaCtl || !chatReady()) return;
-    const targets = c.npcs.filter((n) => !n.personality || !n.speech || !n.age);
-    if (!targets.length) { toast("每个人都已经有性格、说话方式和年龄了"); return; }
+    const targets = c.npcs.filter((n) => !n.personality || !n.speech || !n.age || !n.others);
+    if (!targets.length) { toast("每个人都已经有性格、说话方式、年龄和人物关系了"); return; }
     const u = state.persona.name || "用户";
     const clip = (m, k) => stripStatus(stripReasoning(sub(m.content, c))).replace(/<[^>]+>/g, "").slice(0, k);
     const lines = targets.map((n) => {
@@ -5724,12 +5729,12 @@
       return `### ${n.name}${n.aliases.length ? `（${n.aliases.join("/")}）` : ""}\n身份：${n.brief || "（无）"}\n设定原文：${(n.desc || "（无）").slice(0, 600)}\n出场片段：\n${mine.length ? mine.map((m) => `${m.role === "user" ? u : (m.npc ? n.name : c.name)}：${clip(m, 200)}`).join("\n") : "（还没出场）"}`;
     });
     const prompt = [
-      `这是一场角色扮演的资料。主角「${c.name}」，用户「${u}」。请给下面每个人物写性格、说话方式和年龄。优先照搬设定原文里的描述；原文没写的，按出场片段里的表现判断；两者都没有的，按身份和世界观合理设定，但要具体、有棱角，不要写成温和万金油。年龄：原文写了就照抄；没写就按描写和世界观猜一个最接近的具体整数，不要写范围。`,
+      `这是一场角色扮演的资料。主角「${c.name}」，用户「${u}」。请给下面每个人物写性格、说话方式、年龄，以及和其他人物的关系（通讯录里的人有：${c.npcs.map((n) => n.name).join("、")}，还有主角「${c.name}」）。优先照搬设定原文里的描述；原文没写的，按出场片段里的表现判断；两者都没有的，按身份和世界观合理设定，但要具体、有棱角，不要写成温和万金油。年龄：原文写了就照抄；没写就按描写和世界观猜一个最接近的具体整数，不要写范围。`,
       "",
       lines.join("\n\n"),
       "",
       "只输出 JSON：",
-      `{"people":[{"name":"名字","personality":"性格（30 到 60 字：脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）","age":整数年龄}]}`,
+      `{"people":[{"name":"名字","personality":"性格（30 到 60 字：脾气、习惯、对人的态度）","speech":"说话方式（20 到 40 字：句长、口头禅、语气）","age":整数年龄,"others":"和其他人物的关系（20 到 50 字：和主角、各 NPC 谁熟、谁不对付、什么渊源；资料里看不出的写「不熟」或省略）"}]}`,
     ].join("\n");
     personaCtl = new AbortController();
     $("relPersona").disabled = true; $("relPersona").textContent = "判断中…";
@@ -5744,6 +5749,7 @@
         if (!n.personality && r.personality) { n.personality = String(r.personality).slice(0, 200); k++; }
         if (!n.speech && r.speech) { n.speech = String(r.speech).slice(0, 120); k++; }
         if (!n.age && ageNum(r.age)) { n.age = ageNum(r.age); k++; }
+        if (!n.others && r.others) { n.others = String(r.others).slice(0, 200); k++; }
       }
       save(); renderRelTable(c);
       toast(k ? `已补上 ${k} 项` : "模型没有给出可用的内容");
@@ -5868,6 +5874,7 @@
     $("npcAge").value = n && n.age ? n.age : "";
     $("npcDesc").value = n ? n.desc : "";
     $("npcPersonality").value = n ? n.personality || "" : "";
+    $("npcOthers").value = n ? n.others || "" : "";
     $("npcSpeech").value = n ? n.speech || "" : "";
     $("npcSource").textContent = n && n.entryId ? "设定来自世界书条目，改这里不会改回条目。" : "";
     $("npcDelete").hidden = !n;
@@ -5881,7 +5888,7 @@
     if (!name) { toast("名字不能为空", true); $("npcName").focus(); return; }
     const aliases = $("npcAliases").value.split(/[,，、]/).map((x) => x.trim()).filter((x) => x && x !== name);
     if (c.npcs.some((x) => x !== npcEditing && x.name === name)) { toast("已经有同名的联系人了", true); return; }
-    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), image: npcImageDraft };
+    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), others: $("npcOthers").value.trim(), image: npcImageDraft };
     if (npcEditing) Object.assign(npcEditing, fields);
     else c.npcs.push(normalizeNpc(fields));
     save(); closeNpcEditor(); renderPhone(); renderMessages();
@@ -9586,11 +9593,11 @@
     if (!c.npcs || !c.npcs.length) return "";
     const u = state.persona.name || "用户";
     const p = presentNow(c);
-    const line = (n) => `- ${n.name}${n.age ? `（${n.age} 岁）` : ""}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}`;
+    const line = (n) => `- ${n.name}${n.age ? `（${n.age} 岁）` : ""}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}${n.others ? `；和其他人：${n.others}` : ""}`;
     const rule = `如果通讯录里的人在这段里来了或走了，在回复最末尾另起一行输出 <cast>名字 来了；名字 走了</cast>（只写变化，一行写完，名字必须是 ${c.npcs.map((n) => n.name).join(" / ")} 之一；路人不用写；没变化就不输出）。不在名单上的这些人不要出现，除非剧情合理地让 TA 进场并如实标出；路人和群众可以自由出现。店员、司机、服务员这类一次性人物按场合正常开口、有反应，几句就行，不用加进名单，不要因为不在名单上就让他们不说话。`;
     if (p) {
       const here = p.ids.map((id) => npcById(c, id)).filter(Boolean);
-      return `## 现在在场\n除了 ${c.name} 和 ${u}，此刻在场的通讯录人物：${here.length ? "\n" + here.map(line).join("\n") : "没有"}\n（在场的人由你代为演出，按各自的性格和说话方式来。）\n${rule}`;
+      return `## 现在在场\n除了 ${c.name} 和 ${u}，此刻在场的通讯录人物：${here.length ? "\n" + here.map(line).join("\n") : "没有"}\n（在场的人由你代为演出，按各自的性格和说话方式来。在场的人之间也要有交流：NPC 和 NPC、NPC 和路人之间按各自的关系和当下场合互动、插话、对话、互相接梗或呛声，不要所有台词都对着 ${c.name} 或 ${u} 说；谁有话谁说，${c.name} 不必每句都接。）\n${rule}`;
     }
     const fallback = recentCastInstruction(c, history);
     return (fallback ? fallback + "\n" : "") + `## 在场标记\n还没有确定的在场名单。这次回复的最末尾请另起一行报一份完整名单：<cast>在场：名字、名字</cast>（除了 ${c.name} 和 ${u} 之外此刻在场的通讯录人物；一个都没有就写 <cast>在场：无</cast>）。名字只限 ${c.npcs.map((n) => n.name).join(" / ")}，路人不算。之后：${rule}`;
