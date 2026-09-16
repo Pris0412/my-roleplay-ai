@@ -2580,7 +2580,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.47"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.48"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4275,7 +4275,7 @@
     return [
       `始终以 ${c.name} 的身份、口吻和视角说话，不要跳出角色，不要提到自己是 AI 或模型。`,
       voiceRule(c, u) || null,
-      "动作与神态用 *星号* 包住，对白直接写出或用「」引住。避免总结式或说教式的结尾。",
+      "叙述和动作用正常文字写，不要用星号或斜体包整段；对白用引号。避免总结式或说教式的结尾。",
       "推进剧情：给对方留下可以接的钩子，但不要一次推进太多。",
     ].filter(Boolean).map((r) => "- " + r).join("\n");
   }
@@ -9870,7 +9870,7 @@
 - emoji：一个代表他的 emoji
 - tags：题材 / 类型标签列表（3–5 个）
 - scenario：开场场景（${u} 和主角此刻在哪、为什么碰上，40–80 字）
-- greetings：2–3 个不同的开场白（主角视角第一条消息，动作用 *星号*，对白用「」，150–300 字，结尾留给 ${u} 接话，三个相遇方式要不同）
+- greetings：2–3 个不同的开场白（主角视角第一条消息，叙述用正常文字、不加星号，对白用「」，150–300 字，结尾留给 ${u} 接话，三个相遇方式要不同）
 - rules：写这个角色时的 3–6 条注意事项（怎么写他才像他；家境好的一定包含富人写法）
 - status：{地点, 时间, 心情, 穿着}（开场那一刻的）
 只输出 JSON：{"name":"","sections":{"基本":"yaml","外貌":"yaml",...},"tag":"","emoji":"","tags":[],"scenario":"","greetings":[],"rules":"","status":{}}`;
