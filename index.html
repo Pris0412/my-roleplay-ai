@@ -2584,7 +2584,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.49"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.50"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3299,6 +3299,22 @@
     const d = new Date(ts);
     return d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
   }
+  // Story time: the status panel's 「时间」 as it stood at each message, read from the latest status snapshot at or
+  // before it. The phone and the [手机 …] prompt prefixes show this instead of the wall clock; messages before any
+  // snapshot fall back to the real time.
+  let storyTimeCache = null;
+  function storyTimeMap(c) {
+    const sig = c.id + ":" + c.chat.length + ":" + ((c.status && c.status.updatedFloor) || 0) + ":" + (c.chat.length ? c.chat[c.chat.length - 1].id : "");
+    if (storyTimeCache && storyTimeCache.sig === sig) return storyTimeCache.map;
+    const map = new Map(); let cur = "";
+    for (const m of c.chat) {
+      if (m.statusSnap && Array.isArray(m.statusSnap.fields)) { const f = m.statusSnap.fields.find((x) => x.key === "时间"); if (f && String(f.value || "").trim()) cur = String(f.value).trim(); }
+      map.set(m.id, cur);
+    }
+    storyTimeCache = { sig, map };
+    return map;
+  }
+  function msgTime(c, m) { const t = c ? storyTimeMap(c).get(m.id) : ""; return t || fmtTime(m.ts); }
 
   // *action* → em, "speech" / 「speech」 stays, `code` → code, **bold** → strong
   function renderRich(text) {
@@ -4427,10 +4443,10 @@
     if (m.kind === "divider") return `（${sub(m.content, c)}）`;
     if (m.narration) return `[旁白] ${txt}`;
     if (m.channel === "moments") return momentLine(c, m);
-    if (m.group) { const g = groupById(c, m.group); return `[群聊·${g ? g.name : "群"} ${fmtTime(m.ts)}] ${groupSpeakerName(c, m)}：${txt}`; }
+    if (m.group) { const g = groupById(c, m.group); return `[群聊·${g ? g.name : "群"} ${msgTime(c, m)}] ${groupSpeakerName(c, m)}：${txt}`; }
     if (m.channel === "phone") {
-      if (txt.trim() === "[不回复]") return `[手机 ${fmtTime(m.ts)}] ${c.name} 看到了消息，没有回复。`;
-      return `[手机 ${fmtTime(m.ts)}] ${m.role === "user" ? (state.persona.name || "用户") : (m.npc ? npcName(c, m.npc) : c.name)}：${txt}`;
+      if (txt.trim() === "[不回复]") return `[手机 ${msgTime(c, m)}] ${c.name} 看到了消息，没有回复。`;
+      return `[手机 ${msgTime(c, m)}] ${m.role === "user" ? (state.persona.name || "用户") : (m.npc ? npcName(c, m.npc) : c.name)}：${txt}`;
     }
     return txt;
   }
@@ -6265,7 +6281,7 @@
     return map;
   }
   function momentLine(c, m) {
-    const t = fmtTime(m.ts);
+    const t = msgTime(c, m);
     if (m.kind === "comment") {
       const p = c.chat.find((x) => x.id === m.post);
       const head = p ? `${momentAuthorName(c, p.author)} 的动态「${sub(p.content, c).replace(/\s+/g, " ").slice(0, 20)}${p.content.length > 20 ? "…" : ""}」` : "一条动态";
@@ -6796,7 +6812,7 @@
           if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { g.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
           const b = el("div", "pm " + (mine ? "me" : "them"));
           b.textContent = line.replace(/^\[?撤回\]?$/, "撤回了一条消息");
-          if (li === lines.length - 1) b.appendChild(el("span", "tm", fmtTime(m.ts)));
+          if (li === lines.length - 1) b.appendChild(el("span", "tm", msgTime(c, m)));
           g.appendChild(b);
         });
       }
