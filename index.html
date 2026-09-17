@@ -2220,6 +2220,16 @@
       <div class="field">
         <label for="npcSpeech">说话方式</label>
         <input id="npcSpeech" placeholder="例如：短句多，爱用「我跟你讲」开头，偶尔冒方言">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="npcMood">心情（此刻）</label>
+          <input id="npcMood" placeholder="模型会更新，也可以手改">
+        </div>
+        <div class="field">
+          <label for="npcVoice">心声（此刻不会说出口的想法）</label>
+          <input id="npcVoice" placeholder="模型会更新，也可以手改">
+        </div>
         <div class="help">这两项会单独写进提示词，并要求严格保持，和身份设定分开。留空可以用关系图里的「补全性格」让模型按世界书和剧情判断。</div>
       </div>
       <div class="field">
@@ -2584,7 +2594,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.50"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.51"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5011,7 +5021,7 @@
       setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
       if (!msg.npc && applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); c.status.manualTs = 0; renderStatusStrip(); }
-      if (msg.npc) applyNpcStatusFromText(c, msgNpcs(msg), res.text);
+      if (msg.npc && applyNpcStatusFromText(c, msgNpcs(msg), res.text)) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); if (!$("stBack").hidden) renderRelTable(c); }
       if (!msg.npc) { const pn = presentNow(c); if (pn && pn.ids.length && applyPresentRelFromText(c, pn.ids, res.text) && !$("stBack").hidden) renderRelTable(c); }
       if (applyAgesFromText(c, res.text)) afterAges(c);
       if (mvuInitEntry(c) && /<UpdateVariable>/i.test(res.text || "")) { const d = mvuData(c); feEmit("mag_variable_updated", { stat_data: d }); feEmit("mag_variable_update_ended", { stat_data: d }); }
@@ -5246,7 +5256,7 @@
     if (!n || typeof n !== "object" || !n.name) return null;
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
-      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), others: String(n.others || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), others: String(n.others || ""), mood: String(n.mood || ""), voice: String(n.voice || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
       age: ageNum(n.age),
       memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
@@ -5581,6 +5591,7 @@
       ops.append(ed, del); hd.appendChild(ops);
       card.appendChild(hd);
       if (n.personality || n.speech) { const pl = el("div", "help", [n.personality ? `性格：${n.personality}` : "", n.speech ? `说话：${n.speech}` : ""].filter(Boolean).join("　")); pl.style.margin = "0"; card.appendChild(pl); }
+      if (n.mood || n.voice) { const ml = el("div", "help", [n.mood ? `心情：${n.mood}` : "", n.voice ? `💭 ${n.voice}` : ""].filter(Boolean).join("　")); ml.style.margin = "0"; ml.style.color = "var(--text)"; card.appendChild(ml); }
       card.appendChild(relLine(c, "u", n, `和 ${u}`));
       card.appendChild(relLine(c, "c", n, `和 ${c.name}`));
       box.appendChild(card);
@@ -5593,14 +5604,17 @@
   function npcStatusInstruction(c, npc, others) {
     const u = state.persona.name || "用户";
     const all = [npc, ...(others || [])];
-    const cur = all.map((n) => { const r = relGet(c, "u", n.id); return `${n.name} 和 ${u}：${r.set ? `${r.rel || "（未定）"}（好感 ${r.aff}/100）` : "还没有明确关系（按初次接触算）"}`; }).join("；");
+    const cur = all.map((n) => { const r = relGet(c, "u", n.id); return `${n.name} 和 ${u}：${r.set ? `${r.rel || "（未定）"}（好感 ${r.aff}/100）` : "还没有明确关系（按初次接触算）"}；心情：${n.mood || "（未知）"}${n.voice ? `；上一次的心声：${n.voice}` : ""}`; }).join("。");
+    const stF = (k) => { const f = c.status && c.status.fields.find((x) => x.key === k); return f && f.value ? String(f.value) : ""; };
+    const scene = [stF("时间") ? `时间：${stF("时间")}` : "", stF("地点") ? `地点：${stF("地点")}` : ""].filter(Boolean).join("，");
+    const one = (n) => ({ "关系": relGet(c, "u", n.id).rel || "…", "好感度": relGet(c, "u", n.id).set ? relGet(c, "u", n.id).aff : 50, "原因": "变化原因，没变就省略", "心情": n.mood || "…", "心声": `${n.name}此刻不会说出口的真实想法，一两句，第一人称` });
     const example = all.length > 1
-      ? JSON.stringify(Object.fromEntries(all.map((n) => [n.name, { "关系": relGet(c, "u", n.id).rel || "…", "好感度": relGet(c, "u", n.id).set ? relGet(c, "u", n.id).aff : 50, "原因": "变化原因，没变就省略" }])))
-      : JSON.stringify({ "关系": relGet(c, "u", npc.id).rel || "…", "好感度": relGet(c, "u", npc.id).set ? relGet(c, "u", npc.id).aff : 50, "原因": "变化原因，没变就省略" });
+      ? JSON.stringify({ ...Object.fromEntries(all.map((n) => [n.name, one(n)])), "时间": stF("时间") || "…", "地点": stF("地点") || "…" })
+      : JSON.stringify({ ...one(npc), "时间": stF("时间") || "…", "地点": stF("地点") || "…" });
     return [
-      "## 关系变化",
-      `目前：${cur}。`,
-      `在每次回复的最末尾另起一行输出一个状态块，更新${all.length > 1 ? "每个人" : npc.name}和 ${u} 的关系：只在真的变了时改，好感数值要合理渐变（一次通常不超过 5），关系词 2 到 6 个字。格式严格如下，不要加别的内容：`,
+      "## 状态",
+      `目前：${cur}。${scene ? `${scene}。` : ""}`,
+      `在每次回复的最末尾另起一行输出一个状态块，更新${all.length > 1 ? "每个人" : npc.name}和 ${u} 的关系、心情和心声，以及时间和地点：关系只在真的变了时改，好感数值要合理渐变（一次通常不超过 5），关系词 2 到 6 个字；心情简短；心声每次都写；时间、地点变了就写新的。格式严格如下，键名照抄，不要加别的内容：`,
       `<status>${example}</status>`,
     ].join("\n");
   }
@@ -5622,10 +5636,20 @@
       const why = typeof o["原因"] === "string" && !/没变|省略/.test(o["原因"]) ? o["原因"] : "";
       const note = typeof o["现状"] === "string" ? o["现状"] : undefined;
       relSet(c, "u", n.id, rel, aff, note, why); changed = true;
+      if (typeof o["心情"] === "string" && o["心情"].trim() && o["心情"].trim() !== "…") { n.mood = o["心情"].trim().slice(0, 40); }
+      if (typeof o["心声"] === "string" && o["心声"].trim() && !/不会说出口的真实想法/.test(o["心声"])) { n.voice = o["心声"].trim().slice(0, 200); }
     };
     const byName = list.filter((n) => obj[n.name] && typeof obj[n.name] === "object");
     if (byName.length) byName.forEach((n) => applyOne(n, obj[n.name]));
-    else if ("关系" in obj || "好感度" in obj) applyOne(list[0], obj);
+    else if ("关系" in obj || "好感度" in obj || "心情" in obj) applyOne(list[0], obj);
+    // scene-level time and place live on the character's status panel so the phone's story time and the main scene stay in step
+    if (c.status && c.status.enabled) for (const k of ["时间", "地点"]) {
+      const v = typeof obj[k] === "string" ? obj[k].trim() : "";
+      if (!v || v === "…") continue;
+      let f = c.status.fields.find((x) => x.key === k);
+      if (!f) { f = { key: k, type: "text", value: "" }; c.status.fields.push(f); }
+      if (f.value !== v) { f.value = v; changed = true; c.status.updatedFloor = floorCount(c); }
+    }
     return changed;
   }
   function maybeAutoRelRefresh(c) {
@@ -5699,11 +5723,13 @@
     const u = state.persona.name || "用户";
     const fmt = (r) => r.set ? `${r.rel || "（未定）"}（好感 ${r.aff}/100）` : "还没有明确关系";
     const cur = here.map((n) => `${n.name}：和 ${u} ${fmt(relGet(c, "u", n.id))}；和 ${c.name} ${fmt(relGet(c, "c", n.id))}`).join("。");
-    const ex = JSON.stringify({ [here[0].name]: { "和你": { "关系": "关系词", "好感度": 50, "原因": "变化原因" }, "和主角": { "关系": "关系词", "好感度": 50, "原因": "变化原因" } } });
+    const ex = JSON.stringify({ [here[0].name]: { "心情": "简短", "心声": "此刻不会说出口的想法，一句", "和你": { "关系": "关系词", "好感度": 50, "原因": "变化原因" }, "和主角": { "关系": "关系词", "好感度": 50, "原因": "变化原因" } } });
+    const moods = here.map((n) => `${n.name}：心情 ${n.mood || "（未知）"}${n.voice ? `，上次心声「${n.voice}」` : ""}`).join("；");
     return [
       "## 在场人物的关系",
-      `目前：${cur}。`,
-      `这一楼里在场的通讯录人物如果和 ${u}（写作"和你"）或和 ${c.name}（写作"和主角"）的关系、好感真的变了，在回复最末尾另起一行输出：<rel>${ex}</rel>。只写变了的人和变了的那一侧，好感数值渐变（一次通常不超过 5），关系词 2 到 6 个字；没人变就不输出。`,
+      `目前：${cur}。${moods}。`,
+      `每个在场的通讯录人物这一楼都写心情和心声（在他的名字下面，心情简短，心声一句第一人称）。`,
+      `这一楼里在场的通讯录人物如果和 ${u}（写作"和你"）或和 ${c.name}（写作"和主角"）的关系、好感真的变了，在回复最末尾另起一行输出：<rel>${ex}</rel>。关系只写变了的人和变了的那一侧，好感数值渐变（一次通常不超过 5），关系词 2 到 6 个字；心情和心声每楼都写，所以这个块每楼都要有。`,
     ].join("\n");
   }
   function applyPresentRelFromText(c, ids, text) {
@@ -5719,6 +5745,8 @@
     for (const [name, sides] of Object.entries(obj)) {
       const n = c.npcs.find((x) => x.name === name || x.aliases.includes(name));
       if (!n || !sides || typeof sides !== "object") continue; // any known contact: the same reply may have just brought someone in
+      if (typeof sides["心情"] === "string" && sides["心情"].trim()) { n.mood = sides["心情"].trim().slice(0, 40); changed = true; }
+      if (typeof sides["心声"] === "string" && sides["心声"].trim()) { n.voice = sides["心声"].trim().slice(0, 200); changed = true; }
       for (const [k, o] of Object.entries(sides)) {
         const side = sideOf(String(k).trim());
         if (!side || !o || typeof o !== "object") continue;
@@ -5892,6 +5920,7 @@
     $("npcPersonality").value = n ? n.personality || "" : "";
     $("npcOthers").value = n ? n.others || "" : "";
     $("npcSpeech").value = n ? n.speech || "" : "";
+    $("npcMood").value = n ? n.mood || "" : ""; $("npcVoice").value = n ? n.voice || "" : "";
     $("npcSource").textContent = n && n.entryId ? "设定来自世界书条目，改这里不会改回条目。" : "";
     $("npcDelete").hidden = !n;
     $("npcBack").hidden = false;
@@ -5904,7 +5933,7 @@
     if (!name) { toast("名字不能为空", true); $("npcName").focus(); return; }
     const aliases = $("npcAliases").value.split(/[,，、]/).map((x) => x.trim()).filter((x) => x && x !== name);
     if (c.npcs.some((x) => x !== npcEditing && x.name === name)) { toast("已经有同名的联系人了", true); return; }
-    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), others: $("npcOthers").value.trim(), image: npcImageDraft };
+    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), others: $("npcOthers").value.trim(), mood: $("npcMood").value.trim(), voice: $("npcVoice").value.trim(), image: npcImageDraft };
     if (npcEditing) Object.assign(npcEditing, fields);
     else c.npcs.push(normalizeNpc(fields));
     save(); closeNpcEditor(); renderPhone(); renderMessages();
@@ -6784,7 +6813,7 @@
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
     const typing = grp ? groupTyping === grp.id : (busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone" && (m.npc || null) === phoneWith));
     const charChat = !grp && !npc;
-    $("phoneStatus").textContent = grp ? (typing ? "有人正在输入…" : `${grp.members.length + 1} 人 · ${grp.members.map((id) => groupMemberName(c, id)).join("、")}`) : typing ? "正在输入…" : npc ? (npcAppeared(c, npc) ? "在线" : "还没在故事里出场 · 初次联系") : phoneMode(c) === "together" ? "🤫 同一场合，悄悄发 ▾" : `🚶 不在一处${st && st.value ? ` · TA 在${st.value}` : ""} ▾`;
+    $("phoneStatus").textContent = grp ? (typing ? "有人正在输入…" : `${grp.members.length + 1} 人 · ${grp.members.map((id) => groupMemberName(c, id)).join("、")}`) : typing ? "正在输入…" : npc ? (npcAppeared(c, npc) ? `在线${npc.mood ? " · " + npc.mood : ""}` : "还没在故事里出场 · 初次联系") : phoneMode(c) === "together" ? "🤫 同一场合，悄悄发 ▾" : `🚶 不在一处${st && st.value ? ` · TA 在${st.value}` : ""} ▾`;
     $("phoneStatus").classList.toggle("link", charChat && !typing);
     $("phoneStatus").title = charChat ? "点一下切换：不在一处 / 同一场合悄悄发，或补充情境" : "";
     $("phoneStatus").onclick = charChat && !typing ? openPhoneSceneSwitch : null;
@@ -6881,6 +6910,23 @@
     const strip = $("statusStrip");
     if (!c || !c.status || !c.status.enabled || c.status.showStrip !== true) { strip.hidden = true; return; }
     strip.innerHTML = "";
+    const scl = sceneNpcs(c);
+    if (scl.length) {
+      // alone with contacts: their side of the story, plus the scene's time and place
+      const u = state.persona.name || "你";
+      for (const n of scl) {
+        const r = relGet(c, "u", n.id);
+        const sp = el("span", "sp"); sp.appendChild(el("b", null, n.name));
+        if (r.set) { const bar = el("span", "bar"); const fill = el("span"); fill.style.width = r.aff + "%"; bar.appendChild(fill); sp.appendChild(el("span", null, r.rel || "")); sp.appendChild(bar); sp.appendChild(el("span", null, String(r.aff))); }
+        if (n.mood) sp.appendChild(el("span", null, "· " + n.mood));
+        strip.appendChild(sp);
+        if (n.voice) strip.appendChild(el("span", "voice", `💭 ${scl.length > 1 ? n.name + "：" : ""}${n.voice}`));
+      }
+      for (const k of ["时间", "地点"]) { const f = c.status.fields.find((x) => x.key === k); if (f && f.value) { const sp = el("span", "sp"); sp.appendChild(el("b", null, k)); sp.appendChild(el("span", null, f.value)); strip.appendChild(sp); } }
+      const hide = el("button", "hide", "收起"); hide.onclick = (e) => { e.stopPropagation(); c.status.showStrip = false; save(); renderStatusStrip(); };
+      strip.appendChild(hide); strip.hidden = false;
+      return;
+    }
     for (const f of c.status.fields) {
       if (f.type !== "number" && !f.value) continue;
       const sp = el("span", "sp");
