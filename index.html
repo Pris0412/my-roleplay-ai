@@ -523,6 +523,37 @@
   .pm.read { align-self: flex-end; background: transparent; color: #8e8e93; font-size: 11px; padding: 0 6px; }
   .pm.nm { align-self: flex-start; background: transparent; color: #8e8e93; font-size: 11px; padding: 4px 6px 0; }
   .pm.act { align-self: center; background: transparent; color: #8e8e93; font-size: 12px; font-style: italic; padding: 4px 0; max-width: 100%; text-align: center; }
+  /* rich messages: image card, transfer / red packet, sticker, recalled-with-peek */
+  .pm.img { padding: 0; overflow: hidden; background: #fff; border: 1px solid rgba(0,0,0,0.1); max-width: 62%; }
+  .phone.dark .pm.img { background: #1c1c1e; border-color: rgba(255,255,255,0.12); }
+  .pm.img .ph { height: 110px; display: grid; place-items: center; font-size: 34px; background: linear-gradient(135deg, #e9e9eb, #d8d8dc); color: #8e8e93; }
+  .phone.dark .pm.img .ph { background: linear-gradient(135deg, #2c2c2e, #3a3a3c); }
+  .pm.img .cap { padding: 7px 10px; font-size: 13px; color: #111; }
+  .phone.dark .pm.img .cap { color: #f2f2f7; }
+  .pm.pay { padding: 0; overflow: hidden; background: #f5a04a; color: #fff; min-width: 190px; max-width: 62%; }
+  .pm.pay .top { display: flex; gap: 10px; align-items: center; padding: 10px 12px; }
+  .pm.pay .top .ic { font-size: 26px; }
+  .pm.pay .amt { font-size: 16px; font-weight: 600; }
+  .pm.pay .note { font-size: 12px; opacity: 0.9; }
+  .pm.pay .bot { background: rgba(255,255,255,0.92); color: #8e8e93; font-size: 11px; padding: 4px 12px; }
+  .pm.pay.red { background: #e8453c; }
+  .pm.sticker { background: transparent; padding: 2px 6px; font-size: 54px; line-height: 1; }
+  .pm.sticker .tm { position: static; display: block; font-size: 11px; color: #8e8e93; text-align: right; }
+  .pm.recall { align-self: center; background: transparent; color: #8e8e93; font-size: 11px; padding: 6px 0; max-width: 100%; text-align: center; }
+  .pm.recall button { border: 0; background: transparent; color: #0a84ff; font-size: 11px; cursor: pointer; padding: 0 4px; }
+  .pm.recall .peek { display: block; margin-top: 4px; color: #111; font-size: 13px; background: #fff3cd; border-radius: 10px; padding: 6px 10px; text-align: left; }
+  .phone.dark .pm.recall .peek { background: #3a3218; color: #f2f2f7; }
+  .phone-extra { display: none; flex-wrap: wrap; gap: 6px; padding: 8px 10px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.08); }
+  .phone-extra.on { display: flex; }
+  .phone.dark .phone-extra { background: rgba(28,28,30,0.94); border-top-color: rgba(255,255,255,0.1); }
+  .phone-extra .stk { font-size: 26px; line-height: 1; padding: 4px 6px; border: 0; background: transparent; cursor: pointer; border-radius: 8px; }
+  .phone-extra .stk:hover { background: rgba(0,0,0,0.06); }
+  .phone-extra .frm { display: flex; gap: 6px; width: 100%; align-items: center; }
+  .phone-extra .frm input { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15); font-size: 13px; }
+  .phone-extra .frm input.amt { flex: 0 0 90px; }
+  .phone-extra .frm button { padding: 6px 10px; border-radius: 10px; border: 0; background: #0a84ff; color: #fff; font-size: 13px; cursor: pointer; }
+  .phone-extra .frm label { font-size: 12px; color: #8e8e93; flex: 0 0 auto; }
+  .phone-foot .ib.plus { font-size: 22px; line-height: 1; padding: 4px 8px; }
   .scene-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .scene-opt {
     text-align: left; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--raised); color: var(--text);
@@ -2321,7 +2352,13 @@
       <button class="btn ghost" id="phoneContacts" title="联系人：角色和可以私聊的 NPC">👥</button>
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
+    <div class="phone-extra" id="phoneExtra">
+      <div id="phoneStickers" style="display:flex;flex-wrap:wrap;gap:2px;width:100%"></div>
+      <div class="frm"><label>图片</label><input id="phoneImgDesc" placeholder="一句描述，例如：桌上两杯奶茶"><button id="phoneImgSend" type="button">发图</button></div>
+      <div class="frm"><label>转账</label><input id="phonePayAmt" class="amt" type="number" min="1" placeholder="金额"><input id="phonePayNote" placeholder="备注（可空）"><button id="phonePaySend" type="button">转账</button><button id="phoneRedSend" type="button" style="background:#e8453c">红包</button></div>
+    </div>
     <div class="phone-foot">
+      <button class="ib plus" id="phonePlus" title="表情 / 图片 / 转账" aria-label="更多">＋</button>
       <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
       <button class="send" id="phoneSend" aria-label="发送">↑</button>
     </div>
@@ -2594,7 +2631,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.51"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.52"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4478,7 +4515,31 @@
       `- 不要替 ${u} 发消息或猜 ${u} 的回复。`,
       `- 如果 ${c.name} 此刻不想回、没空或故意晾着对方，只输出一行 [不回复]。`,
       "- 语气跟着角色此刻的心情、和对方的关系、以及刚才正文里发生的事走；可以用表情符号但别滥用。",
+      PHONE_RICH_RULE,
     ].filter(Boolean).join("\n");
+  }
+  // rich message markers: the model writes these on a line of their own; the phone renders them as cards
+  const STICKERS = { "狗头": "🐶", "哭": "😭", "笑哭": "😂", "白眼": "🙄", "亲亲": "😘", "生气": "😠", "害羞": "😳", "摊手": "🤷", "比心": "🫶", "拜托": "🙏", "加油": "💪", "睡觉": "😴", "疑问": "❓", "无语": "😑", "偷笑": "🤭", "心碎": "💔", "火": "🔥", "玫瑰": "🌹", "OK": "👌", "赞": "👍", "抱抱": "🤗", "叹气": "😮‍💨", "尴尬": "😅", "得意": "😏" };
+  const PHONE_RICH_RULE = `- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；[表情：名字]（名字只限 ${Object.keys(STICKERS).join(" / ")}）；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。`;
+  const RICH_RE = { img: /^\[图片[：:]\s*(.+?)\]$/, pay: /^\[(转账|红包)\s*[¥￥]?\s*([\d.,]+)\s*(?:元)?\s*(?:备注[：:]\s*(.*?))?\s*\]$/, stk: /^\[表情[：:]\s*(.+?)\]$/, recall: /^\[?撤回(?:[：:]\s*(.+?))?\]?$/ };
+  // one phone line → a bubble node; plain text falls through to the caller
+  function richBubble(line, mine, who) {
+    let m;
+    if ((m = line.match(RICH_RE.img))) { const b = el("div", "pm img " + (mine ? "me" : "them")); b.appendChild(el("div", "ph", "🖼")); b.appendChild(el("div", "cap", m[1])); return b; }
+    if ((m = line.match(RICH_RE.pay))) {
+      const red = m[1] === "红包"; const b = el("div", "pm pay " + (red ? "red " : "") + (mine ? "me" : "them"));
+      const top = el("div", "top"); top.appendChild(el("span", "ic", red ? "🧧" : "💴"));
+      const col = el("div"); col.appendChild(el("div", "amt", `¥${m[2]}`)); col.appendChild(el("div", "note", m[3] || (red ? "恭喜发财，大吉大利" : "转账给你"))); top.appendChild(col);
+      b.appendChild(top); b.appendChild(el("div", "bot", red ? "微信红包" : "微信转账")); return b;
+    }
+    if ((m = line.match(RICH_RE.stk))) { const e = STICKERS[m[1].trim()] || STICKERS[m[1].trim().toUpperCase()]; if (e) { const b = el("div", "pm sticker " + (mine ? "me" : "them")); b.appendChild(el("span", null, e)); b.title = m[1]; return b; } }
+    if ((m = line.match(RICH_RE.recall))) {
+      const b = el("div", "pm recall"); b.appendChild(el("span", null, `${mine ? "你" : who} 撤回了一条消息`));
+      if (m[1] && !mine) { const pk = el("button", null, "偷看"); pk.type = "button"; pk.onclick = (e) => { e.stopPropagation(); pk.replaceWith(el("span", "peek", m[1])); }; b.appendChild(pk); }
+      else if (m[1] && mine) b.appendChild(el("span", "peek", m[1]));
+      return b;
+    }
+    return null;
   }
 
   let lastReport = null;
@@ -6211,6 +6272,7 @@
     { const nb = notesBlock(c, "group:" + g.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
     const rules = [
       "## 群聊规则",
+      PHONE_RICH_RULE.replace(/^- /, "- 消息里"),
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
       "- 一次输出 3 到 6 条，谁说话、说几条按各自的性格、关系和话题决定；不想说的人可以不出现，也可以有人只回一个表情或一个字。",
       "- 像真人在群里聊天：短句、口语、可以 @某人、互相接梗或呛声，不写动作描写、不写旁白、不加引号。",
@@ -6839,8 +6901,10 @@
         const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
         lines.forEach((line, li) => {
           if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { g.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
+          const rich = richBubble(line, mine, who);
+          if (rich) { if (li === lines.length - 1 && rich.classList.contains("sticker")) rich.appendChild(el("span", "tm", msgTime(c, m))); g.appendChild(rich); return; }
           const b = el("div", "pm " + (mine ? "me" : "them"));
-          b.textContent = line.replace(/^\[?撤回\]?$/, "撤回了一条消息");
+          b.textContent = line;
           if (li === lines.length - 1) b.appendChild(el("span", "tm", msgTime(c, m)));
           g.appendChild(b);
         });
@@ -9091,6 +9155,16 @@
   $("phoneExit").onclick = () => { if (phoneWith) closePhoneView(); else exitPhone(true); };
   $("phoneBack").addEventListener("click", (e) => { if (e.target === $("phoneBack")) closePhoneView(); });
   $("phoneSend").onclick = phoneSend;
+  // "+" panel: stickers, an image card, a transfer or red packet, each sent as a marker line
+  {
+    const box = $("phoneStickers");
+    for (const [name, e] of Object.entries(STICKERS)) { const b = el("button", "stk", e); b.type = "button"; b.title = name; b.onclick = () => phoneSendText(`[表情：${name}]`); box.appendChild(b); }
+    $("phonePlus").onclick = () => { $("phoneExtra").classList.toggle("on"); };
+    $("phoneImgSend").onclick = () => { const d = $("phoneImgDesc").value.trim(); if (!d) { toast("写一句图片的描述", true); return; } $("phoneImgDesc").value = ""; phoneSendText(`[图片：${d}]`); };
+    const pay = (kind) => { const a = String($("phonePayAmt").value || "").trim(); if (!a || !(Number(a) > 0)) { toast("填一个金额", true); return; } const n = $("phonePayNote").value.trim(); $("phonePayAmt").value = ""; $("phonePayNote").value = ""; phoneSendText(`[${kind} ¥${a}${n ? ` 备注：${n}` : ""}]`); };
+    $("phonePaySend").onclick = () => pay("转账"); $("phoneRedSend").onclick = () => pay("红包");
+  }
+  function phoneSendText(text) { const ta = $("phoneInput"); const keep = ta.value; ta.value = text; $("phoneExtra").classList.remove("on"); phoneSend().then(() => { if (keep && !ta.value) ta.value = keep; }); }
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
   $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneNudge").onclick = () => phoneNudge("first");
