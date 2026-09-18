@@ -2642,7 +2642,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.60"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.61"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3377,6 +3377,19 @@
     return map;
   }
   function msgTime(c, m) { const t = c ? storyTimeMap(c).get(m.id) : ""; return t || fmtTime(m.ts); }
+  // for the summarizers: "[3021年4月12日 周三 傍晚 · 书店] " on the messages where the story time (and place, when wanted) changed
+  function storyTags(c, msgs, withPlace) {
+    const want = new Set(msgs.map((m) => m.id));
+    const out = new Map(); let t = "", pl = "", last = null;
+    for (const m of c.chat) {
+      if (m.statusSnap && Array.isArray(m.statusSnap.fields)) for (const f of m.statusSnap.fields) { const v = String(f.value || "").trim(); if (!v) continue; if (f.key === "时间") t = v; else if (f.key === "地点") pl = v; }
+      if (!want.has(m.id)) continue;
+      const usePlace = typeof withPlace === "function" ? withPlace(m) : !!withPlace;
+      const tag = [t, usePlace ? pl : ""].filter(Boolean).join(" · ");
+      if (tag && tag !== last) { out.set(m.id, `[${tag}] `); last = tag; }
+    }
+    return out;
+  }
   // for bubbles: drop the leading "3021年4月12日" so the stamp stays short; prompts keep the full value
   function shortTime(t) { const s = String(t || "").replace(/^\s*\d{2,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*[,，·]?\s*/, "").trim(); return s || String(t || ""); }
 
@@ -6731,24 +6744,48 @@
     return sh.length ? `+ ${sh.map((id) => npcName(c, id)).join("、")}` : "";
   }
   const DEFAULT_NPC_MEM_PROMPT = [
-    "你是这场角色扮演的记录员。下面是「{{npc}}」和「{{user}}」之间一段手机私聊的原文（{{char}} 不在场，也不知道这段对话）。请把这段私聊压缩成便于 {{npc}} 日后回忆的记忆摘要。",
+    "你是这场角色扮演的记录员。下面是「{{npc}}」和「{{user}}」之间的私聊原文（{{char}} 不在场，也不知道这段对话），每条前面方括号里是当时的剧情时间（只在变化时标出；当面的段落也会标地点）。请把这段私聊压缩成便于 {{npc}} 日后回忆的记忆摘要。",
     "",
-    "要求：",
-    "- 按时间顺序写清聊了什么：透露的信息、做出的决定和约定、两人态度的变化。",
-    "- 保留具体的名字、数字、时间和承诺，去掉修辞和重复。",
-    "- 用第三人称的陈述句，直接写摘要本身，不要标题、不要评论，200 字以内。",
+    "写什么：",
+    "- 只写已经发生的事实，按时间顺序：时间、双方说了什么关键的话、透露的信息、做出的决定和约定、态度的变化（写成具体的话或行为，不写形容词）、结果如何。",
+    "- 已经成立的约定、条件、交易、冲突、决定，以及明显的状态变化（关系、位置、伤病、身份、持有的物品）一条都不能漏；闲聊和重复可以压缩。",
+    "- 出现物品、金额、证据、代号、职位、伤病、身体变化时写清具体内容，不要泛化成「某物」「发生了变化」。",
+    "- 能确定谁在场、谁目击、谁参与时写明，避免日后知情范围混乱。",
+    "- 一件事跨了几条就合并成一件完整的事，不要按条切碎。",
+    "- 暴力、亲密、羞辱、伤病等内容照实记，用客观中性的措辞，不跳过也不美化。",
+    "",
+    "怎么写：",
+    "- 第三人称陈述句，纯文本，不加标题、编号、项目符号、评论，200 字以内。",
+    "- 时间直接用方括号里标的；原文没有的不要补。动机、立场、因果原文没写就保持没有。",
+    "",
+    "不要写：",
+    "- 猜测、评价、气氛渲染、心理分析。",
+    "- 「暧昧气氛」「心理博弈」「占有欲」「进行安抚」这类抽象标签，写他们具体做了什么、说了什么。",
+    "- 「有人威胁了对方」「双方达成条件」这种空话，写清威胁的内容、条件是什么。",
     "",
     "{{previous}}",
     "=== {{range}} ===",
     "{{messages}}",
   ].join("\n");
   const DEFAULT_GROUP_MEM_PROMPT = [
-    "你是这场角色扮演的记录员。下面是群「{{npc}}」里的一段群聊原文，成员：{{members}}。请把这段群聊压缩成便于群里每个人日后回忆的记忆摘要。",
+    "你是这场角色扮演的记录员。下面是群「{{npc}}」里的一段群聊原文，成员：{{members}}，每条前面方括号里是当时的剧情时间（只在变化时标出）。请把这段群聊压缩成便于群里每个人日后回忆的记忆摘要。",
     "",
-    "要求：",
-    "- 按时间顺序写清聊了什么：谁透露了什么、达成的约定、谁和谁起了摩擦或走近了。",
-    "- 保留具体的名字、数字、时间和承诺，去掉修辞和重复。",
-    "- 用第三人称的陈述句，直接写摘要本身，不要标题、不要评论，200 字以内。",
+    "写什么：",
+    "- 只写已经发生的事实，按时间顺序：时间、谁说了什么关键的话、谁透露了什么、达成的约定、谁和谁起了摩擦或走近了（写成具体的话或行为，不写形容词）、结果如何。",
+    "- 已经成立的约定、条件、交易、冲突、决定，以及明显的状态变化（关系、位置、伤病、身份、持有的物品）一条都不能漏；闲聊和重复可以压缩。",
+    "- 出现物品、金额、证据、代号、职位、伤病、身体变化时写清具体内容，不要泛化成「某物」「发生了变化」。",
+    "- 能确定谁在场、谁目击、谁参与时写明，避免日后知情范围混乱。",
+    "- 一件事跨了几条就合并成一件完整的事，不要按条切碎。",
+    "- 暴力、亲密、羞辱、伤病等内容照实记，用客观中性的措辞，不跳过也不美化。",
+    "",
+    "怎么写：",
+    "- 第三人称陈述句，纯文本，不加标题、编号、项目符号、评论，200 字以内。",
+    "- 时间直接用方括号里标的；原文没有的不要补。动机、立场、因果原文没写就保持没有。",
+    "",
+    "不要写：",
+    "- 猜测、评价、气氛渲染、心理分析。",
+    "- 「暧昧气氛」「心理博弈」「占有欲」「进行安抚」这类抽象标签，写他们具体做了什么、说了什么。",
+    "- 「有人威胁了对方」「双方达成条件」这种空话，写清威胁的内容、条件是什么。",
     "",
     "{{previous}}",
     "=== {{range}} ===",
@@ -6886,7 +6923,8 @@
   function buildNpcMemPrompt(c, npc, msgsOpt, templateOpt) {
     const u = state.persona.name || "用户";
     const msgs = msgsOpt || npcUnsummarized(c, npc);
-    const lines = msgs.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${m.group ? "" : m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : npc.name}：${textOnly(sub(m.content, c))}`).join("\n");
+    const tags = storyTags(c, msgs.filter((m) => m.kind !== "divider"), (m) => !m.group && m.channel !== "phone");
+    const lines = msgs.map((m) => m.kind === "divider" ? `（${sub(m.content, c)}）` : `${tags.get(m.id) || ""}${m.group ? "" : m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : npc.name}：${textOnly(sub(m.content, c))}`).join("\n");
     const book = memoryBook(c, false, npc);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim()).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
     let prompt = templateOpt || $("memPrompt").value || (npc.isGroup ? DEFAULT_GROUP_MEM_PROMPT : DEFAULT_NPC_MEM_PROMPT);
@@ -7588,13 +7626,24 @@
 
   // ---------- Memory summaries → a character-bound "记忆" lorebook ----------
   const DEFAULT_MEM_PROMPT = [
-    "你是这场角色扮演的记录员。下面是「{{char}}」和「{{user}}」之间第 {{range}} 楼的对话原文。请把这段剧情压缩成便于日后回忆的记忆摘要。",
+    "你是这场角色扮演的记录员。下面是「{{char}}」和「{{user}}」之间第 {{range}} 楼的对话原文，楼号后面方括号里是当时的剧情时间和地点（只在变化时标出）。请把这段剧情压缩成便于日后回忆的记忆摘要。",
     "",
-    "要求：",
-    "- 按时间顺序写清发生了什么：地点变化、关键对话、做出的决定和约定。",
-    "- 记录两人关系和情绪的变化，以及新出现的人物、物品、设定。",
-    "- 保留具体的名字、数字、时间和承诺，去掉修辞和重复。",
-    "- 用第三人称的陈述句，直接写摘要本身，不要标题、不要评论，300 字以内。",
+    "写什么：",
+    "- 只写已经发生的事实，按时间顺序：时间、地点、在场的人、做了什么、说了什么关键的话、结果如何。",
+    "- 已经成立的约定、条件、交易、冲突、决定，以及明显的状态变化（关系、位置、伤病、身份、持有的物品）一条都不能漏；闲聊和重复可以压缩。",
+    "- 出现物品、金额、证据、代号、职位、伤病、身体变化时写清具体内容，不要泛化成「某物」「发生了变化」。",
+    "- 能确定谁在场、谁目击、谁参与时写明，避免日后知情范围混乱。",
+    "- 一件事跨了几楼就合并成一件完整的事，不要按楼切碎。",
+    "- 暴力、亲密、羞辱、伤病等内容照实记，用客观中性的措辞，不跳过也不美化。",
+    "",
+    "怎么写：",
+    "- 第三人称陈述句，纯文本，不加标题、编号、项目符号、评论，300 字以内。",
+    "- 时间、地点直接用方括号里标的；原文没有的不要补。动机、立场、因果原文没写就保持没有。",
+    "",
+    "不要写：",
+    "- 猜测、评价、气氛渲染、心理分析。",
+    "- 「暧昧气氛」「心理博弈」「占有欲」「进行安抚」这类抽象标签，写他们具体做了什么、说了什么。",
+    "- 「有人威胁了对方」「双方达成条件」这种空话，写清威胁的内容、条件是什么。",
     "",
     "{{previous}}",
     "=== 第 {{range}} 楼 ===",
@@ -7838,13 +7887,16 @@
   function buildMainMemPrompt(c, from, to, template) {
     const u = state.persona.name || "用户";
     let fl = from - 1;
-    const lines = chatRange(c, from, to).map((m) => {
+    const range = chatRange(c, from, to);
+    const tags = storyTags(c, range.filter((m) => !m.npc && !m.group && m.kind !== "divider"), true);
+    const lines = range.map((m) => {
       if (m.npc || m.group) { if (m.kind !== "divider") fl++; return null; } // private threads and group chats have their own summaries
       if (m.kind === "divider") return `（${sub(m.content, c)}）`;
       fl++;
-      if (m.channel === "moments") return `#${fl} ${momentLine(c, m)}`;
-      if (m.narration) return `#${fl} 旁白：${textOnly(sub(m.content, c))}`;
-      return `#${fl} ${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${textOnly(sub(m.content, c))}`;
+      const tg = tags.get(m.id) || "";
+      if (m.channel === "moments") return `#${fl} ${tg}${momentLine(c, m)}`;
+      if (m.narration) return `#${fl} ${tg}旁白：${textOnly(sub(m.content, c))}`;
+      return `#${fl} ${tg}${m.channel === "phone" ? "[手机] " : ""}${m.role === "user" ? u : c.name}：${textOnly(sub(m.content, c))}`;
     }).filter(Boolean).join("\n\n");
     const book = memoryBook(c, false);
     const prev = book ? book.entries.filter((e) => e.enabled && e.content.trim() && entryScope(e) !== "public" && !entryScope(e).startsWith("npc:")).map((e) => `【${e.comment}】${e.content.trim()}`).join("\n") : "";
