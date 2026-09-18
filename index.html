@@ -2642,7 +2642,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.59"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.60"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2887,6 +2887,8 @@
   const MVU_RE = /<UpdateVariable>\s*([\s\S]*?)\s*<\/UpdateVariable>/gi;
   const MVU_OPEN_RE = /<UpdateVariable>[\s\S]*$/i;
   function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").replace(MVU_RE, "").replace(MVU_OPEN_RE, "").trim(); }
+  // how the 时间 field should be written: a full in-story date, never the real calendar
+  const TIME_RULE = "「时间」写成完整的日期加时段，例如「3021年4月12日 周三 傍晚 18:40」：年份用 30XX 这种架空年份，不用现实的年份（角色卡或世界书明确了年代的就按那个来，古风可以写「XX年三月初七 酉时」）；日期跟着剧情走，过了一夜就翻到下一天，星期要和日期对得上；写法前后保持一致。当前值里还没有日期的，这次更新时按剧情合理补上。";
   function statusInstruction(c) {
     const st = c.status;
     if (!st || !st.enabled) return "";
@@ -2899,6 +2901,7 @@
       `当前状态：${cur}${st.lastDelta && st.lastDelta.length ? `。上一楼刚变的：${st.lastDelta.map((d) => `${d.key} ${d.from || "（未知）"}→${d.to || "（未知）"}`).join("、")}` : ""}${st.voice ? `。上一次的心声：${st.voice}` : ""}`,
       "在每次回复的最末尾，另起一行输出一个状态块来更新这些值：只改真的变了的项，数值要合理渐变（一次通常不超过 5），文字项简短。格式严格如下，键名照抄，不要加别的内容：",
       `<status>${JSON.stringify(example)}</status>`,
+      st.fields.some((f) => f.key === "时间") ? TIME_RULE : "",
       st.extra.trim() ? st.extra.trim() : "",
     ].filter(Boolean).join("\n");
   }
@@ -3374,6 +3377,8 @@
     return map;
   }
   function msgTime(c, m) { const t = c ? storyTimeMap(c).get(m.id) : ""; return t || fmtTime(m.ts); }
+  // for bubbles: drop the leading "3021年4月12日" so the stamp stays short; prompts keep the full value
+  function shortTime(t) { const s = String(t || "").replace(/^\s*\d{2,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*[,，·]?\s*/, "").trim(); return s || String(t || ""); }
 
   // *action* → em, "speech" / 「speech」 stays, `code` → code, **bold** → strong
   function renderRich(text) {
@@ -5821,6 +5826,7 @@
       `目前：${cur}。${scene ? `${scene}。` : ""}`,
       `在每次回复的最末尾另起一行输出一个状态块，更新${all.length > 1 ? "每个人" : npc.name}和 ${u} 的关系、心情和心声，以及时间和地点：关系只在真的变了时改，好感数值要合理渐变（一次通常不超过 5），关系词 2 到 6 个字；心情简短；心声每次都写；时间、地点变了就写新的。格式严格如下，键名照抄，不要加别的内容：`,
       `<status>${example}</status>`,
+      TIME_RULE,
     ].join("\n");
   }
   function applyNpcStatusFromText(c, npcIds, text) {
@@ -7058,7 +7064,7 @@
           if (rich) { g.appendChild(rich); return; }
           const b = el("div", "pm " + (mine ? "me" : "them"));
           b.textContent = line;
-          if (li === lines.length - 1) b.appendChild(el("span", "tm", msgTime(c, m)));
+          if (li === lines.length - 1) b.appendChild(el("span", "tm", shortTime(msgTime(c, m))));
           g.appendChild(b);
         });
       }
