@@ -2638,7 +2638,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.54"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.56"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4598,6 +4598,23 @@
     if (Array.isArray(m.swipes) && m.si != null) m.swipes[m.si] = m.content;
     return true;
   }
+  // transcript view of a grab line: the amount is public, and the last grab names the luckiest one
+  function grabNotes(c, m, text) {
+    return text.split("\n").map((raw) => {
+      const mt = raw.trim().match(RICH_RE.grab);
+      if (!mt || !mt[1]) return raw;
+      const who = msgSender(m), amt = parseFloat(mt[1]);
+      let pm = null, p = null;
+      for (let i = c.chat.indexOf(m) - 1; i >= 0; i--) { const x = c.chat[i]; if (!sameThread(x, m)) continue; const q = packetInfo(x); if (q && (x.grabs || []).some((g) => g.who === who && Math.abs(g.amt - amt) < 0.005)) { pm = x; p = q; break; } }
+      const from = pm ? senderName(c, msgSender(pm)) : "";
+      let out = `[领取了${from ? from + "发的" : ""}红包 ¥${mt[1]}，群里都看得到]`;
+      if (pm && packetLeft(pm, p) <= 0 && pm.grabs[pm.grabs.length - 1].who === who) {
+        const best = p.mode === "拼手气" && pm.grabs.length > 1 ? pm.grabs.reduce((a, g) => (g.amt > a.amt ? g : a), pm.grabs[0]) : null;
+        out += `（红包已领完：${pm.grabs.map((g) => `${senderName(c, g.who)} ¥${g.amt.toFixed(2)}`).join("、")}${best ? `；手气最佳 ${senderName(c, best.who)}` : ""}）`;
+      }
+      return out;
+    }).join("\n");
+  }
   // the user taps 开 on someone else's packet: take a share and post it as a plain phone message, no generation
   function userGrab(c, pm) {
     const p = packetInfo(pm); if (!p || busy) return;
@@ -4642,7 +4659,7 @@
       const c = ctx.c;
       const canOpen = !mine && !done && !grabs.some((g) => g.who === "user");
       if (canOpen) { const ob = el("button", "open", "开"); ob.type = "button"; ob.onclick = (e) => { e.stopPropagation(); userGrab(c, ctx.m); }; bot.appendChild(ob); }
-      else if (grabs.length) { const db = el("button", null, packetOpen.has(ctx.m.id) ? "收起" : "明细"); db.type = "button"; db.onclick = (e) => { e.stopPropagation(); if (packetOpen.has(ctx.m.id)) packetOpen.delete(ctx.m.id); else packetOpen.add(ctx.m.id); renderPhone(true); }; bot.appendChild(db); }
+      else if (grabs.length) { const db = el("button", null, packetOpen.has(ctx.m.id) ? "收起" : "明细"); db.type = "button"; db.onclick = (e) => { e.stopPropagation(); if (packetOpen.has(ctx.m.id)) packetOpen.delete(ctx.m.id); else packetOpen.add(ctx.m.id); renderPhone(); }; bot.appendChild(db); }
       b.appendChild(bot);
       if (grabs.length && packetOpen.has(ctx.m.id)) {
         const d = el("div", "pm pkd " + (mine ? "me" : "them"));
@@ -6398,6 +6415,7 @@
       ...openPacketLines(c, g),
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
       "- 一次输出 3 到 6 条，谁说话、说几条按各自的性格、关系和话题决定；不想说的人可以不出现，也可以有人只回一个表情或一个字。",
+      "- 红包的领取记录群里所有人都看得到：谁领了多少、领完后谁手气最佳，大家都知道，可以直接拿来打趣或比较，不要装作不知道别人领了多少。",
       "- 像真人在群里聊天：短句、口语、可以 @某人、互相接梗或呛声，不写动作描写、不写旁白、不加引号。",
       "- 各人语气要分得开，不要所有人一个腔调。",
       `- ${langHint()}`,
@@ -6414,7 +6432,7 @@
     const turns = [{ role: "system", content: sub(parts.join("\n"), c) }];
     // history: merge neighbours of the same role so the transcript stays alternating
     for (const m of history) {
-      const line = `${groupSpeakerName(c, m)}：${stripStatus(stripReasoning(sub(m.content, c)))}`;
+      const line = `${groupSpeakerName(c, m)}：${grabNotes(c, m, stripStatus(stripReasoning(sub(m.content, c))))}`;
       const role = m.role === "user" ? "user" : "assistant";
       const last = turns[turns.length - 1];
       if (last && last.hist && last.role === role) last.content += "\n" + line;
@@ -7009,6 +7027,7 @@
     $("phoneStatus").title = charChat ? "点一下切换：不在一处 / 同一场合悄悄发，或补充情境" : "";
     $("phoneStatus").onclick = charChat && !typing ? openPhoneSceneSwitch : null;
     const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+    const keepTop = body.scrollTop;
     body.innerHTML = "";
     const thread = grp ? groupMsgs(c, grp.id) : phoneMsgs(c, phoneWith);
     const lastMsg = grp || npc ? (thread.length ? thread[thread.length - 1].m : null) : c.chat[c.chat.length - 1];
@@ -7045,7 +7064,7 @@
     }
     if (grp && typing) body.appendChild(el("div", "pm typing", "•••"));
     if (!thread.some((x) => x.m.channel === "phone")) body.appendChild(el("div", "pm sys", grp ? `群里还没人说话。你先发一条，或者点「让他们聊一会儿」。` : npc ? `还没有和 ${npc.name} 聊过。你先发一条，或者点「让 ${npc.name} 先开口」。${c.name} 不会看到这里的内容。` : "还没有消息。你先发一条，或者点「让 TA 先开口」。"));
-    if (atBottom || streaming) body.scrollTop = body.scrollHeight;
+    if (atBottom || streaming) body.scrollTop = body.scrollHeight; else body.scrollTop = keepTop;
   }
   async function phoneSend() {
     const c = active();
