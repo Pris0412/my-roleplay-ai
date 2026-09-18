@@ -523,7 +523,7 @@
   .pm.read { align-self: flex-end; background: transparent; color: #8e8e93; font-size: 11px; padding: 0 6px; }
   .pm.nm { align-self: flex-start; background: transparent; color: #8e8e93; font-size: 11px; padding: 4px 6px 0; }
   .pm.act { align-self: center; background: transparent; color: #8e8e93; font-size: 12px; font-style: italic; padding: 4px 0; max-width: 100%; text-align: center; }
-  /* rich messages: image card, transfer / red packet, sticker, recalled-with-peek */
+  /* rich messages: image card, transfer / red packet, recalled-with-peek */
   .pm.img { padding: 0; overflow: hidden; background: #fff; border: 1px solid rgba(0,0,0,0.1); max-width: 62%; }
   .phone.dark .pm.img { background: #1c1c1e; border-color: rgba(255,255,255,0.12); }
   .pm.img .ph { height: 110px; display: grid; place-items: center; font-size: 34px; background: linear-gradient(135deg, #e9e9eb, #d8d8dc); color: #8e8e93; }
@@ -537,8 +537,15 @@
   .pm.pay .note { font-size: 12px; opacity: 0.9; }
   .pm.pay .bot { background: rgba(255,255,255,0.92); color: #8e8e93; font-size: 11px; padding: 4px 12px; }
   .pm.pay.red { background: #e8453c; }
-  .pm.sticker { background: transparent; padding: 2px 6px; font-size: 54px; line-height: 1; }
-  .pm.sticker .tm { position: static; display: block; font-size: 11px; color: #8e8e93; text-align: right; }
+  .pm.pay .bot { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .pm.pay .bot button { border: 0; background: transparent; color: #0a84ff; font-size: 11px; cursor: pointer; padding: 0 2px; }
+  .pm.pay .bot button.open { background: #e8453c; color: #fff; border-radius: 8px; padding: 2px 9px; font-weight: 600; }
+  .pm.pay.done { opacity: 0.82; }
+  .pm.pkd { background: #fff; color: #111; font-size: 12px; padding: 6px 10px; max-width: 62%; min-width: 190px; border: 1px solid rgba(0,0,0,0.1); }
+  .phone.dark .pm.pkd { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.12); }
+  .pm.pkd .r { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+  .pm.pkd .r.best { color: #d9880f; font-weight: 600; }
+  .pm.pkd .h { color: #8e8e93; font-size: 11px; padding-bottom: 3px; }
   .pm.recall { align-self: center; background: transparent; color: #8e8e93; font-size: 11px; padding: 6px 0; max-width: 100%; text-align: center; }
   .pm.recall button { border: 0; background: transparent; color: #0a84ff; font-size: 11px; cursor: pointer; padding: 0 4px; }
   .pm.recall .peek { display: block; margin-top: 4px; color: #111; font-size: 13px; background: #fff3cd; border-radius: 10px; padding: 6px 10px; text-align: left; }
@@ -546,8 +553,8 @@
   .phone-extra { display: none; flex-wrap: wrap; gap: 6px; padding: 8px 10px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.08); }
   .phone-extra.on { display: flex; }
   .phone.dark .phone-extra { background: rgba(28,28,30,0.94); border-top-color: rgba(255,255,255,0.1); }
-  .phone-extra .stk { font-size: 26px; line-height: 1; padding: 4px 6px; border: 0; background: transparent; cursor: pointer; border-radius: 8px; }
-  .phone-extra .stk:hover { background: rgba(0,0,0,0.06); }
+  .phone-extra .frm select { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15); font-size: 13px; background: #fff; }
+  .phone-extra .frm input.cnt { flex: 0 0 64px; }
   .phone-extra .frm { display: flex; gap: 6px; width: 100%; align-items: center; }
   .phone-extra .frm input { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15); font-size: 13px; }
   .phone-extra .frm input.amt { flex: 0 0 90px; }
@@ -2353,12 +2360,12 @@
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
     <div class="phone-extra" id="phoneExtra">
-      <div id="phoneStickers" style="display:flex;flex-wrap:wrap;gap:2px;width:100%"></div>
       <div class="frm"><label>图片</label><input id="phoneImgDesc" placeholder="一句描述，例如：桌上两杯奶茶"><button id="phoneImgSend" type="button">发图</button></div>
       <div class="frm"><label>转账</label><input id="phonePayAmt" class="amt" type="number" min="1" placeholder="金额"><input id="phonePayNote" placeholder="备注（可空）"><button id="phonePaySend" type="button">转账</button><button id="phoneRedSend" type="button" style="background:#e8453c">红包</button></div>
+      <div class="frm" id="phonePkGrp" hidden><label>群红包</label><input id="phonePkCnt" class="cnt" type="number" min="1" placeholder="个数"><select id="phonePkMode"><option value="拼手气">拼手气</option><option value="平分">平分</option></select><span style="font-size:11px;color:#8e8e93">个数留空 = 群里每人一个</span></div>
     </div>
     <div class="phone-foot">
-      <button class="ib plus" id="phonePlus" title="表情 / 图片 / 转账" aria-label="更多">＋</button>
+      <button class="ib plus" id="phonePlus" title="图片 / 转账 / 红包" aria-label="更多">＋</button>
       <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
       <button class="send" id="phoneSend" aria-label="发送">↑</button>
     </div>
@@ -2631,7 +2638,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.52"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.53"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4519,20 +4526,134 @@
     ].filter(Boolean).join("\n");
   }
   // rich message markers: the model writes these on a line of their own; the phone renders them as cards
-  const STICKERS = { "狗头": "🐶", "哭": "😭", "笑哭": "😂", "白眼": "🙄", "亲亲": "😘", "生气": "😠", "害羞": "😳", "摊手": "🤷", "比心": "🫶", "拜托": "🙏", "加油": "💪", "睡觉": "😴", "疑问": "❓", "无语": "😑", "偷笑": "🤭", "心碎": "💔", "火": "🔥", "玫瑰": "🌹", "OK": "👌", "赞": "👍", "抱抱": "🤗", "叹气": "😮‍💨", "尴尬": "😅", "得意": "😏" };
-  const PHONE_RICH_RULE = `- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；[表情：名字]（名字只限 ${Object.keys(STICKERS).join(" / ")}）；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。`;
-  const RICH_RE = { img: /^\[图片[：:]\s*(.+?)\]$/, pay: /^\[(转账|红包)\s*[¥￥]?\s*([\d.,]+)\s*(?:元)?\s*(?:备注[：:]\s*(.*?))?\s*\]$/, stk: /^\[表情[：:]\s*(.+?)\]$/, recall: /^\[?撤回(?:[：:]\s*(.+?))?\]?$/ };
+  const PHONE_RICH_RULE = "- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。收到对方的红包，想领就单独一行写 [领取红包]（金额由系统填，不用自己写）。";
+  const GROUP_RICH_RULE = "- 消息里除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话]；群红包写成 [红包 ¥总金额 个数：N 拼手气 备注：一句话]（个数是能领的人数，拼手气或平分二选一）；发出去又后悔的消息写成 [撤回：原本的内容]。";
+  const RICH_RE = {
+    img: /^\[图片[：:]\s*(.+?)\]$/,
+    pay: /^\[(转账|红包)\s*[¥￥]?\s*([\d.,]+)\s*(?:元)?((?:\s*(?:个数[：:]?\s*\d+\s*个?|\d+\s*个|拼手气|手气|随机|平分|均分))*)\s*(?:备注[：:]\s*(.*?))?\s*\]$/,
+    grab: /^\[?领取红包(?:\s*[¥￥]?\s*([\d.]+))?\]?$/,
+    recall: /^\[?撤回(?:[：:]\s*(.+?))?\]?$/,
+  };
+  // ---- red packets: the model decides who grabs, the page splits the money ----
+  // a message carries at most one packet (its first 红包 line); who took how much lives in m.grabs
+  function packetInfo(m) {
+    for (const raw of String(m.content || "").split("\n")) {
+      const mt = raw.trim().match(RICH_RE.pay);
+      if (!mt || mt[1] !== "红包") continue;
+      const amount = Math.round(parseFloat(mt[2].replace(/,/g, "")) * 100) / 100;
+      if (!(amount > 0)) return null;
+      const opt = mt[3] || "";
+      const cm = opt.match(/(\d+)/);
+      const count = m.group ? Math.max(1, parseInt(cm ? cm[1] : "1", 10) || 1) : 1;
+      const mode = /平分|均分/.test(opt) ? "平分" : "拼手气";
+      return { amount, count, mode, note: mt[4] || "" };
+    }
+    return null;
+  }
+  function msgSender(m) { return m.role === "user" ? "user" : m.group ? (m.speaker || "char") : (m.npc || "char"); }
+  function senderName(c, who) { return who === "user" ? (state.persona.name || "你") : groupMemberName(c, who); }
+  function sameThread(a, b) { return a.channel === "phone" && b.channel === "phone" && (a.group || null) === (b.group || null) && (a.npc || null) === (b.npc || null); }
+  function packetLeft(m, p) { return p.count - (m.grabs || []).length; }
+  // newest packet in this thread that `who` can still take: not their own, not exhausted, not taken by them already
+  function openPacketFor(c, m, who) {
+    for (let i = c.chat.length - 1; i >= 0; i--) {
+      const x = c.chat[i];
+      if (x === m || !sameThread(x, m) || x.hidden || x.error) continue;
+      const p = packetInfo(x); if (!p) continue;
+      if (msgSender(x) === who || packetLeft(x, p) <= 0 || (x.grabs || []).some((g) => g.who === who)) continue;
+      return { m: x, p };
+    }
+    return null;
+  }
+  // WeChat-style split: 平分 shares evenly (last one gets the rounding), 拼手气 draws from 0.01 to twice the fair share
+  function grabAmount(m, p) {
+    const taken = (m.grabs || []).reduce((a, g) => a + g.amt, 0);
+    const left = Math.round((p.amount - taken) * 100) / 100;
+    const n = packetLeft(m, p);
+    if (n <= 1) return Math.max(0.01, left);
+    if (p.mode === "平分") return Math.max(0.01, Math.round((p.amount / p.count) * 100) / 100);
+    const max = Math.max(0.01, (left - 0.01 * (n - 1)) * 2 / n);
+    const v = Math.round((0.01 + Math.random() * (max - 0.01)) * 100) / 100;
+    return Math.min(v, Math.round((left - 0.01 * (n - 1)) * 100) / 100);
+  }
+  function takePacket(c, pm, p, who) {
+    const amt = grabAmount(pm, p);
+    pm.grabs = pm.grabs || []; pm.grabs.push({ who, amt, ts: Date.now() });
+    return amt;
+  }
+  // rewrite bare [领取红包] lines in a freshly generated or sent message into [领取红包 ¥x], recording the grab
+  function applyGrabs(c, m) {
+    const who = msgSender(m);
+    let changed = false;
+    const lines = String(m.content || "").split("\n").map((raw) => {
+      const mt = raw.trim().match(RICH_RE.grab);
+      if (!mt || mt[1]) return raw;
+      changed = true;
+      const op = openPacketFor(c, m, who);
+      if (!op) return "";
+      return `[领取红包 ¥${takePacket(c, op.m, op.p, who).toFixed(2)}]`;
+    });
+    if (!changed) return false;
+    m.content = lines.filter((l, i, a) => l !== "" || (a[i - 1] !== undefined && a[i - 1] !== "")).join("\n").trim();
+    if (Array.isArray(m.swipes) && m.si != null) m.swipes[m.si] = m.content;
+    return true;
+  }
+  // the user taps 开 on someone else's packet: take a share and post it as a plain phone message, no generation
+  function userGrab(c, pm) {
+    const p = packetInfo(pm); if (!p || busy) return;
+    if (msgSender(pm) === "user" || packetLeft(pm, p) <= 0 || (pm.grabs || []).some((g) => g.who === "user")) return;
+    const amt = takePacket(c, pm, p, "user");
+    const line = { id: uid(), role: "user", channel: "phone", content: `[领取红包 ¥${amt.toFixed(2)}]`, ts: Date.now() };
+    if (pm.group) { line.group = pm.group; line.speaker = null; } else if (pm.npc) line.npc = pm.npc;
+    c.chat.push(line);
+    save(); renderMessages(); renderPhone(true);
+  }
+  // group-side reminder while a packet is still open
+  function openPacketLines(c, g) {
+    const out = [];
+    for (const m of c.chat) {
+      if (m.group !== g.id || m.hidden || m.error) continue;
+      const p = packetInfo(m); if (!p) continue;
+      const left = packetLeft(m, p); if (left <= 0) continue;
+      const taken = (m.grabs || []).map((x) => senderName(c, x.who));
+      out.push(`- 群里有 ${senderName(c, msgSender(m))} 发的红包还没领完（¥${p.amount}，${p.count} 个，${p.mode}，还剩 ${left} 个${taken.length ? `，已领：${taken.join("、")}` : ""}）。谁去领按各人性格和此刻心情定，不必人人都领；要领的人在自己的消息里单独一行写 [领取红包]，一人最多领一次，发红包的人不领，金额由系统分配，你不用写。`);
+    }
+    return out;
+  }
+  const packetOpen = new Set(); // packet cards whose 明细 list is unfolded
   // one phone line → a bubble node; plain text falls through to the caller
-  function richBubble(line, mine, who) {
+  function richBubble(line, mine, who, ctx) {
     let m;
     if ((m = line.match(RICH_RE.img))) { const b = el("div", "pm img " + (mine ? "me" : "them")); b.appendChild(el("div", "ph", "🖼")); b.appendChild(el("div", "cap", m[1])); return b; }
+    if ((m = line.match(RICH_RE.grab))) { const b = el("div", "pm sys"); b.textContent = `${mine ? "你" : who} 领取了红包${m[1] ? ` ¥${m[1]}` : ""}`; return b; }
     if ((m = line.match(RICH_RE.pay))) {
-      const red = m[1] === "红包"; const b = el("div", "pm pay " + (red ? "red " : "") + (mine ? "me" : "them"));
+      const red = m[1] === "红包";
+      const p = red && ctx && ctx.m ? packetInfo(ctx.m) : null;
+      const grabs = p ? (ctx.m.grabs || []) : [];
+      const done = p ? packetLeft(ctx.m, p) <= 0 : false;
+      const b = el("div", "pm pay " + (red ? "red " : "") + (done ? "done " : "") + (mine ? "me" : "them"));
       const top = el("div", "top"); top.appendChild(el("span", "ic", red ? "🧧" : "💴"));
-      const col = el("div"); col.appendChild(el("div", "amt", `¥${m[2]}`)); col.appendChild(el("div", "note", m[3] || (red ? "恭喜发财，大吉大利" : "转账给你"))); top.appendChild(col);
-      b.appendChild(top); b.appendChild(el("div", "bot", red ? "微信红包" : "微信转账")); return b;
+      const col = el("div"); col.appendChild(el("div", "amt", `¥${m[2]}`)); col.appendChild(el("div", "note", m[4] || (red ? "恭喜发财，大吉大利" : "转账给你"))); top.appendChild(col);
+      b.appendChild(top);
+      const bot = el("div", "bot");
+      if (!p) { bot.textContent = red ? "微信红包" : "微信转账"; b.appendChild(bot); return b; }
+      const isGroup = !!ctx.m.group;
+      bot.appendChild(el("span", null, isGroup ? `${p.mode} · 已领取 ${grabs.length}/${p.count}` : grabs.length ? "已领取" : "微信红包"));
+      const c = ctx.c;
+      const canOpen = !mine && !done && !grabs.some((g) => g.who === "user");
+      if (canOpen) { const ob = el("button", "open", "开"); ob.type = "button"; ob.onclick = (e) => { e.stopPropagation(); userGrab(c, ctx.m); }; bot.appendChild(ob); }
+      else if (grabs.length) { const db = el("button", null, packetOpen.has(ctx.m.id) ? "收起" : "明细"); db.type = "button"; db.onclick = (e) => { e.stopPropagation(); if (packetOpen.has(ctx.m.id)) packetOpen.delete(ctx.m.id); else packetOpen.add(ctx.m.id); renderPhone(true); }; bot.appendChild(db); }
+      b.appendChild(bot);
+      if (grabs.length && packetOpen.has(ctx.m.id)) {
+        const d = el("div", "pm pkd " + (mine ? "me" : "them"));
+        const total = grabs.reduce((a, g) => a + g.amt, 0);
+        d.appendChild(el("div", "h", done ? `${p.count} 个红包共 ¥${p.amount.toFixed(2)}，已领完` : `已领取 ${grabs.length}/${p.count} 个，共 ¥${total.toFixed(2)}/${p.amount.toFixed(2)}`));
+        const best = p.mode === "拼手气" && done && grabs.length > 1 ? grabs.reduce((a, g) => (g.amt > a.amt ? g : a), grabs[0]) : null;
+        for (const g of grabs) { const r = el("div", "r" + (g === best ? " best" : "")); r.appendChild(el("span", null, senderName(c, g.who) + (g === best ? " 🏆 手气最佳" : ""))); r.appendChild(el("span", null, `¥${g.amt.toFixed(2)}`)); d.appendChild(r); }
+        const wrap = el("div"); wrap.style.display = "contents"; wrap.appendChild(b); wrap.appendChild(d); return wrap;
+      }
+      return b;
     }
-    if ((m = line.match(RICH_RE.stk))) { const e = STICKERS[m[1].trim()] || STICKERS[m[1].trim().toUpperCase()]; if (e) { const b = el("div", "pm sticker " + (mine ? "me" : "them")); b.appendChild(el("span", null, e)); b.title = m[1]; return b; } }
     if ((m = line.match(RICH_RE.recall))) {
       const b = el("div", "pm recall"); b.appendChild(el("span", null, `${mine ? "你" : who} 撤回了一条消息`));
       if (m[1] && !mine) { const pk = el("button", null, "偷看"); pk.type = "button"; pk.onclick = (e) => { e.stopPropagation(); pk.replaceWith(el("span", "peek", m[1])); }; b.appendChild(pk); }
@@ -5080,6 +5201,7 @@
         },
       });
       setText(res.text + (res.truncated ? "\n\n*（回复被截断了）*" : ""));
+      if (msg.channel === "phone") applyGrabs(c, msg);
       $("hintRight").textContent = isCustom() ? `模型：${state.api.model}` : `档位：${res.modelTierApplied}`;
       if (!msg.npc && applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); c.status.manualTs = 0; renderStatusStrip(); }
       if (msg.npc && applyNpcStatusFromText(c, msgNpcs(msg), res.text)) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); if (!$("stBack").hidden) renderRelTable(c); }
@@ -6272,7 +6394,8 @@
     { const nb = notesBlock(c, "group:" + g.id); if (nb) { parts.push("\n" + nb); seg("notes", "不能忘的事", nb); } }
     const rules = [
       "## 群聊规则",
-      PHONE_RICH_RULE.replace(/^- /, "- 消息里"),
+      GROUP_RICH_RULE,
+      ...openPacketLines(c, g),
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
       "- 一次输出 3 到 6 条，谁说话、说几条按各自的性格、关系和话题决定；不想说的人可以不出现，也可以有人只回一个表情或一个字。",
       "- 像真人在群里聊天：短句、口语、可以 @某人、互相接梗或呛声，不写动作描写、不写旁白、不加引号。",
@@ -6335,7 +6458,11 @@
       const batch = uid();
       const msgs = parseGroupBatch(c, g, res.text);
       if (!msgs.length) toast("这一轮没人说话", true);
-      for (const x of msgs) c.chat.push({ id: uid(), role: "assistant", channel: "phone", group: gid, speaker: x.speaker, batch, content: x.text, ts: Date.now() });
+      for (const x of msgs) {
+        const gm = { id: uid(), role: "assistant", channel: "phone", group: gid, speaker: x.speaker, batch, content: x.text, ts: Date.now() };
+        applyGrabs(c, gm);
+        if (gm.content.trim()) c.chat.push(gm);
+      }
       applyNpcStatusFromText(c, g.members.filter((id) => id !== "char"), res.text);
       if (applyAgesFromText(c, res.text)) afterAges(c);
       lastGroupNudge = opts.nudge || "";
@@ -6870,6 +6997,7 @@
     }
     const pick = grp && spk.value ? groupMemberName(c, spk.value) : "";
     $("phoneNudge").textContent = grp ? (pick ? `▶ 让 ${pick} 说` : "▶ 聊一轮") : npc ? `让 ${npc.name} 先开口` : "让 TA 先开口";
+    $("phonePkGrp").hidden = !grp;
     $("phoneMemo").hidden = !npc && !grp; $("phoneRedo").hidden = !grp; $("phoneGroupEdit").hidden = !grp; $("phoneWait").hidden = !!grp; $("phoneBrk").hidden = !grp;
     $("phoneMemo").textContent = grp ? "总结群聊" : "总结私聊";
     const st = c.status && c.status.enabled ? c.status.fields.find((f) => f.key === "地点") : null;
@@ -6895,14 +7023,14 @@
         body.appendChild(g);
         continue;
       }
-      if (grp && !mine) g.appendChild(el("div", "pm nm", groupSpeakerName(c, m)));
+      if (grp && !mine && !txt.split(/\n+/).map((x) => x.trim()).filter(Boolean).every((x) => RICH_RE.grab.test(x))) g.appendChild(el("div", "pm nm", groupSpeakerName(c, m)));
       if (m.role === "assistant" && txt.trim() === "[不回复]") g.appendChild(el("div", "pm sys", `已读 · ${who} 没有回复`));
       else {
         const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
         lines.forEach((line, li) => {
           if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { g.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
-          const rich = richBubble(line, mine, who);
-          if (rich) { if (li === lines.length - 1 && rich.classList.contains("sticker")) rich.appendChild(el("span", "tm", msgTime(c, m))); g.appendChild(rich); return; }
+          const rich = richBubble(line, mine, grp ? groupSpeakerName(c, m) : who, { c, m });
+          if (rich) { g.appendChild(rich); return; }
           const b = el("div", "pm " + (mine ? "me" : "them"));
           b.textContent = line;
           if (li === lines.length - 1) b.appendChild(el("span", "tm", msgTime(c, m)));
@@ -9155,13 +9283,21 @@
   $("phoneExit").onclick = () => { if (phoneWith) closePhoneView(); else exitPhone(true); };
   $("phoneBack").addEventListener("click", (e) => { if (e.target === $("phoneBack")) closePhoneView(); });
   $("phoneSend").onclick = phoneSend;
-  // "+" panel: stickers, an image card, a transfer or red packet, each sent as a marker line
+  // "+" panel: an image card, a transfer or red packet (group packets pick a count and 拼手气/平分), each sent as a marker line
   {
-    const box = $("phoneStickers");
-    for (const [name, e] of Object.entries(STICKERS)) { const b = el("button", "stk", e); b.type = "button"; b.title = name; b.onclick = () => phoneSendText(`[表情：${name}]`); box.appendChild(b); }
-    $("phonePlus").onclick = () => { $("phoneExtra").classList.toggle("on"); };
+    $("phonePlus").onclick = () => { $("phoneExtra").classList.toggle("on"); $("phonePkGrp").hidden = !phoneGroup; };
     $("phoneImgSend").onclick = () => { const d = $("phoneImgDesc").value.trim(); if (!d) { toast("写一句图片的描述", true); return; } $("phoneImgDesc").value = ""; phoneSendText(`[图片：${d}]`); };
-    const pay = (kind) => { const a = String($("phonePayAmt").value || "").trim(); if (!a || !(Number(a) > 0)) { toast("填一个金额", true); return; } const n = $("phonePayNote").value.trim(); $("phonePayAmt").value = ""; $("phonePayNote").value = ""; phoneSendText(`[${kind} ¥${a}${n ? ` 备注：${n}` : ""}]`); };
+    const pay = (kind) => {
+      const a = String($("phonePayAmt").value || "").trim(); if (!a || !(Number(a) > 0)) { toast("填一个金额", true); return; }
+      const n = $("phonePayNote").value.trim(); $("phonePayAmt").value = ""; $("phonePayNote").value = "";
+      let opt = "";
+      if (kind === "红包" && phoneGroup) {
+        const c = active(); const g = c && groupById(c, phoneGroup);
+        const cnt = parseInt($("phonePkCnt").value, 10) || (g ? g.members.length : 1);
+        opt = ` 个数：${Math.max(1, cnt)} ${$("phonePkMode").value}`;
+      }
+      phoneSendText(`[${kind} ¥${a}${opt}${n ? ` 备注：${n}` : ""}]`);
+    };
     $("phonePaySend").onclick = () => pay("转账"); $("phoneRedSend").onclick = () => pay("红包");
   }
   function phoneSendText(text) { const ta = $("phoneInput"); const keep = ta.value; ta.value = text; $("phoneExtra").classList.remove("on"); phoneSend().then(() => { if (keep && !ta.value) ta.value = keep; }); }
