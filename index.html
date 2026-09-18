@@ -2638,7 +2638,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.53"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.54"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5401,7 +5401,7 @@
       c.chat.push({ id: uid(), role: "system", kind: "divider", phone: true, content: phoneDividerText(c, mode, note), ts: Date.now() });
       save(); renderMessages(); renderCharList();
     }
-    phoneWith = null; phoneGroup = null; phoneView = "chat";
+    phoneWith = null; phoneGroup = null; phoneView = "chat"; $("phoneExtra").classList.remove("on");
     $("phone").classList.toggle("dark", state.settings.phoneDark === true);
     renderPhone();
     $("phoneBack").hidden = false;
@@ -5410,7 +5410,7 @@
   function closePhoneView() {
     const c = active();
     if (c) { c.phoneLast = { view: phoneView, with: phoneWith, group: phoneGroup }; save(); }
-    $("phoneBack").hidden = true; phoneSel = null; phoneEdit = null; phoneWith = null; phoneGroup = null; phoneView = "chat";
+    $("phoneBack").hidden = true; phoneSel = null; phoneEdit = null; phoneWith = null; phoneGroup = null; phoneView = "chat"; $("phoneExtra").classList.remove("on");
   }
   // the one 📱 entry: reopen where you left off (an NPC thread, a group, the feed), else the home page
   function openPhoneHome() {
@@ -6002,7 +6002,7 @@
   function openContacts() {
     const c = active();
     if (!c) return;
-    phoneView = "contacts"; phoneSel = null; phoneEdit = null;
+    phoneView = "contacts"; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
     $("phone").classList.toggle("dark", state.settings.phoneDark === true);
     renderPhone();
     $("phoneBack").hidden = false;
@@ -6010,7 +6010,7 @@
   function openPhoneWith(npcId) {
     const c = active();
     if (!c || !npcById(c, npcId)) return;
-    phoneWith = npcId; phoneGroup = null; phoneView = "chat"; phoneSel = null; phoneEdit = null;
+    phoneWith = npcId; phoneGroup = null; phoneView = "chat"; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
     $("phone").classList.toggle("dark", state.settings.phoneDark === true);
     renderPhone();
     $("phoneBack").hidden = false;
@@ -6020,7 +6020,7 @@
     const c = active();
     if (!c) return;
     if (id) { openPhoneWith(id); return; }
-    if (c.phone && c.phone.open) { phoneWith = null; phoneGroup = null; phoneView = "chat"; renderPhone(); $("phoneInput").focus(); return; }
+    if (c.phone && c.phone.open) { phoneWith = null; phoneGroup = null; phoneView = "chat"; $("phoneExtra").classList.remove("on"); renderPhone(); $("phoneInput").focus(); return; }
     closePhoneView();
     askPhoneScene();
   }
@@ -6274,7 +6274,7 @@
   function openPhoneGroup(gid) {
     const c = active();
     if (!c || !groupById(c, gid)) return;
-    phoneGroup = gid; phoneWith = null; phoneView = "chat"; phoneSel = null; phoneEdit = null;
+    phoneGroup = gid; phoneWith = null; phoneView = "chat"; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
     $("phone").classList.toggle("dark", state.settings.phoneDark === true);
     renderPhone();
     $("phoneBack").hidden = false;
@@ -6525,7 +6525,7 @@
   }
   function openMoments() {
     const c = active(); if (!c) return;
-    phoneView = "moments"; phoneWith = null; phoneGroup = null; phoneSel = null; phoneEdit = null;
+    phoneView = "moments"; phoneWith = null; phoneGroup = null; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
     $("phone").classList.toggle("dark", state.settings.phoneDark === true);
     renderPhone();
     $("phoneBack").hidden = false;
@@ -6961,7 +6961,7 @@
       $("phoneStatus").textContent = momentsBusy === "react" ? "有人在看…" : momentsBusy === "post" ? "有人在发…" : `${np} 条动态 · 大家都看得到`;
       $("phoneStatus").classList.remove("link"); $("phoneStatus").onclick = null; $("phoneStatus").title = "";
       document.querySelector(".phone-tools").hidden = true;
-      document.querySelector(".phone-foot").hidden = true;
+      document.querySelector(".phone-foot").hidden = true; $("phoneExtra").classList.remove("on");
       const keepTop = body.scrollTop;
       body.innerHTML = "";
       renderMoments(c, body);
@@ -6981,6 +6981,7 @@
     $("phoneName").textContent = contacts ? "联系人" : who;
     document.querySelector(".phone-tools").hidden = contacts;
     document.querySelector(".phone-foot").hidden = contacts;
+    if (contacts) $("phoneExtra").classList.remove("on");
     if (contacts) {
       $("phoneStatus").textContent = `${c.npcs.length} 位可私聊`;
       body.innerHTML = "";
