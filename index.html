@@ -2638,7 +2638,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.56"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.58"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5791,7 +5791,7 @@
       ops.append(ed, del); hd.appendChild(ops);
       card.appendChild(hd);
       if (n.personality || n.speech) { const pl = el("div", "help", [n.personality ? `性格：${n.personality}` : "", n.speech ? `说话：${n.speech}` : ""].filter(Boolean).join("　")); pl.style.margin = "0"; card.appendChild(pl); }
-      if (n.mood || n.voice) { const ml = el("div", "help", [n.mood ? `心情：${n.mood}` : "", n.voice ? `💭 ${n.voice}` : ""].filter(Boolean).join("　")); ml.style.margin = "0"; ml.style.color = "var(--text)"; card.appendChild(ml); }
+      if (n.voice) { const ml = el("div", "help", `💭 ${n.voice}`); ml.style.margin = "0"; ml.style.color = "var(--text)"; card.appendChild(ml); }
       card.appendChild(relLine(c, "u", n, `和 ${u}`));
       card.appendChild(relLine(c, "c", n, `和 ${c.name}`));
       box.appendChild(card);
