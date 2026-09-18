@@ -1440,6 +1440,12 @@
       <div class="field">
         <label for="edPersonality">性格</label>
         <textarea id="edPersonality" placeholder="例如：嘴硬心软、好奇心重、讨厌被打断"></textarea>
+        <div class="help">400 字以内的性格会放到提示词最末尾、紧挨着最新一条消息（模型最听得进的位置）；更长的留在前面。</div>
+      </div>
+      <div class="field">
+        <label for="edNever">绝不会做的事 / 口头禅（可选）</label>
+        <input id="edNever" placeholder="例如：绝不主动道歉；不叫任何人宝贝；生气时话变少不是变多">
+        <div class="help">每楼都放在提示词最末尾提醒模型。发现跑偏了就往这里加一句，一行就够，越具体越好。</div>
       </div>
       <div class="field">
         <label for="edScenario">场景</label>
@@ -2259,6 +2265,10 @@
         <label for="npcSpeech">说话方式</label>
         <input id="npcSpeech" placeholder="例如：短句多，爱用「我跟你讲」开头，偶尔冒方言">
       </div>
+      <div class="field">
+        <label for="npcNever">绝不会做的事 / 口头禅</label>
+        <input id="npcNever" placeholder="例如：绝不先低头；不说脏话；一紧张就叫人全名">
+      </div>
       <div class="row">
         <div class="field">
           <label for="npcMood">心情（此刻）</label>
@@ -2638,7 +2648,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.56"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.57"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4337,6 +4347,21 @@
   const PHONE_STYLE_RULE = "不用破折号「——」，不用「一丝 / 一抹 / 几分」这类模糊量词。";
   function phoneStyleRule(c) { return styleOff(c) ? "" : PHONE_STYLE_RULE; }
   // A few words at the very end of the prompt, where instructions bite hardest: the rules that are easiest to forget.
+  // ---- persona anchor: the character's voice repeated at the very end of the prompt, where the model listens hardest.
+  // A personality up to ANCHOR_MAX chars is *moved* there (not duplicated); longer ones stay at the top so the cached
+  // prefix keeps them, and only the never-line rides along at the tail.
+  const ANCHOR_MAX = 400;
+  function anchorMoves(c) { const p = c.personality ? c.personality.trim() : ""; return p.length > 0 && p.length <= ANCHOR_MAX; }
+  function personaAnchor(c, moved) {
+    const lines = [];
+    const p = c.personality ? c.personality.trim() : "";
+    if (p && moved) lines.push(`${c.name} 的性格：${p}`);
+    if (c.never && c.never.trim()) lines.push(`${c.name} 绝不会：${c.never.trim()}`);
+    if (!lines.length) return "";
+    lines.push(`（${c.name} 的每一句话、每个反应都照上面来；情绪再高、场面再热，也是 ${c.name} 自己的方式，不滑成通用口吻。）`);
+    return `## 最后再记一次\n${lines.join("\n")}`;
+  }
+  const npcVoiceLine = (n) => `${n.name}：${[n.personality, n.speech, n.never ? `绝不会：${n.never}` : ""].filter(Boolean).join("；")}`;
   function tailReminder(c, u) {
     const items = [];
     if (!styleOff(c)) items.push(`往事只认写过的，${u} 说出的算数`, "穿的、开的、用的写出牌子和款式");
@@ -4697,7 +4722,7 @@
     { const L = loreSplit(lore, "before"); if (L.stable.length) { parts.push(`## 世界设定\n${L.stable.join("\n\n")}\n`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
     parts.push(`## ${c.name} 的设定`);
     if (c.description) { parts.push(c.description); seg("char", "角色描述", c.description); }
-    if (c.personality) { parts.push(`性格：${c.personality}`); seg("char", "性格", c.personality); }
+    if (c.personality && !anchorMoves(c)) { parts.push(`性格：${c.personality}`); seg("char", "性格", c.personality); }
     if (c.scenario) { parts.push(`\n## 场景\n${c.scenario}`); seg("char", "场景", c.scenario); }
     { const L = loreSplit(lore, "after"); if (L.stable.length) { parts.push(`\n## 补充设定\n${L.stable.join("\n\n")}`); L.stable.forEach((t, i) => seg("lore", L.labels[i], t)); } L.dyn.forEach((d) => dyn("lore", d.label, d.text, "## 本轮相关的设定")); }
     if (retrieved && retrieved.length) {
@@ -4710,16 +4735,18 @@
       const ex = c.examples.replace(/^\s*<START>\s*$/gim, "").replace(/<START>/gi, "\n").trim();
       parts.push(`\n## 对话示例（只用来学习语气，不要照抄）\n${ex}`); seg("char", "对话示例", ex);
     }
+    // tail order: bookkeeping first, people next, the character's own voice last (closest to the reply)
+    const stIns = statusInstruction(c);
+    if (stIns) dyn("fixed", "状态面板", stIns);
+    dyn("fixed", "年龄", agesInstruction(c));
+    dyn("fixed", "MVU 变量", mvuInstruction(c));
     const castIns = castInstruction(c, history);
     if (castIns) dyn("char", "在场的人物", castIns);
     { const pn = !(c.phone && c.phone.open) && presentNow(c); const here = pn ? pn.ids.map((id) => npcById(c, id)).filter(Boolean) : []; if (here.length) dyn("fixed", "在场人物的关系", presentRelInstruction(c, here)); }
     const relIns = relationsInstruction(c, null);
     if (relIns) dyn("fixed", "人际关系", relIns);
-    const stIns = statusInstruction(c);
-    if (stIns) dyn("fixed", "状态面板", stIns);
-    dyn("fixed", "年龄", agesInstruction(c));
-    dyn("fixed", "MVU 变量", mvuInstruction(c));
     if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
+    dyn("char", "人设锚点", personaAnchor(c, anchorMoves(c)));
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
       parts.push("\n" + pr, `- ${langHint()}`, ...(phoneStyleRule(c) ? [`- ${phoneStyleRule(c)}`] : []), `- ${nsfwRule(c)}`); seg("fixed", "手机聊天规则", pr);
@@ -4816,6 +4843,7 @@
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
     if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
+    dyn("char", "人设锚点", personaAnchor(c, false));
     const pre = [], post = [], inChat = [];
     let afterHistory = false;
     for (const o of ps.order) {
@@ -5456,7 +5484,7 @@
     if (!n || typeof n !== "object" || !n.name) return null;
     return {
       id: n.id || uid(), name: String(n.name).trim(), aliases: Array.isArray(n.aliases) ? n.aliases.map((x) => String(x).trim()).filter(Boolean) : [],
-      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), others: String(n.others || ""), mood: String(n.mood || ""), voice: String(n.voice || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
+      brief: String(n.brief || ""), desc: String(n.desc || ""), personality: String(n.personality || ""), speech: String(n.speech || ""), never: String(n.never || ""), others: String(n.others || ""), mood: String(n.mood || ""), voice: String(n.voice || ""), image: typeof n.image === "string" ? n.image : "", entryId: n.entryId != null ? n.entryId : null, ts: Number(n.ts) || Date.now(),
       age: ageNum(n.age),
       memLastId: n.memLastId || null, memCount: Number(n.memCount) || 0, toldLastId: n.toldLastId || null,
     };
@@ -5468,13 +5496,14 @@
     const recent = (history || c.chat).filter((m) => !m.npc && !m.group && m.kind !== "divider" && !m.error).slice(-30).map((m) => m.content || "").join("\n");
     const seen = c.npcs.filter((n) => [n.name, ...(n.aliases || [])].some((x) => x && recent.includes(x)));
     if (!seen.length) return "";
-    const lines = seen.map((n) => `- ${n.name}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}`);
+    const lines = seen.map((n) => `- ${n.name}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}${n.never ? `；绝不会：${n.never}` : ""}`);
     return `## 出场过的其他人物\n${lines.join("\n")}\n（这些人出场时由你代为演出，要按各自的性格和说话方式来，不要都写成一个腔调。）`;
   }
   function npcPersonaBlock(n) {
     const lines = [];
     if (n.personality && n.personality.trim()) lines.push(`性格：${n.personality.trim()}`);
     if (n.speech && n.speech.trim()) lines.push(`说话方式：${n.speech.trim()}`);
+    if (n.never && n.never.trim()) lines.push(`绝不会：${n.never.trim()}`);
     if (n.others && n.others.trim()) lines.push(`和其他人：${n.others.trim()}`);
     if (!lines.length) return "";
     lines.push(`（严格保持 ${n.name} 的这份性格和说话方式，哪怕是发短信、哪怕只有一两句，也不要滑成温和客气的通用口吻。）`);
@@ -5673,8 +5702,8 @@
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
     if (sceneMode) dyn("fixed", "本楼提醒", tailReminder(c, u));
-    const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
-    if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
+    const tail = [npc, ...others].filter((n) => n.personality || n.speech || n.never).map(npcVoiceLine).join("\n");
+    if (tail) dyn("fixed", "性格提醒", `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`);
     return sub(parts.join("\n"), c);
   }
   // ---------- Relationship graph: you ↔ NPC, character ↔ NPC (you ↔ character lives in the status panel) ----------
@@ -6119,7 +6148,7 @@
     $("npcDesc").value = n ? n.desc : "";
     $("npcPersonality").value = n ? n.personality || "" : "";
     $("npcOthers").value = n ? n.others || "" : "";
-    $("npcSpeech").value = n ? n.speech || "" : "";
+    $("npcSpeech").value = n ? n.speech || "" : ""; $("npcNever").value = n ? n.never || "" : "";
     $("npcMood").value = n ? n.mood || "" : ""; $("npcVoice").value = n ? n.voice || "" : "";
     $("npcSource").textContent = n && n.entryId ? "设定来自世界书条目，改这里不会改回条目。" : "";
     $("npcDelete").hidden = !n;
@@ -6133,7 +6162,7 @@
     if (!name) { toast("名字不能为空", true); $("npcName").focus(); return; }
     const aliases = $("npcAliases").value.split(/[,，、]/).map((x) => x.trim()).filter((x) => x && x !== name);
     if (c.npcs.some((x) => x !== npcEditing && x.name === name)) { toast("已经有同名的联系人了", true); return; }
-    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), others: $("npcOthers").value.trim(), mood: $("npcMood").value.trim(), voice: $("npcVoice").value.trim(), image: npcImageDraft };
+    const fields = { name, aliases, brief: $("npcBrief").value.trim(), age: ageNum($("npcAge").value), desc: $("npcDesc").value.trim(), personality: $("npcPersonality").value.trim(), speech: $("npcSpeech").value.trim(), never: $("npcNever").value.trim(), others: $("npcOthers").value.trim(), mood: $("npcMood").value.trim(), voice: $("npcVoice").value.trim(), image: npcImageDraft };
     if (npcEditing) Object.assign(npcEditing, fields);
     else c.npcs.push(normalizeNpc(fields));
     save(); closeNpcEditor(); renderPhone(); renderMessages();
@@ -6427,8 +6456,10 @@
       const st = `## 关系变化\n这轮里发过言的 NPC，如果和 ${u} 的关系或好感真的变了，在最末尾另起一行输出：<status>${ex}</status>（只写变了的人，数值渐变，一次不超过 5；没人变就不输出）。`;
       parts.push("\n" + st); seg("fixed", "关系变化", st);
     }
-    const tail = npcMembers.filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
-    if (tail) { const rem = `## 最后再记一次\n${tail}`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
+    const voice = npcMembers.filter((n) => n.personality || n.speech || n.never).map(npcVoiceLine);
+    if (g.members.includes("char")) { const cp = c.personality ? c.personality.trim().slice(0, 200) : ""; const cl = [cp, c.never ? `绝不会：${c.never.trim()}` : ""].filter(Boolean).join("；"); if (cl) voice.unshift(`${c.name}：${cl}`); }
+    const groupRem = voice.length ? `（最后再记一次，各人的口吻：\n${voice.join("\n")}\n每一句都照各自的来，别混成一个腔调。）` : "";
+    if (groupRem) seg("fixed", "性格提醒", groupRem);
     const turns = [{ role: "system", content: sub(parts.join("\n"), c) }];
     // history: merge neighbours of the same role so the transcript stays alternating
     for (const m of history) {
@@ -6439,7 +6470,7 @@
       else turns.push({ role, content: line, hist: true });
       seg("history", `[群聊] ${groupSpeakerName(c, m)}`, line);
     }
-    turns.push({ role: "user", content: nudge || "（大家接着聊。）" });
+    turns.push({ role: "user", content: sub((nudge || "（大家接着聊。）") + (groupRem ? "\n\n" + groupRem : ""), c) });
     for (let i = 0; i < turns.length; i++) turns[i] = { role: turns[i].role, content: turns[i].content };
     return turns;
   }
@@ -7969,7 +8000,7 @@
     const d = editing.draft;
     $("editorTitle").textContent = c ? `编辑 · ${c.name}` : "新建角色";
     $("edName").value = d.name; $("edTag").value = d.tag || ""; $("edEmoji").value = d.emoji || "";
-    $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || "";
+    $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || ""; $("edNever").value = d.never || "";
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
@@ -8013,6 +8044,7 @@
     d.scenario = $("edScenario").value.trim();
     d.firstMessage = $("edFirst").value.trim();
     d.examples = $("edExamples").value.trim();
+    d.never = $("edNever").value.trim();
     d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
     d.userRole = $("edUserRole").value.trim();
     d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
@@ -8365,7 +8397,7 @@
     // read the form first so the export matches what is on screen
     const d = editing.draft;
     d.name = $("edName").value.trim() || d.name || "character";
-    d.description = $("edDesc").value.trim(); d.personality = $("edPersonality").value.trim();
+    d.description = $("edDesc").value.trim(); d.personality = $("edPersonality").value.trim(); d.never = $("edNever").value.trim();
     d.scenario = $("edScenario").value.trim(); d.firstMessage = $("edFirst").value.trim(); d.examples = $("edExamples").value.trim();
     d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
     d.userRole = $("edUserRole").value.trim();
@@ -9885,7 +9917,7 @@
     if (!c.npcs || !c.npcs.length) return "";
     const u = state.persona.name || "用户";
     const p = presentNow(c);
-    const line = (n) => `- ${n.name}${n.age ? `（${n.age} 岁）` : ""}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}${n.others ? `；和其他人：${n.others}` : ""}`;
+    const line = (n) => `- ${n.name}${n.age ? `（${n.age} 岁）` : ""}${n.brief ? `（${n.brief}）` : ""}${n.personality ? `：${n.personality}` : ""}${n.speech ? `；说话方式：${n.speech}` : ""}${n.never ? `；绝不会：${n.never}` : ""}${n.others ? `；和其他人：${n.others}` : ""}`;
     const rule = `如果通讯录里的人在这段里来了或走了，在回复最末尾另起一行输出 <cast>名字 来了；名字 走了</cast>（只写变化，一行写完，名字必须是 ${c.npcs.map((n) => n.name).join(" / ")} 之一；路人不用写；没变化就不输出）。不在名单上的这些人不要出现，除非剧情合理地让 TA 进场并如实标出；路人和群众可以自由出现。店员、司机、服务员这类一次性人物按场合正常开口、有反应，几句就行，不用加进名单，不要因为不在名单上就让他们不说话。`;
     if (p) {
       const here = p.ids.map((id) => npcById(c, id)).filter(Boolean);
