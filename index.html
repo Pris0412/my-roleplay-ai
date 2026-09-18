@@ -540,6 +540,7 @@
   .pm.pay .bot { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
   .pm.pay .bot button { border: 0; background: transparent; color: #0a84ff; font-size: 11px; cursor: pointer; padding: 0 2px; }
   .pm.pay .bot button.open { background: #e8453c; color: #fff; border-radius: 8px; padding: 2px 9px; font-weight: 600; }
+  .pm.pay:not(.red) .bot button.open { background: #f5a04a; }
   .pm.pay.done { opacity: 0.82; }
   .pm.pkd { background: #fff; color: #111; font-size: 12px; padding: 6px 10px; max-width: 62%; min-width: 190px; border: 1px solid rgba(0,0,0,0.1); }
   .phone.dark .pm.pkd { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.12); }
@@ -2642,7 +2643,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.62"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.63"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4549,12 +4550,13 @@
     ].filter(Boolean).join("\n");
   }
   // rich message markers: the model writes these on a line of their own; the phone renders them as cards
-  const PHONE_RICH_RULE = "- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。收到对方的红包，想领就单独一行写 [领取红包]（金额由系统填，不用自己写）。";
-  const GROUP_RICH_RULE = "- 消息里除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话]；群红包写成 [红包 ¥总金额 个数：N 拼手气 备注：一句话]（个数是能领的人数，拼手气或平分二选一）；发出去又后悔的消息写成 [撤回：原本的内容]。";
+  const PHONE_RICH_RULE = "- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。收到对方的红包，想领就单独一行写 [领取红包]（金额由系统填，不用自己写）。收到对方的转账，想收就单独一行写 [收款]，想退就写 [退还]，也可以先晾着不动，按人设和当时的情绪定。";
+  const GROUP_RICH_RULE = "- 消息里除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话]；群红包写成 [红包 ¥总金额 个数：N 拼手气 备注：一句话]（个数是能领的人数，拼手气或平分二选一）；发出去又后悔的消息写成 [撤回：原本的内容]。收到别人的转账，想收就单独一行写 [收款]，想退就写 [退还]。";
   const RICH_RE = {
     img: /^\[图片[：:]\s*(.+?)\]$/,
     pay: /^\[(转账|红包)\s*[¥￥]?\s*([\d.,]+)\s*(?:元)?((?:\s*(?:个数[：:]?\s*\d+\s*个?|\d+\s*个|拼手气|手气|随机|平分|均分))*)\s*(?:备注[：:]\s*(.*?))?\s*\]$/,
     grab: /^\[?领取红包(?:\s*[¥￥]?\s*([\d.]+))?\]?$/,
+    payAct: /^\[?(已收款|收款|已退还|退还|退回)(?:\s*[¥￥]?\s*([\d.]+))?\]?$/,
     recall: /^\[?撤回(?:[：:]\s*(.+?))?\]?$/,
   };
   // ---- red packets: the model decides who grabs, the page splits the money ----
@@ -4605,10 +4607,41 @@
     return amt;
   }
   // rewrite bare [领取红包] lines in a freshly generated or sent message into [领取红包 ¥x], recording the grab
+  // transfers: the first 转账 line of a message; who accepted or returned it lives in m.pay
+  function payInfo(m) {
+    for (const raw of String(m.content || "").split("\n")) {
+      const mt = raw.trim().match(RICH_RE.pay);
+      if (!mt || mt[1] !== "转账") continue;
+      const amount = Math.round(parseFloat(mt[2].replace(/,/g, "")) * 100) / 100;
+      return amount > 0 ? { amount, note: mt[4] || "" } : null;
+    }
+    return null;
+  }
+  // newest transfer in this thread that `who` can still act on: sent by someone else, not yet accepted or returned
+  function openPayFor(c, m, who) {
+    for (let i = c.chat.length - 1; i >= 0; i--) {
+      const x = c.chat[i];
+      if (x === m || !sameThread(x, m) || x.hidden || x.error) continue;
+      const p = payInfo(x); if (!p) continue;
+      if (msgSender(x) === who || x.pay) continue;
+      return { m: x, p };
+    }
+    return null;
+  }
+  function settlePay(pm, who, refund) { pm.pay = { status: refund ? "refunded" : "taken", by: who, ts: Date.now() }; }
   function applyGrabs(c, m) {
     const who = msgSender(m);
     let changed = false;
     const lines = String(m.content || "").split("\n").map((raw) => {
+      const pa = raw.trim().match(RICH_RE.payAct);
+      if (pa && !pa[2]) {
+        changed = true;
+        const op = openPayFor(c, m, who);
+        if (!op) return "";
+        const refund = /退/.test(pa[1]);
+        settlePay(op.m, who, refund);
+        return `[${refund ? "已退还" : "已收款"} ¥${op.p.amount.toFixed(2)}]`;
+      }
       const mt = raw.trim().match(RICH_RE.grab);
       if (!mt || mt[1]) return raw;
       changed = true;
@@ -4638,6 +4671,15 @@
       return out;
     }).join("\n");
   }
+  // the user taps 收款 / 退还 on someone else's transfer: settle it and post a plain phone message, no generation
+  function userPayAct(c, pm, refund) {
+    const p = payInfo(pm); if (!p || busy || pm.pay || msgSender(pm) === "user") return;
+    settlePay(pm, "user", refund);
+    const line = { id: uid(), role: "user", channel: "phone", content: `[${refund ? "已退还" : "已收款"} ¥${p.amount.toFixed(2)}]`, ts: Date.now() };
+    if (pm.group) { line.group = pm.group; line.speaker = null; } else if (pm.npc) line.npc = pm.npc;
+    c.chat.push(line);
+    save(); renderMessages(); renderPhone(true);
+  }
   // the user taps 开 on someone else's packet: take a share and post it as a plain phone message, no generation
   function userGrab(c, pm) {
     const p = packetInfo(pm); if (!p || busy) return;
@@ -4666,6 +4708,7 @@
     let m;
     if ((m = line.match(RICH_RE.img))) { const b = el("div", "pm img " + (mine ? "me" : "them")); b.appendChild(el("div", "ph", "🖼")); b.appendChild(el("div", "cap", m[1])); return b; }
     if ((m = line.match(RICH_RE.grab))) { const b = el("div", "pm sys"); b.textContent = `${mine ? "你" : who} 领取了红包${m[1] ? ` ¥${m[1]}` : ""}`; return b; }
+    if ((m = line.match(RICH_RE.payAct)) && m[2]) { const b = el("div", "pm sys"); b.textContent = `${mine ? "你" : who} ${/退/.test(m[1]) ? "退还了转账" : "收了转账"} ¥${m[2]}`; return b; }
     if ((m = line.match(RICH_RE.pay))) {
       const red = m[1] === "红包";
       const p = red && ctx && ctx.m ? packetInfo(ctx.m) : null;
@@ -4676,6 +4719,19 @@
       const col = el("div"); col.appendChild(el("div", "amt", `¥${m[2]}`)); col.appendChild(el("div", "note", m[4] || (red ? "恭喜发财，大吉大利" : "转账给你"))); top.appendChild(col);
       b.appendChild(top);
       const bot = el("div", "bot");
+      if (!red && ctx && ctx.m) {
+        const tp = payInfo(ctx.m);
+        if (ctx.m.pay) { bot.appendChild(el("span", null, ctx.m.pay.status === "refunded" ? (mine ? "对方已退还" : "已退还") : (mine ? "对方已收款" : "已收款"))); b.classList.add("done"); }
+        else if (mine || !tp) bot.appendChild(el("span", null, mine ? "待对方收款" : "微信转账"));
+        else {
+          bot.appendChild(el("span", null, "待收款"));
+          const acts = el("span"); acts.style.display = "flex"; acts.style.gap = "4px";
+          const ok = el("button", "open", "收款"); ok.type = "button"; ok.onclick = (e) => { e.stopPropagation(); userPayAct(ctx.c, ctx.m, false); };
+          const rf = el("button", null, "退还"); rf.type = "button"; rf.onclick = (e) => { e.stopPropagation(); userPayAct(ctx.c, ctx.m, true); };
+          acts.append(ok, rf); bot.appendChild(acts);
+        }
+        b.appendChild(bot); return b;
+      }
       if (!p) { bot.textContent = red ? "微信红包" : "微信转账"; b.appendChild(bot); return b; }
       const isGroup = !!ctx.m.group;
       bot.appendChild(el("span", null, isGroup ? `${p.mode} · 已领取 ${grabs.length}/${p.count}` : grabs.length ? "已领取" : "微信红包"));
