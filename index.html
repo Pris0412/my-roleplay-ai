@@ -632,6 +632,43 @@
   .mo-ci { display: flex; gap: 6px; align-items: center; }
   .mo-ci input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid #e5e5ea; background: #fff; color: inherit; }
   .phone.dark .mo-ci input { background: #2c2c2e; border-color: #3a3a3c; }
+  /* peek: someone else's phone, god's-eye view */
+  .pk-top { border-radius: 16px; padding: 14px 14px 12px; background: linear-gradient(135deg, #5b6cff, #b46bff 60%, #ff7ab8); color: #fff; width: 100%; box-sizing: border-box; }
+  .pk-top .nm { font-size: 16px; font-weight: 600; }
+  .pk-top .sb { font-size: 11px; opacity: 0.9; margin-top: 2px; }
+  .pk-top select { margin-top: 8px; width: 100%; padding: 6px 8px; border-radius: 10px; border: 0; font-size: 13px; background: rgba(255,255,255,0.92); color: #111; }
+  .pk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; padding: 4px 0; }
+  .pk-app { border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; color: inherit; position: relative; padding: 4px 0; }
+  .pk-app .ic { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+  .phone.dark .pk-app .ic { background: #2c2c2e; }
+  .pk-app .lb { font-size: 11px; }
+  .pk-app .bd { position: absolute; top: 0; right: 6px; min-width: 16px; height: 16px; border-radius: 8px; background: #e8453c; color: #fff; font-size: 10px; display: grid; place-items: center; padding: 0 4px; }
+  .pk-app:disabled { opacity: 0.45; cursor: default; }
+  .pk-bar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 0 6px; }
+  .pk-bar b { flex: 1; font-size: 14px; text-align: center; }
+  .pk-bar button { border: 0; background: transparent; color: #0a84ff; font-size: 13px; cursor: pointer; padding: 4px 6px; font: inherit; }
+  .pk-list { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+  .pk-row { background: #fff; border-radius: 12px; padding: 8px 12px; display: flex; gap: 10px; align-items: flex-start; }
+  .phone.dark .pk-row { background: #1c1c1e; }
+  .pk-row .ic { font-size: 16px; flex: 0 0 auto; padding-top: 1px; }
+  .pk-row .tx { flex: 1; min-width: 0; font-size: 13px; line-height: 1.45; word-break: break-word; }
+  .pk-row .tx .t { font-size: 11px; color: #8e8e93; margin-top: 2px; }
+  .pk-row .tx .ttl { font-weight: 600; margin-bottom: 2px; }
+  .pk-row .amt { font-size: 14px; font-weight: 600; flex: 0 0 auto; }
+  .pk-row .amt.in { color: #34c759; }
+  .pk-row .new { font-size: 10px; color: #e8453c; border: 1px solid #e8453c; border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: middle; }
+  .pk-bal { background: linear-gradient(135deg, #1f2a44, #3a4a7a); color: #fff; border-radius: 14px; padding: 14px; width: 100%; box-sizing: border-box; }
+  .pk-bal .lb { font-size: 11px; opacity: 0.8; }
+  .pk-bal .v { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .pk-chat { background: #fff; border-radius: 12px; padding: 8px 12px; width: 100%; box-sizing: border-box; }
+  .phone.dark .pk-chat { background: #1c1c1e; }
+  .pk-chat .hd { font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; cursor: pointer; }
+  .pk-chat .hd span:last-child { color: #8e8e93; font-weight: 400; font-size: 11px; }
+  .pk-chat .ln { font-size: 13px; line-height: 1.45; padding: 3px 0; word-break: break-word; }
+  .pk-chat .ln b { font-weight: 600; color: #5b6cff; }
+  .pk-chat .ln.me b { color: #e8453c; }
+  .pk-chat .ln .t { font-size: 10px; color: #8e8e93; margin-left: 6px; }
+  .pk-hint { font-size: 11px; color: #8e8e93; line-height: 1.5; padding: 4px 4px 0; width: 100%; }
   .ct-tools { display: flex; gap: 6px; padding: 6px 0; }
   .ct-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
   .ct-empty { font-size: 12px; color: #8e8e93; padding: 10px 4px; line-height: 1.5; }
@@ -2638,7 +2675,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.54"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.55"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3126,6 +3163,7 @@
     c.npcs = Array.isArray(c.npcs) ? c.npcs.map(normalizeNpc).filter(Boolean) : [];
     c.rels = c.rels && typeof c.rels === "object" ? c.rels : {};
     c.groups = Array.isArray(c.groups) ? c.groups.map(normalizeGroup).filter(Boolean) : [];
+    c.peeks = c.peeks && typeof c.peeks === "object" && !Array.isArray(c.peeks) ? c.peeks : {};
     c.scene = c.scene && typeof c.scene === "object" ? (Array.isArray(c.scene.npcs) && c.scene.npcs.length ? { npcs: c.scene.npcs.map(String) } : c.scene.npc ? { npcs: [String(c.scene.npc)] } : null) : null;
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.memory.npcDone = c.memory.npcDone && typeof c.memory.npcDone === "object" ? c.memory.npcDone : {};
@@ -4701,6 +4739,7 @@
     const stIns = statusInstruction(c);
     if (stIns) dyn("fixed", "状态面板", stIns);
     dyn("fixed", "年龄", agesInstruction(c));
+    dyn("fixed", "手机里的秘密", peekInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
     if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
     if (c.phone && c.phone.open) {
@@ -4797,6 +4836,7 @@
     { const nb = notesBlock(c, null); if (nb) dyn("notes", "不能忘的事", nb); }
     { const st = statusInstruction(c); if (st) dyn("fixed", "状态面板", st); }
     dyn("fixed", "年龄", agesInstruction(c));
+    dyn("fixed", "手机里的秘密", peekInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
     if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
     const pre = [], post = [], inChat = [];
@@ -5654,6 +5694,7 @@
     }
     dyn("fixed", "关系变化", npcStatusInstruction(c, npc, others));
     dyn("fixed", "年龄", agesInstruction(c));
+    dyn("fixed", "手机里的秘密", peekInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
     if (sceneMode) dyn("fixed", "本楼提醒", tailReminder(c, u));
     const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
@@ -6037,6 +6078,16 @@
       row.onclick = () => openMoments();
       list.appendChild(row);
     }
+    {
+      const row = el("button", "ct-row");
+      const a = el("div", "av", "🔍");
+      const t = el("div"); t.appendChild(el("div", "nm", "看看别人的手机"));
+      const seen = Object.keys(c.peeks || {}).filter((k) => c.peeks[k] && c.peeks[k].rev).map((k) => peekOwnerName(c, k)).filter(Boolean);
+      t.appendChild(el("div", "sb", seen.length ? `看过：${seen.join("、")}` : "上帝视角：浏览器、钱包、备忘录、和别人的聊天。TA 不知道"));
+      row.append(a, t, el("span", "tg", "偷看"));
+      row.onclick = () => openPeek(peekWho && peekOwner(c, peekWho) ? peekWho : "char");
+      list.appendChild(row);
+    }
     list.appendChild(el("div", "ct-h", "角色"));
     const rowChar = el("button", "ct-row");
     const av = avFill(el("div", "av"), c);
@@ -6085,6 +6136,224 @@
     tools.append(scan, add, mkg);
     list.appendChild(tools);
     body.appendChild(list);
+  }
+  // ----- peek: someone else's phone (god's-eye view, never enters the story) -----
+  let peekWho = null;   // "char" or an NPC id
+  let peekApp = null;   // null = home screen, else "browser" | "wallet" | "notes" | "chats"
+  let peekBusy = null;  // AbortController while generating
+  const peekChatOpen = new Set();
+  const PEEK_APPS = [["browser", "🌐", "浏览器"], ["wallet", "💳", "钱包"], ["notes", "📝", "备忘录"], ["chats", "💬", "聊天"]];
+  function peekOwner(c, who) { return who === "char" ? { id: "char", name: c.name, isChar: true } : npcById(c, who); }
+  function peekOwnerName(c, who) { const o = peekOwner(c, who); return o ? o.name : ""; }
+  function peekData(c, who) { c.peeks = c.peeks || {}; return c.peeks[who] || null; }
+  function openPeek(who) {
+    const c = active(); if (!c) return;
+    peekWho = who; peekApp = null;
+    phoneView = "peek"; phoneWith = null; phoneGroup = null; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
+    $("phone").classList.toggle("dark", state.settings.phoneDark === true);
+    renderPhone();
+    $("phoneBack").hidden = false;
+  }
+  // one compact line per peeked phone so the story models stay consistent with what the user saw
+  function peekInstruction(c) {
+    const out = [];
+    for (const [who, d] of Object.entries(c.peeks || {})) {
+      if (!d || !d.summary) continue;
+      const nm = peekOwnerName(c, who); if (!nm) continue;
+      out.push(`- ${nm} 的手机里（用户以上帝视角看到的，${nm} 本人不知道被看过；这些是既成事实，正文里 ${nm} 的言行要和它们一致）：${d.summary}`);
+    }
+    return out.length ? `## 手机里的秘密\n${out.join("\n")}` : "";
+  }
+  function peekPrompt(c, who, prev) {
+    const u = state.persona.name || "用户";
+    const o = peekOwner(c, who); if (!o) return "";
+    const nm = o.name;
+    const clip = (t, k) => String(t || "").replace(/<[^>]+>/g, "").slice(0, k);
+    const lines = [];
+    lines.push(`这是一场角色扮演的资料。用户「${u}」正在用上帝视角偷看「${nm}」的手机（${nm} 本人不知道，这件事不进剧情）。请根据资料，写出 ${nm} 手机里${prev ? "从上次偷看到现在**新增**" : "到目前为止"}的痕迹：浏览器搜索记录、钱包账单、备忘录、和别人的聊天。`);
+    lines.push("");
+    if (o.isChar) {
+      lines.push(`## ${nm}（主角）`, [c.tag ? sub(c.tag, c) : "", clip(c.description, 900), c.personality ? `性格：${clip(c.personality, 400)}` : ""].filter(Boolean).join("\n"));
+      const st = c.status && c.status.enabled ? c.status.fields.filter((f) => f.value !== "" && f.value != null).map((f) => `${f.key}：${f.value}`).join("；") : "";
+      if (st) lines.push(`此刻状态：${st}`);
+      if (c.status && c.status.voice) lines.push(`此刻心声：${clip(c.status.voice, 200)}`);
+    } else {
+      lines.push(`## ${nm}`, [o.brief, clip(o.desc, 700), o.age ? `年龄：${o.age}` : "", o.personality ? `性格：${o.personality}` : "", o.speech ? `说话方式：${o.speech}` : "", o.others ? `和其他人：${o.others}` : "", o.mood ? `此刻心情：${o.mood}` : "", o.voice ? `此刻心声：${o.voice}` : ""].filter(Boolean).join("\n"));
+    }
+    { const pt = personaText(c); if (pt) lines.push(`\n## ${u}（用户）`, clip(pt, 500)); }
+    // relations: with the user, with the character, with everyone else in the contacts
+    const rel = [];
+    let stageWithUser = "";
+    if (o.isChar) { const cu = charUserRel(c); if (cu.rel || cu.aff != null) { rel.push(`${nm} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100，${relStage(cu.aff)}）` : ""}`); stageWithUser = cu.aff != null ? relStage(cu.aff) : cu.rel; } }
+    else {
+      const a = relGet(c, "u", o.id), b = relGet(c, "c", o.id);
+      if (a.set) { rel.push(`${nm} 和 ${u}：${a.rel || "（未定）"}（好感 ${a.aff}/100，${relStage(a.aff)}）${a.note ? ` · ${a.note}` : ""}`); stageWithUser = relStage(a.aff); }
+      if (b.set) rel.push(`${nm} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100，${relStage(b.aff)}）${b.note ? ` · ${b.note}` : ""}`);
+    }
+    for (const n of c.npcs) {
+      if (!o.isChar && n.id === o.id) continue;
+      const r = o.isChar ? relGet(c, "c", n.id) : null;
+      if (r && r.set) rel.push(`${nm} 和 ${n.name}：${r.rel || "（未定）"}（好感 ${r.aff}/100）${r.note ? ` · ${r.note}` : ""}`);
+    }
+    if (rel.length) lines.push("\n## 人际关系", rel.map((x) => "- " + x).join("\n"));
+    // recent story: the floors this person is part of, plus their phone / group lines
+    const isMine = (m) => o.isChar ? !m.npc : (msgHasNpc(m, o.id) || (m.speaker === o.id) || (!m.npc && !m.group && [o.name, ...(o.aliases || [])].some((x) => x && (m.content || "").includes(x))));
+    const recent = c.chat.filter((m) => m.kind !== "divider" && !m.error && !m.hidden && m.channel !== "moments" && isMine(m)).slice(-14)
+      .map((m) => { const w = m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : m.npc ? npcName(c, m.npc) : c.name; const tag = m.group ? "[群聊] " : m.channel === "phone" ? "[手机] " : ""; return `${tag}${w}：${clip(stripStatus(stripReasoning(sub(m.content, c))), 320)}`; });
+    lines.push("\n## 最近的剧情", recent.length ? recent.join("\n") : "（还没开始，按设定和世界观写 TA 平时的样子）");
+    const tf = c.status && c.status.fields.find((f) => f.key === "时间");
+    lines.push(`\n剧情里现在的时间：${tf && tf.value ? tf.value : "（没写，自己定一个合理的）"}`);
+    if (prev) {
+      const last = (arr, k) => (arr || []).slice(0, k);
+      lines.push("\n## 上次偷看到的（不要重复，接着往后写新增的）");
+      lines.push(`要点：${prev.summary || "（无）"}`);
+      lines.push(`最近的搜索：${last(prev.browser, 6).map((x) => x.q).join("；") || "（无）"}`);
+      lines.push(`最近的账单：${last(prev.wallet && prev.wallet.bills, 5).map((x) => `${x.item} ${x.amt}`).join("；") || "（无）"}，余额 ${prev.wallet ? prev.wallet.balance : "?"}`);
+      lines.push(`聊过的人：${(prev.chats || []).map((x) => x.with).join("、") || "（无）"}`);
+    }
+    const others = o.isChar ? c.npcs.map((n) => n.name) : [c.name, ...c.npcs.filter((n) => n.id !== o.id).map((n) => n.name)];
+    lines.push("\n## 写法");
+    lines.push(`- 阶段：${nm} 和 ${u} 现在是「${stageWithUser || "未定"}」。疏远/认识阶段以日常为主，混一两条藏着的心思；朋友/暧昧阶段写试探、纠结、偷偷打听（比如「他是不是也喜欢我」「第一次约会去哪」「发消息不回是什么意思」）；亲近/亲密阶段写亲密、占有、计划两人的事，尺度允许时可以直接出现性相关的搜索、购物和私聊话题。`);
+    lines.push(`- 尺度：${nsfwRule(c)}`);
+    lines.push(`- 至少一半的条目是 ${nm} 不会当面说的、和最近剧情直接相关的（TA 在意什么、后悔什么、偷偷查什么、想买什么）；其余是日常（外卖、天气、工作、爱好、买东西），两者混在一起，按时间顺序自然穿插。不要照抄已经说出口的心声，要写出心声背后 TA 真正去做了什么。`);
+    lines.push(`- 钱包：余额和账单要符合 ${nm} 的经济状况和身份，正文里买过的东西要出现在账单里；可以有给别人的转账和收款。金额用数字，支出为负、收入为正。`);
+    lines.push(`- 备忘录：写了没发出去的话、清单、零碎草稿，像真人随手记的。`);
+    lines.push(`- 聊天：${nm} 和这些人的私聊片段：${others.length ? others.join("、") : "（通讯录里没别人，写 1 到 2 个 TA 身边合理存在的人）"}。每人 3 到 6 条，口语短句，双方的话都写，可以聊到 ${u}。${nm} 自己的消息 from 写「${nm}」。`);
+    lines.push(`- 时间用剧情里的时间写法（如「周三 23:10」「昨天 08:15」）。搜索、账单、备忘录按时间倒序（最新的在前）；聊天里每个人的消息按时间正序（旧的在前，最新的在最后）。语言：${langHint()}`);
+    lines.push(prev ? "- 数量：搜索 3 到 6 条，账单 2 到 5 条，备忘录 0 到 2 条，每个人的聊天 0 到 4 条新消息；不要重复上次的。" : "- 数量：搜索 8 到 12 条，账单 6 到 10 条，备忘录 2 到 4 条，聊天 2 到 4 个人。");
+    lines.push("\n只输出 JSON：");
+    lines.push(`{"browser":[{"t":"时间","q":"搜索词"}],"wallet":{"balance":数字,"bills":[{"t":"时间","item":"用途或商家","amt":-金额或+金额,"to":"对方，没有就空字符串"}]},"notes":[{"t":"时间","title":"标题，可空","text":"内容"}],"chats":[{"with":"对方名字","lines":[{"from":"名字","t":"时间","text":"内容"}]}],"summary":"40 到 80 字，给正文模型用：这部手机里最能说明 ${nm} 心思的两三点，写具体（搜了什么、买了什么、跟谁说了什么）"}`);
+    return lines.join("\n");
+  }
+  async function peekRefresh(c, who) {
+    if (peekBusy || !chatReady()) return;
+    const o = peekOwner(c, who); if (!o) return;
+    const prev = peekData(c, who);
+    const prompt = peekPrompt(c, who, prev);
+    peekBusy = new AbortController();
+    renderPhone();
+    try {
+      const res = await completeJson(prompt, { signal: peekBusy.signal, tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      if (!res || typeof res !== "object") throw new Error("模型没有给出可用的内容");
+      const rev = (prev && prev.rev || 0) + 1;
+      const str = (v, k) => String(v == null ? "" : v).trim().slice(0, k);
+      const num = (v) => { const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.-]/g, "")); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+      const d = prev ? JSON.parse(JSON.stringify(prev)) : { browser: [], wallet: { balance: 0, bills: [] }, notes: [], chats: [], summary: "" };
+      d.wallet = d.wallet && typeof d.wallet === "object" ? d.wallet : { balance: 0, bills: [] };
+      const nb = (Array.isArray(res.browser) ? res.browser : []).map((x) => ({ t: str(x && x.t, 30), q: str(x && x.q, 80), rev })).filter((x) => x.q);
+      d.browser = nb.concat(d.browser || []).slice(0, 60);
+      const bills = (res.wallet && Array.isArray(res.wallet.bills) ? res.wallet.bills : []).map((x) => ({ t: str(x && x.t, 30), item: str(x && x.item, 60), amt: num(x && x.amt), to: str(x && x.to, 30), rev })).filter((x) => x.item);
+      d.wallet.bills = bills.concat(d.wallet.bills || []).slice(0, 50);
+      // first look: trust the model's balance; later looks: roll the new bills into the old balance so the number never jumps
+      d.wallet.balance = prev ? Math.round((num(d.wallet.balance) + bills.reduce((a, b) => a + b.amt, 0)) * 100) / 100 : num(res.wallet && res.wallet.balance);
+      const notes = (Array.isArray(res.notes) ? res.notes : []).map((x) => ({ t: str(x && x.t, 30), title: str(x && x.title, 40), text: str(x && x.text, 400), rev })).filter((x) => x.text);
+      d.notes = notes.concat(d.notes || []).slice(0, 30);
+      for (const ch of Array.isArray(res.chats) ? res.chats : []) {
+        const w = str(ch && ch.with, 30); if (!w) continue;
+        const ls = (Array.isArray(ch.lines) ? ch.lines : []).map((x) => ({ from: str(x && x.from, 30) || w, t: str(x && x.t, 30), text: str(x && x.text, 300), rev })).filter((x) => x.text);
+        if (!ls.length) continue;
+        let slot = (d.chats || []).find((x) => x.with === w);
+        if (!slot) { slot = { with: w, lines: [] }; d.chats = [slot, ...(d.chats || [])]; }
+        else d.chats = [slot, ...d.chats.filter((x) => x !== slot)];
+        slot.lines = slot.lines.concat(ls).slice(-40);
+      }
+      d.summary = str(res.summary, 300) || d.summary;
+      d.rev = rev; d.ts = Date.now(); d.floor = floorOf(c, c.chat.length - 1);
+      const tf = c.status && c.status.fields.find((f) => f.key === "时间"); d.storyTime = tf && tf.value ? String(tf.value) : "";
+      c.peeks[who] = d;
+      save();
+      toast(prev ? `${o.name} 的手机有新东西了` : `拿到了 ${o.name} 的手机`);
+    } catch (e) {
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) toast("失败：" + (e && e.message ? e.message : e), true);
+    } finally {
+      peekBusy = null;
+      renderPhone();
+    }
+  }
+  function peekForget(c, who) {
+    if (!peekData(c, who)) return;
+    if (!confirm(`忘掉看过的 ${peekOwnerName(c, who)} 的手机？下次再看会重新生成。`)) return;
+    delete c.peeks[who]; peekApp = null; save(); renderPhone();
+  }
+  function renderPeek(c, body) {
+    if (!peekOwner(c, peekWho)) peekWho = "char";
+    const o = peekOwner(c, peekWho);
+    const d = peekData(c, peekWho);
+    const busyNow = !!peekBusy;
+    const isNew = (x) => d && x.rev === d.rev && d.rev > 1;
+    const newTag = (x) => (isNew(x) ? el("span", "new", "新") : null);
+    const wrap = el("div", "ct-list");
+    if (!peekApp) {
+      const top = el("div", "pk-top");
+      top.appendChild(el("div", "nm", `${o.name} 的手机`));
+      top.appendChild(el("div", "sb", d ? `上次翻看：第 ${d.floor} 楼${d.storyTime ? ` · ${d.storyTime}` : ""} · 看过 ${d.rev} 次` : "还没翻过 · 上帝视角，不进剧情，TA 不知道"));
+      const sel = document.createElement("select");
+      for (const [v, t] of [["char", `${c.name}（主角）`], ...c.npcs.map((n) => [n.id, `${n.name}${npcAppeared(c, n) ? "" : "（未出场）"}`])]) { const op = document.createElement("option"); op.value = v; op.textContent = "谁的手机：" + t; sel.appendChild(op); }
+      sel.value = peekWho; sel.disabled = busyNow;
+      sel.onchange = () => { peekWho = sel.value; peekApp = null; renderPhone(); };
+      top.appendChild(sel);
+      wrap.appendChild(top);
+      const grid = el("div", "pk-grid");
+      for (const [key, ic, lb] of PEEK_APPS) {
+        const b = el("button", "pk-app"); b.type = "button"; b.disabled = !d;
+        b.appendChild(el("div", "ic", ic)); b.appendChild(el("div", "lb", lb));
+        const cnt = !d || d.rev < 2 ? 0 : key === "browser" ? d.browser.filter(isNew).length : key === "wallet" ? d.wallet.bills.filter(isNew).length : key === "notes" ? d.notes.filter(isNew).length : d.chats.reduce((a, ch) => a + ch.lines.filter(isNew).length, 0);
+        if (cnt) b.appendChild(el("span", "bd", String(cnt)));
+        b.onclick = () => { peekApp = key; renderPhone(); };
+        grid.appendChild(b);
+      }
+      wrap.appendChild(grid);
+      const tools = el("div", "ct-tools");
+      const go = el("button", "btn", busyNow ? "翻看中…" : d ? "🔄 看看有没有新的" : "📱 拿起 TA 的手机");
+      go.disabled = busyNow || !chatReady(); go.onclick = () => peekRefresh(c, peekWho);
+      tools.appendChild(go);
+      if (busyNow) { const st = el("button", "btn ghost", "停止"); st.onclick = () => peekBusy && peekBusy.abort(); tools.appendChild(st); }
+      else if (d) { const fg = el("button", "btn ghost", "忘掉"); fg.onclick = () => peekForget(c, peekWho); tools.appendChild(fg); }
+      wrap.appendChild(tools);
+      wrap.appendChild(el("div", "pk-hint", d ? `看过的内容会当作既成事实告诉正文模型，${o.name} 的言行会和手机里的东西对得上。不会自动更新：想看最新的就点一下，每次算一条回复的花费。` : `点一下生成 ${o.name} 手机里的痕迹：搜索记录、账单、备忘录、和别人的聊天。内容跟着剧情、关系阶段和尺度设置走。每次算一条回复的花费。`));
+      if (d && d.summary) wrap.appendChild(el("div", "pk-hint", `📌 ${d.summary}`));
+      body.appendChild(wrap);
+      return;
+    }
+    const app = PEEK_APPS.find((x) => x[0] === peekApp) || PEEK_APPS[0];
+    const bar = el("div", "pk-bar");
+    const back = el("button", null, "‹ 桌面"); back.type = "button"; back.onclick = () => { peekApp = null; renderPhone(); };
+    bar.appendChild(back); bar.appendChild(el("b", null, `${app[1]} ${app[2]}`));
+    const rf = el("button", null, busyNow ? "…" : "刷新"); rf.type = "button"; rf.disabled = busyNow || !chatReady(); rf.onclick = () => peekRefresh(c, peekWho); bar.appendChild(rf);
+    wrap.appendChild(bar);
+    if (!d) { wrap.appendChild(el("div", "ct-empty", "还没翻过这部手机。")); body.appendChild(wrap); return; }
+    if (peekApp === "browser") {
+      const list = el("div", "pk-list");
+      if (!d.browser.length) list.appendChild(el("div", "ct-empty", "没有搜索记录。"));
+      for (const x of d.browser) { const r = el("div", "pk-row"); r.appendChild(el("span", "ic", "🔍")); const tx = el("div", "tx"); tx.appendChild(document.createTextNode(x.q)); const nt = newTag(x); if (nt) tx.appendChild(nt); if (x.t) tx.appendChild(el("div", "t", x.t)); r.appendChild(tx); list.appendChild(r); }
+      wrap.appendChild(list);
+    } else if (peekApp === "wallet") {
+      const bal = el("div", "pk-bal"); bal.appendChild(el("div", "lb", "余额")); bal.appendChild(el("div", "v", `¥${Number(d.wallet.balance || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)); wrap.appendChild(bal);
+      const list = el("div", "pk-list");
+      if (!d.wallet.bills.length) list.appendChild(el("div", "ct-empty", "没有账单。"));
+      for (const x of d.wallet.bills) { const r = el("div", "pk-row"); r.appendChild(el("span", "ic", x.amt >= 0 ? "💰" : "🛍")); const tx = el("div", "tx"); tx.appendChild(document.createTextNode(x.item)); const nt = newTag(x); if (nt) tx.appendChild(nt); tx.appendChild(el("div", "t", [x.to, x.t].filter(Boolean).join(" · "))); r.appendChild(tx); r.appendChild(el("span", "amt" + (x.amt >= 0 ? " in" : ""), `${x.amt >= 0 ? "+" : "-"}${Math.abs(x.amt).toFixed(2)}`)); list.appendChild(r); }
+      wrap.appendChild(list);
+    } else if (peekApp === "notes") {
+      const list = el("div", "pk-list");
+      if (!d.notes.length) list.appendChild(el("div", "ct-empty", "备忘录是空的。"));
+      for (const x of d.notes) { const r = el("div", "pk-row"); r.appendChild(el("span", "ic", "📝")); const tx = el("div", "tx"); if (x.title) { const tt = el("div", "ttl", x.title); const nt = newTag(x); if (nt) tt.appendChild(nt); tx.appendChild(tt); } tx.appendChild(document.createTextNode(x.text)); if (!x.title) { const nt = newTag(x); if (nt) tx.appendChild(nt); } if (x.t) tx.appendChild(el("div", "t", x.t)); r.appendChild(tx); list.appendChild(r); }
+      wrap.appendChild(list);
+    } else {
+      const list = el("div", "pk-list");
+      if (!d.chats.length) list.appendChild(el("div", "ct-empty", "没有和别人的聊天。"));
+      for (const ch of d.chats) {
+        const box = el("div", "pk-chat");
+        const key = peekWho + ":" + ch.with;
+        const open = peekChatOpen.has(key);
+        const hd = el("div", "hd"); hd.appendChild(el("span", null, ch.with + (ch.lines.some(isNew) ? " ·" : ""))); hd.appendChild(el("span", null, open ? "收起" : `${ch.lines.length} 条 · ${ch.lines.length ? ch.lines[ch.lines.length - 1].text.slice(0, 16) : ""}`));
+        hd.onclick = () => { if (open) peekChatOpen.delete(key); else peekChatOpen.add(key); renderPhone(); };
+        box.appendChild(hd);
+        if (open) for (const ln of ch.lines) { const r = el("div", "ln" + (ln.from === o.name ? " me" : "")); r.appendChild(el("b", null, ln.from + "：")); r.appendChild(document.createTextNode(ln.text)); const nt = newTag(ln); if (nt) r.appendChild(nt); if (ln.t) r.appendChild(el("span", "t", ln.t)); box.appendChild(r); }
+        list.appendChild(box);
+      }
+      wrap.appendChild(list);
+    }
+    body.appendChild(wrap);
   }
   // ----- NPC editor -----
   let npcEditing = null;
@@ -6953,6 +7222,22 @@
     if (!c) return;
     const body = $("phoneBody");
     const contacts = phoneView === "contacts";
+    if (phoneView === "peek") {
+      const o = peekOwner(c, peekWho) || peekOwner(c, "char"); if (!peekOwner(c, peekWho)) peekWho = "char";
+      $("phoneClose").textContent = "‹ 联系人"; $("phoneClose").title = "回到联系人列表";
+      $("phoneExit").hidden = true;
+      $("phoneName").textContent = `${o.name} 的手机`;
+      const d = peekData(c, peekWho);
+      $("phoneStatus").textContent = peekBusy ? "正在翻…" : d ? `上帝视角 · 第 ${d.floor} 楼时的样子` : "上帝视角 · 还没翻过";
+      $("phoneStatus").classList.remove("link"); $("phoneStatus").onclick = null; $("phoneStatus").title = "";
+      document.querySelector(".phone-tools").hidden = true;
+      document.querySelector(".phone-foot").hidden = true; $("phoneExtra").classList.remove("on");
+      const keepTop = body.scrollTop;
+      body.innerHTML = "";
+      renderPeek(c, body);
+      body.scrollTop = keepTop;
+      return;
+    }
     if (phoneView === "moments") {
       $("phoneClose").textContent = "‹ 联系人"; $("phoneClose").title = "回到联系人列表";
       $("phoneExit").hidden = true;
@@ -10571,7 +10856,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
   // ============================================================
   // Save slots (存档): snapshot the chat-side of a character and go back later
   // ============================================================
-  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn", "mvuEdits"];
+  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn", "mvuEdits", "peeks"];
   function deep(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
   function saveSnapshot(c) {
     const d = {};
