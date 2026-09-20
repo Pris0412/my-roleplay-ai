@@ -2643,7 +2643,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.63"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.64"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2885,9 +2885,11 @@
   const AGES_OPEN_RE = /<ages>[\s\S]*$/i;
   const REL_RE = /<rel>\s*([\s\S]*?)\s*<\/rel>/gi;
   const REL_OPEN_RE = /<rel>[\s\S]*$/i;
+  const PHONE_RE = /<phone>\s*([\s\S]*?)\s*<\/phone>/gi;
+  const PHONE_OPEN_RE = /<phone>[\s\S]*$/i;
   const MVU_RE = /<UpdateVariable>\s*([\s\S]*?)\s*<\/UpdateVariable>/gi;
   const MVU_OPEN_RE = /<UpdateVariable>[\s\S]*$/i;
-  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").replace(MVU_RE, "").replace(MVU_OPEN_RE, "").trim(); }
+  function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").replace(PHONE_RE, "").replace(PHONE_OPEN_RE, "").replace(MVU_RE, "").replace(MVU_OPEN_RE, "").trim(); }
   // how the 时间 field should be written: a full in-story date, never the real calendar
   const TIME_RULE = "「时间」写成完整的日期加时段，例如「3021年4月12日 周三 傍晚 18:40」：年份用 30XX 这种架空年份，不用现实的年份（角色卡或世界书明确了年代的就按那个来，古风可以写「XX年三月初七 酉时」）；日期跟着剧情走，过了一夜就翻到下一天，星期要和日期对得上；写法前后保持一致。当前值里还没有日期的，这次更新时按剧情合理补上。";
   function statusInstruction(c) {
@@ -4798,6 +4800,7 @@
     if (stIns) dyn("fixed", "状态面板", stIns);
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
+    if (!(c.phone && c.phone.open)) dyn("fixed", "手机消息", phoneEventsRule(c));
     if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
     if (c.phone && c.phone.open) {
       const pr = phoneRules(c, u);
@@ -4894,6 +4897,7 @@
     { const st = statusInstruction(c); if (st) dyn("fixed", "状态面板", st); }
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
+    if (!(c.phone && c.phone.open)) dyn("fixed", "手机消息", phoneEventsRule(c));
     if (!(c.phone && c.phone.open)) dyn("fixed", "本楼提醒", tailReminder(c, u));
     const pre = [], post = [], inChat = [];
     let afterHistory = false;
@@ -5305,6 +5309,7 @@
       if (applyAgesFromText(c, res.text)) afterAges(c);
       if (mvuInitEntry(c) && /<UpdateVariable>/i.test(res.text || "")) { const d = mvuData(c); feEmit("mag_variable_updated", { stat_data: d }); feEmit("mag_variable_update_ended", { stat_data: d }); }
       if (!msg.npc && !(c.phone && c.phone.open)) { try { applyCastFromText(c, res.text, msg); } catch (e) { console.error(e); } }
+      if (msg.channel !== "phone" && !(c.phone && c.phone.open)) { try { applyPhoneFromText(c, res.text, msg); } catch (e) { console.error(e); } }
       if (!msg.npc && !msg.error) setTimeout(() => maybeAutoRelRefresh(c), 0);
     } catch (e) {
       const dropSwipe = () => {
@@ -5425,9 +5430,11 @@
   function renderPlusMenu() {
     const m = $("plusMenu");
     m.innerHTML = "";
+    const c = active();
     for (const it of PLUS_ITEMS) {
       const b = el("button", "plus-item");
-      b.innerHTML = `<span class="ic">${it.icon}</span><span>${it.label}<small>${it.hint}</small></span>`;
+      const unread = it.id === "phone" && c && c.phoneUnread ? ` <b style="color:#e8453c">· ${c.phoneUnread} 条新消息</b>` : "";
+      b.innerHTML = `<span class="ic">${it.icon}</span><span>${it.label}${unread}<small>${it.hint}</small></span>`;
       b.onclick = () => { m.hidden = true; it.run(); };
       m.appendChild(b);
     }
@@ -5512,6 +5519,7 @@
   function openPhoneHome() {
     const c = active();
     if (!c || busy) return;
+    if (c.phoneUnread) { c.phoneUnread = 0; save(); renderPlusMenu(); }
     const l = c.phoneLast || null;
     if (l && l.view === "moments") return openMoments();
     if (l && l.view === "chat" && l.group && groupById(c, l.group)) return openPhoneGroup(l.group);
@@ -5751,6 +5759,7 @@
     dyn("fixed", "关系变化", npcStatusInstruction(c, npc, others));
     dyn("fixed", "年龄", agesInstruction(c));
     dyn("fixed", "MVU 变量", mvuInstruction(c));
+    if (sceneMode) dyn("fixed", "手机消息", phoneEventsRule(c));
     if (sceneMode) dyn("fixed", "本楼提醒", tailReminder(c, u));
     const tail = [npc, ...others].filter((n) => n.personality || n.speech).map((n) => `${n.name}：${[n.personality, n.speech].filter(Boolean).join("；")}`).join("\n");
     if (tail) { const rem = `## 最后再记一次\n${tail}\n这是你此刻的口吻，每一句都照这个来。`; parts.push("\n" + rem); seg("fixed", "性格提醒", rem); }
@@ -9976,6 +9985,46 @@
     c.chat.push(d);
     save(); renderMessages(); renderCharList();
     return d;
+  }
+  // ---- story → phone: messages, transfers and packets sent to the user inside the narrative also land in the phone ----
+  function phoneEventsRule(c) {
+    const u = state.persona.name || "用户";
+    const names = [c.name, ...c.npcs.map((n) => n.name)];
+    const groups = c.groups.map((g) => g.name);
+    return [
+      "## 手机消息",
+      `剧情里如果有人真的给 ${u} 发了手机消息、转账或红包（正文里明确写了发出去的内容），除了正文描写，在回复最末尾另起一行输出：<phone>发送者：内容</phone>，一条消息一行，多条就多行。转账写成 [转账 ¥金额 备注：一句话]，红包 [红包 ¥金额 备注：一句话]，图片 [图片：一句描述]。${groups.length ? `群里发的写成 <phone>群名｜发送者：内容</phone>，群名只能是 ${groups.join(" / ")}。` : ""}发送者只能是 ${names.join(" / ")}。只是看了眼手机、打了字没发、或者是 ${u} 自己发的都不算；没有就不输出这个块。`,
+    ].join("\n");
+  }
+  function applyPhoneFromText(c, text, msg) {
+    const blocks = [...String(text || "").matchAll(PHONE_RE)];
+    // a regenerated floor replaces what its previous version put in the phone
+    if (msg && msg.id) c.chat = c.chat.filter((m) => m.fromStory !== msg.id);
+    if (!blocks.length) return 0;
+    const names = castNameMap(c);
+    const groupsByName = new Map(c.groups.map((g) => [g.name, g]));
+    const u = state.persona.name || "用户";
+    let n = 0;
+    for (const b of blocks) for (const raw of b[1].split("\n")) {
+      const line = raw.trim().replace(/^[-•·]\s*/, "");
+      if (!line) continue;
+      let gname = null, rest = line;
+      const gm = rest.match(/^([^｜|：:]{1,30})\s*[｜|]\s*(.+)$/);
+      if (gm && groupsByName.has(gm[1].trim())) { gname = gm[1].trim(); rest = gm[2]; }
+      const mt = rest.match(/^([^：:]{1,20})\s*[：:]\s*(.+)$/s);
+      if (!mt) continue;
+      const sender = mt[1].trim(), body = mt[2].trim();
+      if (!body || sender === u) continue;
+      const isChar = sender === c.name;
+      const npcId = isChar ? null : names.get(sender);
+      if (!isChar && !npcId) continue;
+      const m = { id: uid(), role: "assistant", channel: "phone", content: body, ts: Date.now(), fromStory: msg ? msg.id : undefined };
+      if (gname) { const g = groupsByName.get(gname); const sid = isChar ? "char" : npcId; if (!g.members.includes(sid)) continue; m.group = g.id; m.speaker = sid; }
+      else if (npcId) m.npc = npcId;
+      c.chat.push(m); n++;
+    }
+    if (n) { c.phoneUnread = (c.phoneUnread || 0) + n; toast(`📱 手机有 ${n} 条新消息`); renderPlusMenu(); }
+    return n;
   }
   function castNameMap(c) {
     const map = new Map();
