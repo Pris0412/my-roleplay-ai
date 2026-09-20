@@ -554,13 +554,35 @@
   .phone-extra { display: none; flex-wrap: wrap; gap: 6px; padding: 8px 10px; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.08); }
   .phone-extra.on { display: flex; }
   .phone.dark .phone-extra { background: rgba(28,28,30,0.94); border-top-color: rgba(255,255,255,0.1); }
-  .phone-extra .frm select { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15); font-size: 13px; background: #fff; }
-  .phone-extra .frm input.cnt { flex: 0 0 64px; }
-  .phone-extra .frm { display: flex; gap: 6px; width: 100%; align-items: center; }
-  .phone-extra .frm input { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15); font-size: 13px; }
-  .phone-extra .frm input.amt { flex: 0 0 90px; }
-  .phone-extra .frm button { padding: 6px 10px; border-radius: 10px; border: 0; background: #0a84ff; color: #fff; font-size: 13px; cursor: pointer; }
-  .phone-extra .frm label { font-size: 12px; color: #8e8e93; flex: 0 0 auto; }
+  /* "+" panel: a row of app icons, then one sheet per action */
+  .px-grid { display: flex; justify-content: center; gap: 26px; width: 100%; padding: 6px 0 4px; }
+  .px-app { border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font: inherit; font-size: 11px; color: #8e8e93; padding: 0; }
+  .px-app .ic { width: 54px; height: 54px; border-radius: 15px; background: #fff; display: grid; place-items: center; font-size: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .px-app:active .ic { transform: scale(0.96); }
+  .phone.dark .px-app .ic { background: #2c2c2e; }
+  .px-sheet { width: 100%; box-sizing: border-box; border-radius: 16px; padding: 10px 14px 14px; background: #fff; color: #111; display: flex; flex-direction: column; gap: 10px; }
+  .phone.dark .px-sheet { background: #1c1c1e; color: #f2f2f7; }
+  .px-sheet.pay { background: #fff4e5; }
+  .phone.dark .px-sheet.pay { background: #3a2a14; }
+  .px-sheet.red, .phone.dark .px-sheet.red { background: linear-gradient(160deg, #e8453c, #d63a31); color: #fff; }
+  .px-head { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+  .px-back { border: 0; background: transparent; color: inherit; font-size: 22px; line-height: 1; cursor: pointer; padding: 0 6px 2px 0; opacity: 0.8; }
+  .px-amt { display: flex; align-items: baseline; gap: 6px; font-size: 30px; font-weight: 600; }
+  .px-amt input { flex: 1; min-width: 0; font: inherit; font-size: 30px; font-weight: 600; border: 0; border-bottom: 1px solid rgba(0,0,0,0.15); background: transparent; color: inherit; outline: none; padding: 2px 0; }
+  .phone.dark .px-amt input { border-bottom-color: rgba(255,255,255,0.2); }
+  .px-sheet.red .px-amt input { border-bottom-color: rgba(255,255,255,0.5); }
+  .px-sheet.red input::placeholder { color: rgba(255,255,255,0.75); }
+  .px-amt input::-webkit-outer-spin-button, .px-amt input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .px-note, .px-row input, .px-row select { border: 0; border-radius: 10px; padding: 9px 10px; font: inherit; font-size: 13px; background: rgba(0,0,0,0.05); color: inherit; min-width: 0; }
+  .phone.dark .px-note, .phone.dark .px-row input, .phone.dark .px-row select { background: rgba(255,255,255,0.08); }
+  .px-sheet.red .px-note, .px-sheet.red .px-row input, .px-sheet.red .px-row select { background: rgba(255,255,255,0.18); color: #fff; }
+  .px-row select option { color: #111; }
+  .px-row { display: flex; gap: 8px; }
+  .px-row input { flex: 1; }
+  .px-row select { flex: 0 0 auto; }
+  .px-go { border: 0; border-radius: 11px; padding: 11px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; background: #f5a04a; color: #fff; }
+  .px-go.sm { padding: 9px 14px; background: #0a84ff; }
+  .px-sheet.red .px-go { background: #f9d976; color: #8a2a1a; }
   .phone-foot .ib.plus { font-size: 22px; line-height: 1; padding: 4px 8px; }
   .scene-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .scene-opt {
@@ -2365,9 +2387,28 @@
       <button class="btn ghost" id="phoneTheme" title="切换深浅色">🌓</button>
     </div>
     <div class="phone-extra" id="phoneExtra">
-      <div class="frm"><label>图片</label><input id="phoneImgDesc" placeholder="一句描述，例如：桌上两杯奶茶"><button id="phoneImgSend" type="button">发图</button></div>
-      <div class="frm"><label>转账</label><input id="phonePayAmt" class="amt" type="number" min="1" placeholder="金额"><input id="phonePayNote" placeholder="备注（可空）"><button id="phonePaySend" type="button">转账</button><button id="phoneRedSend" type="button" style="background:#e8453c">红包</button></div>
-      <div class="frm" id="phonePkGrp" hidden><label>群红包</label><input id="phonePkCnt" class="cnt" type="number" min="1" placeholder="个数"><select id="phonePkMode"><option value="拼手气">拼手气</option><option value="平分">平分</option></select><span style="font-size:11px;color:#8e8e93">个数留空 = 群里每人一个</span></div>
+      <div class="px-grid" id="pxGrid">
+        <button type="button" class="px-app" data-px="pxImg"><span class="ic">🖼</span><span>图片</span></button>
+        <button type="button" class="px-app" data-px="pxPay"><span class="ic">💴</span><span>转账</span></button>
+        <button type="button" class="px-app" data-px="pxRed"><span class="ic">🧧</span><span>红包</span></button>
+      </div>
+      <div class="px-sheet" id="pxImg" hidden>
+        <div class="px-head"><button type="button" class="px-back" aria-label="返回">‹</button><b>图片</b></div>
+        <div class="px-row"><input id="phoneImgDesc" placeholder="一句描述画面，例如：桌上两杯奶茶"><button id="phoneImgSend" type="button" class="px-go sm">发图</button></div>
+      </div>
+      <div class="px-sheet pay" id="pxPay" hidden>
+        <div class="px-head"><button type="button" class="px-back" aria-label="返回">‹</button><b>转账</b></div>
+        <div class="px-amt"><span>¥</span><input id="phonePayAmt" type="number" min="0.01" step="0.01" placeholder="0.00"></div>
+        <input id="phonePayNote" class="px-note" placeholder="添加转账说明（可空）">
+        <button id="phonePaySend" type="button" class="px-go">转账</button>
+      </div>
+      <div class="px-sheet red" id="pxRed" hidden>
+        <div class="px-head"><button type="button" class="px-back" aria-label="返回">‹</button><b>红包</b></div>
+        <div class="px-amt"><span>¥</span><input id="phoneRedAmt" type="number" min="0.01" step="0.01" placeholder="0.00"></div>
+        <div class="px-row" id="phonePkGrp" hidden><input id="phonePkCnt" type="number" min="1" placeholder="个数，留空 = 群里每人一个"><select id="phonePkMode"><option value="拼手气">拼手气</option><option value="平分">平分</option></select></div>
+        <input id="phoneRedNote" class="px-note" placeholder="恭喜发财，大吉大利">
+        <button id="phoneRedSend" type="button" class="px-go">塞钱进红包</button>
+      </div>
     </div>
     <div class="phone-foot">
       <button class="ib plus" id="phonePlus" title="图片 / 转账 / 红包" aria-label="更多">＋</button>
@@ -2643,7 +2684,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.64"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.65"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -9450,22 +9491,32 @@
   $("phoneExit").onclick = () => { if (phoneWith) closePhoneView(); else exitPhone(true); };
   $("phoneBack").addEventListener("click", (e) => { if (e.target === $("phoneBack")) closePhoneView(); });
   $("phoneSend").onclick = phoneSend;
-  // "+" panel: an image card, a transfer or red packet (group packets pick a count and 拼手气/平分), each sent as a marker line
+  // "+" panel: a row of icons (图片 / 转账 / 红包); tapping one opens its sheet, which sends a marker line
   {
-    $("phonePlus").onclick = () => { $("phoneExtra").classList.toggle("on"); $("phonePkGrp").hidden = !phoneGroup; };
+    const sheets = ["pxImg", "pxPay", "pxRed"];
+    const showSheet = (id) => { $("pxGrid").hidden = !!id; for (const k of sheets) $(k).hidden = k !== id; if (id === "pxRed") $("phonePkGrp").hidden = !phoneGroup; if (id) { const f = $(id).querySelector("input"); if (f) setTimeout(() => f.focus(), 0); } };
+    $("phonePlus").onclick = () => { const on = $("phoneExtra").classList.toggle("on"); if (on) showSheet(null); };
+    document.querySelectorAll("#pxGrid .px-app").forEach((b) => { b.onclick = () => showSheet(b.dataset.px); });
+    document.querySelectorAll("#phoneExtra .px-back").forEach((b) => { b.onclick = () => showSheet(null); });
     $("phoneImgSend").onclick = () => { const d = $("phoneImgDesc").value.trim(); if (!d) { toast("写一句图片的描述", true); return; } $("phoneImgDesc").value = ""; phoneSendText(`[图片：${d}]`); };
-    const pay = (kind) => {
-      const a = String($("phonePayAmt").value || "").trim(); if (!a || !(Number(a) > 0)) { toast("填一个金额", true); return; }
+    const amountOf = (id) => { const a = String($(id).value || "").trim(); if (!a || !(Number(a) > 0)) { toast("填一个金额", true); return null; } return a; };
+    $("phonePaySend").onclick = () => {
+      const a = amountOf("phonePayAmt"); if (!a) return;
       const n = $("phonePayNote").value.trim(); $("phonePayAmt").value = ""; $("phonePayNote").value = "";
+      phoneSendText(`[转账 ¥${a}${n ? ` 备注：${n}` : ""}]`);
+    };
+    $("phoneRedSend").onclick = () => {
+      const a = amountOf("phoneRedAmt"); if (!a) return;
+      const n = $("phoneRedNote").value.trim(); $("phoneRedAmt").value = ""; $("phoneRedNote").value = "";
       let opt = "";
-      if (kind === "红包" && phoneGroup) {
+      if (phoneGroup) {
         const c = active(); const g = c && groupById(c, phoneGroup);
         const cnt = parseInt($("phonePkCnt").value, 10) || (g ? g.members.length : 1);
         opt = ` 个数：${Math.max(1, cnt)} ${$("phonePkMode").value}`;
       }
-      phoneSendText(`[${kind} ¥${a}${opt}${n ? ` 备注：${n}` : ""}]`);
+      phoneSendText(`[红包 ¥${a}${opt}${n ? ` 备注：${n}` : ""}]`);
     };
-    $("phonePaySend").onclick = () => pay("转账"); $("phoneRedSend").onclick = () => pay("红包");
+    for (const id of ["phoneImgDesc", "phonePayNote", "phoneRedNote", "phonePayAmt", "phoneRedAmt"]) $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const go = $(id === "phoneImgDesc" ? "phoneImgSend" : id.startsWith("phonePay") ? "phonePaySend" : "phoneRedSend"); go.click(); } });
   }
   function phoneSendText(text) { const ta = $("phoneInput"); const keep = ta.value; ta.value = text; $("phoneExtra").classList.remove("on"); phoneSend().then(() => { if (keep && !ta.value) ta.value = keep; }); }
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
