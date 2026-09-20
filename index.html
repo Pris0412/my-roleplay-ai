@@ -520,6 +520,25 @@
   .pm + .pm.me, .pm + .pm.them { margin-top: 1px; }
   .pm.me + .pm.them, .pm.them + .pm.me { margin-top: 8px; }
   .pm.sys { align-self: center; background: transparent; color: #8e8e93; font-size: 11px; padding: 6px 0; max-width: 100%; text-align: center; }
+  .pm.sys button.lnk { border: 0; background: transparent; color: #0a84ff; font-size: 11px; cursor: pointer; padding: 0 2px; }
+  .pm .qt { display: block; font-size: 12px; opacity: 0.78; border-left: 2px solid currentColor; padding-left: 6px; margin-bottom: 4px; white-space: pre-wrap; }
+  /* poll card */
+  .pm.poll { padding: 10px 12px; background: #fff; color: #111; border: 1px solid rgba(0,0,0,0.1); min-width: 210px; max-width: 72%; }
+  .phone.dark .pm.poll { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.12); }
+  .pm.poll .ttl { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .pm.poll .opt { position: relative; border: 1px solid rgba(0,0,0,0.12); border-radius: 9px; padding: 6px 10px; margin-top: 5px; font-size: 13px; cursor: pointer; overflow: hidden; background: transparent; width: 100%; text-align: left; color: inherit; font: inherit; }
+  .phone.dark .pm.poll .opt { border-color: rgba(255,255,255,0.15); }
+  .pm.poll .opt .bar { position: absolute; inset: 0; width: 0; background: rgba(10,132,255,0.14); }
+  .pm.poll .opt.on { border-color: #0a84ff; }
+  .pm.poll .opt .lb { position: relative; display: flex; justify-content: space-between; gap: 8px; }
+  .pm.poll .opt .who { position: relative; display: block; font-size: 11px; color: #8e8e93; margin-top: 2px; }
+  .pm.poll .ft { font-size: 11px; color: #8e8e93; margin-top: 6px; }
+  .phone-quote { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px; color: #8e8e93; background: rgba(249,249,249,0.94); border-top: 1px solid rgba(0,0,0,0.08); }
+  .phone-quote span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-left: 2px solid #0a84ff; padding-left: 8px; }
+  .phone-quote button { border: 0; background: transparent; color: #8e8e93; cursor: pointer; font-size: 14px; }
+  .phone.dark .phone-quote { background: rgba(28,28,30,0.94); border-top-color: rgba(255,255,255,0.1); }
+  .px-sheet textarea { border: 0; border-radius: 10px; padding: 9px 10px; font: inherit; font-size: 13px; background: rgba(0,0,0,0.05); color: inherit; resize: vertical; min-height: 64px; }
+  .phone.dark .px-sheet textarea { background: rgba(255,255,255,0.08); }
   .pm.read { align-self: flex-end; background: transparent; color: #8e8e93; font-size: 11px; padding: 0 6px; }
   .pm.nm { align-self: flex-start; background: transparent; color: #8e8e93; font-size: 11px; padding: 4px 6px 0; }
   .pm.act { align-self: center; background: transparent; color: #8e8e93; font-size: 12px; font-style: italic; padding: 4px 0; max-width: 100%; text-align: center; }
@@ -2391,6 +2410,13 @@
         <button type="button" class="px-app" data-px="pxImg"><span class="ic">🖼</span><span>图片</span></button>
         <button type="button" class="px-app" data-px="pxPay"><span class="ic">💴</span><span>转账</span></button>
         <button type="button" class="px-app" data-px="pxRed"><span class="ic">🧧</span><span>红包</span></button>
+        <button type="button" class="px-app" data-px="pxPoll" id="pxPollBtn" hidden><span class="ic">🗳</span><span>投票</span></button>
+      </div>
+      <div class="px-sheet" id="pxPoll" hidden>
+        <div class="px-head"><button type="button" class="px-back" aria-label="返回">‹</button><b>投票</b></div>
+        <input id="phonePollTitle" class="px-note" placeholder="标题，例如：今晚吃什么">
+        <textarea id="phonePollOpts" placeholder="选项，一行一个（2 到 5 个）&#10;火锅&#10;日料&#10;不去"></textarea>
+        <button id="phonePollSend" type="button" class="px-go sm">发起投票</button>
       </div>
       <div class="px-sheet" id="pxImg" hidden>
         <div class="px-head"><button type="button" class="px-back" aria-label="返回">‹</button><b>图片</b></div>
@@ -2410,8 +2436,9 @@
         <button id="phoneRedSend" type="button" class="px-go">塞钱进红包</button>
       </div>
     </div>
+    <div class="phone-quote" id="phoneQuoteBar" hidden><span id="phoneQuoteText"></span><button type="button" id="phoneQuoteX" aria-label="取消引用">✕</button></div>
     <div class="phone-foot">
-      <button class="ib plus" id="phonePlus" title="图片 / 转账 / 红包" aria-label="更多">＋</button>
+      <button class="ib plus" id="phonePlus" title="图片 / 转账 / 红包 / 投票" aria-label="更多">＋</button>
       <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
       <button class="send" id="phoneSend" aria-label="发送">↑</button>
     </div>
@@ -2684,7 +2711,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.65"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.66"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4593,13 +4620,17 @@
     ].filter(Boolean).join("\n");
   }
   // rich message markers: the model writes these on a line of their own; the phone renders them as cards
-  const PHONE_RICH_RULE = "- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。收到对方的红包，想领就单独一行写 [领取红包]（金额由系统填，不用自己写）。收到对方的转账，想收就单独一行写 [收款]，想退就写 [退还]，也可以先晾着不动，按人设和当时的情绪定。";
-  const GROUP_RICH_RULE = "- 消息里除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话]；群红包写成 [红包 ¥总金额 个数：N 拼手气 备注：一句话]（个数是能领的人数，拼手气或平分二选一）；发出去又后悔的消息写成 [撤回：原本的内容]。收到别人的转账，想收就单独一行写 [收款]，想退就写 [退还]。";
+  const PHONE_RICH_RULE = "- 除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话] 或 [红包 ¥金额 备注：一句话]；发出去又后悔的消息写成 [撤回：原本的内容]，对方只会看到「撤回了一条消息」。收到对方的红包，想领就单独一行写 [领取红包]（金额由系统填，不用自己写）。收到对方的转账，想收就单独一行写 [收款]，想退就写 [退还]，也可以先晾着不动，按人设和当时的情绪定。回某一条具体的消息时，可以在那条消息开头单独一行写 [引用 名字：原话的前几个字]。";
+  const GROUP_RICH_RULE = "- 消息里除了文字，还能发这几种，各占一行，按人设和场合用，不要每条都用：[图片：一句描述画面]；[转账 ¥金额 备注：一句话]；群红包写成 [红包 ¥总金额 个数：N 拼手气 备注：一句话]（个数是能领的人数，拼手气或平分二选一）；发出去又后悔的消息写成 [撤回：原本的内容]。收到别人的转账，想收就单独一行写 [收款]，想退就写 [退还]。回某一条具体的消息时，可以在那条消息开头单独一行写 [引用 名字：原话的前几个字]。发起投票写成 [投票：标题｜选项1｜选项2｜…]（用｜隔开，2 到 5 个选项）；群里有投票时，各人按性格决定投不投、投哪个，在自己的消息里单独一行写 [投 选项名]（选项名照抄），一人一票可以改，也可以不投或先问问。";
   const RICH_RE = {
     img: /^\[图片[：:]\s*(.+?)\]$/,
     pay: /^\[(转账|红包)\s*[¥￥]?\s*([\d.,]+)\s*(?:元)?((?:\s*(?:个数[：:]?\s*\d+\s*个?|\d+\s*个|拼手气|手气|随机|平分|均分))*)\s*(?:备注[：:]\s*(.*?))?\s*\]$/,
     grab: /^\[?领取红包(?:\s*[¥￥]?\s*([\d.]+))?\]?$/,
     payAct: /^\[?(已收款|收款|已退还|退还|退回)(?:\s*[¥￥]?\s*([\d.]+))?\]?$/,
+    quote: /^\[引用\s*([^：:\]]{1,20})[：:]\s*(.+?)\]$/,
+    poll: /^\[投票[：:]\s*(.+?)\]$/,
+    vote: /^\[投\s*[：:]?\s*(.+?)\]$/,
+    voted: /^\[投了\s*[：:]?\s*(.+?)\]$/,
     recall: /^\[?撤回(?:[：:]\s*(.+?))?\]?$/,
   };
   // ---- red packets: the model decides who grabs, the page splits the money ----
@@ -4672,10 +4703,65 @@
     return null;
   }
   function settlePay(pm, who, refund) { pm.pay = { status: refund ? "refunded" : "taken", by: who, ts: Date.now() }; }
+  // polls: [投票：标题｜选项1｜选项2]; votes live in m.votes as { who, opt }, one per person, the latest wins
+  function pollInfo(m) {
+    if (!m.group) return null;
+    for (const raw of String(m.content || "").split("\n")) {
+      const mt = raw.trim().match(RICH_RE.poll);
+      if (!mt) continue;
+      const parts = mt[1].split(/[｜|]/).map((x) => x.trim()).filter(Boolean);
+      if (parts.length < 3) return null;
+      return { title: parts[0], opts: [...new Set(parts.slice(1))].slice(0, 6) };
+    }
+    return null;
+  }
+  function openPollFor(c, m) {
+    for (let i = c.chat.length - 1; i >= 0; i--) {
+      const x = c.chat[i];
+      if (x === m || !sameThread(x, m) || x.hidden || x.error) continue;
+      const p = pollInfo(x); if (p) return { m: x, p };
+    }
+    return null;
+  }
+  function matchOpt(p, text) {
+    const t = String(text || "").trim().replace(/[「」"']/g, "");
+    return p.opts.find((o) => o === t) || p.opts.find((o) => o.toLowerCase() === t.toLowerCase()) || p.opts.find((o) => t.includes(o) || o.includes(t)) || null;
+  }
+  function castVote(pm, who, opt) { pm.votes = (pm.votes || []).filter((v) => v.who !== who); pm.votes.push({ who, opt, ts: Date.now() }); }
+  function userVote(c, pm, opt) {
+    const p = pollInfo(pm); if (!p || busy || !p.opts.includes(opt)) return;
+    const prev = (pm.votes || []).find((v) => v.who === "user");
+    if (prev && prev.opt === opt) return;
+    castVote(pm, "user", opt);
+    c.chat.push({ id: uid(), role: "user", channel: "phone", group: pm.group, speaker: null, content: `[投了 ${opt}]`, ts: Date.now() });
+    save(); renderMessages(); renderPhone(true);
+  }
+  // reminder for the group model while a recent poll is around
+  function openPollLines(c, g) {
+    const recent = c.chat.filter((m) => m.group === g.id && !m.hidden && !m.error).slice(-40);
+    const out = [];
+    for (const m of recent) {
+      const p = pollInfo(m); if (!p) continue;
+      const votes = m.votes || [];
+      const voted = votes.map((v) => `${senderName(c, v.who)}→${v.opt}`);
+      const members = ["user", ...g.members];
+      const missing = members.filter((id) => !votes.some((v) => v.who === id)).map((id) => senderName(c, id));
+      out.push(`- 群里有 ${senderName(c, msgSender(m))} 发起的投票「${p.title}」，选项：${p.opts.join(" / ")}。${voted.length ? `已投：${voted.join("、")}。` : "还没人投。"}${missing.length ? `还没投的：${missing.join("、")}。` : ""}要投的人在自己的消息里单独一行写 [投 选项名]，选项名照抄。`);
+    }
+    return out;
+  }
   function applyGrabs(c, m) {
     const who = msgSender(m);
     let changed = false;
     const lines = String(m.content || "").split("\n").map((raw) => {
+      const vt = raw.trim().match(RICH_RE.vote);
+      if (vt && m.group) {
+        changed = true;
+        const op = openPollFor(c, m); const opt = op ? matchOpt(op.p, vt[1]) : null;
+        if (!opt) return "";
+        castVote(op.m, who, opt);
+        return `[投了 ${opt}]`;
+      }
       const pa = raw.trim().match(RICH_RE.payAct);
       if (pa && !pa[2]) {
         changed = true;
@@ -4751,6 +4837,24 @@
     let m;
     if ((m = line.match(RICH_RE.img))) { const b = el("div", "pm img " + (mine ? "me" : "them")); b.appendChild(el("div", "ph", "🖼")); b.appendChild(el("div", "cap", m[1])); return b; }
     if ((m = line.match(RICH_RE.grab))) { const b = el("div", "pm sys"); b.textContent = `${mine ? "你" : who} 领取了红包${m[1] ? ` ¥${m[1]}` : ""}`; return b; }
+    if ((m = line.match(RICH_RE.voted))) { const b = el("div", "pm sys"); b.textContent = `${mine ? "你" : who} 投了「${m[1]}」`; return b; }
+    if ((m = line.match(RICH_RE.poll)) && ctx && ctx.m && pollInfo(ctx.m)) {
+      const p = pollInfo(ctx.m); const votes = ctx.m.votes || []; const c = ctx.c;
+      const b = el("div", "pm poll " + (mine ? "me" : "them"));
+      b.appendChild(el("div", "ttl", `🗳 ${p.title}`));
+      const my = votes.find((v) => v.who === "user");
+      for (const o of p.opts) {
+        const vs = votes.filter((v) => v.opt === o);
+        const row = el("button", "opt" + (my && my.opt === o ? " on" : "")); row.type = "button";
+        const bar = el("span", "bar"); bar.style.width = votes.length ? Math.round((vs.length / votes.length) * 100) + "%" : "0"; row.appendChild(bar);
+        const lb = el("span", "lb"); lb.appendChild(el("span", null, o)); lb.appendChild(el("span", null, vs.length ? `${vs.length} 票` : "")); row.appendChild(lb);
+        if (vs.length) row.appendChild(el("span", "who", vs.map((v) => senderName(c, v.who)).join("、")));
+        row.onclick = (e) => { e.stopPropagation(); userVote(c, ctx.m, o); };
+        b.appendChild(row);
+      }
+      b.appendChild(el("div", "ft", votes.length ? `${votes.length} 人已投${my ? ` · 你投了「${my.opt}」，点别的可以改` : " · 点一个选项投票"}` : "还没人投 · 点一个选项投票"));
+      return b;
+    }
     if ((m = line.match(RICH_RE.payAct)) && m[2]) { const b = el("div", "pm sys"); b.textContent = `${mine ? "你" : who} ${/退/.test(m[1]) ? "退还了转账" : "收了转账"} ¥${m[2]}`; return b; }
     if ((m = line.match(RICH_RE.pay))) {
       const red = m[1] === "红包";
@@ -6543,6 +6647,7 @@
       "## 群聊规则",
       GROUP_RICH_RULE,
       ...openPacketLines(c, g),
+      ...openPollLines(c, g),
       `- 输出格式：每条消息单独一行，写成「名字：内容」，名字必须是 ${names.join(" / ")} 之一，不要写 ${u} 的消息。`,
       "- 一次输出 3 到 6 条，谁说话、说几条按各自的性格、关系和话题决定；不想说的人可以不出现，也可以有人只回一个表情或一个字。",
       "- 红包的领取记录群里所有人都看得到：谁领了多少、领完后谁手气最佳，大家都知道，可以直接拿来打趣或比较，不要装作不知道别人领了多少。",
@@ -7084,6 +7189,7 @@
     const mk = (label, fn, cls) => { const b = el("button", cls || null, label); b.onclick = async (e) => { e.stopPropagation(); if (busy) return; await fn(); }; acts.appendChild(b); return b; };
     mk("编辑", () => { phoneEdit = m.id; phoneSel = null; renderPhone(); setTimeout(() => { const t = $("phoneBody").querySelector(".pm-edit textarea"); if (t) { t.focus(); t.style.height = Math.min(240, t.scrollHeight) + "px"; } }, 0); });
     if (!mine(m) && isLast && !m.greeting) mk("重新生成", () => { phoneSel = null; generate(c, m); });
+    if (m.channel === "phone") mk("引用", () => { phoneQuote = { key: phoneThreadKey(), who: mine(m) ? (state.persona.name || "我") : (m.group ? groupSpeakerName(c, m) : (m.npc ? npcName(c, m.npc) : c.name)), text: quoteSnippet(c, m) }; phoneSel = null; renderPhone(); $("phoneInput").focus(); });
     mk(m.hidden ? "取消隐藏" : "隐藏", () => { m.hidden = !m.hidden; save(); renderMessages(); renderPhone(); });
     mk("删除", async () => { phoneSel = null; await deleteFloor(c, m); }, "warn");
     if (!isLast) mk("回溯到此", async () => {
@@ -7200,16 +7306,20 @@
         body.appendChild(g);
         continue;
       }
-      if (grp && !mine && !txt.split(/\n+/).map((x) => x.trim()).filter(Boolean).every((x) => RICH_RE.grab.test(x))) g.appendChild(el("div", "pm nm", groupSpeakerName(c, m)));
+      if (grp && !mine && !txt.split(/\n+/).map((x) => x.trim()).filter(Boolean).every((x) => RICH_RE.grab.test(x) || RICH_RE.voted.test(x))) g.appendChild(el("div", "pm nm", groupSpeakerName(c, m)));
       if (m.role === "assistant" && txt.trim() === "[不回复]") g.appendChild(el("div", "pm sys", `已读 · ${who} 没有回复`));
       else {
         const lines = txt.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+        let qt = null; // a [引用 …] line rides inside the bubble that follows it
         lines.forEach((line, li) => {
+          const qm = line.match(RICH_RE.quote);
+          if (qm) { qt = el("span", "qt", `${qm[1]}：${qm[2]}`); if (li === lines.length - 1) { const b = el("div", "pm " + (mine ? "me" : "them")); b.appendChild(qt); qt = null; g.appendChild(b); } return; }
           if (m.role === "assistant" && /^[（(][^（）()]{1,60}[）)]$/.test(line)) { g.appendChild(el("div", "pm act", line.replace(/^[（(]|[）)]$/g, ""))); return; }
           const rich = richBubble(line, mine, grp ? groupSpeakerName(c, m) : who, { c, m });
-          if (rich) { g.appendChild(rich); return; }
+          if (rich) { qt = null; g.appendChild(rich); return; }
           const b = el("div", "pm " + (mine ? "me" : "them"));
-          b.textContent = line;
+          if (qt) { b.appendChild(qt); qt = null; }
+          b.appendChild(document.createTextNode(line));
           if (li === lines.length - 1) b.appendChild(el("span", "tm", shortTime(msgTime(c, m))));
           g.appendChild(b);
         });
@@ -7219,40 +7329,81 @@
       g.onclick = (e) => { if (busy || e.target.closest("button, textarea, input")) return; phoneSel = phoneSel === m.id ? null : m.id; renderPhone(); };
       body.appendChild(g);
     }
+    if (phonePendingHere() && !busy) { const w = el("div", "pm sys"); w.appendChild(document.createTextNode("等你说完再回 · ")); const go = el("button", "lnk", "立即回复"); go.type = "button"; go.onclick = (e) => { e.stopPropagation(); phoneReplyNow(); }; w.appendChild(go); body.appendChild(w); }
     if (grp && typing) body.appendChild(el("div", "pm typing", "•••"));
+    renderQuoteBar();
     if (!thread.some((x) => x.m.channel === "phone")) body.appendChild(el("div", "pm sys", grp ? `群里还没人说话。你先发一条，或者点「让他们聊一会儿」。` : npc ? `还没有和 ${npc.name} 聊过。你先发一条，或者点「让 ${npc.name} 先开口」。${c.name} 不会看到这里的内容。` : "还没有消息。你先发一条，或者点「让 TA 先开口」。"));
     if (atBottom || streaming) body.scrollTop = body.scrollHeight; else body.scrollTop = keepTop;
+  }
+  // ---- quote reply ----
+  let phoneQuote = null; // { key, who, text } while a quote is attached to the composer
+  function phoneThreadKey() { return `${phoneGroup || ""}|${phoneWith || ""}`; }
+  function quoteSnippet(c, m) {
+    const first = stripStatus(stripReasoning(sub(m.content, c))).split(/\n+/).map((x) => x.trim()).filter((x) => x && !RICH_RE.quote.test(x))[0] || "";
+    let mt;
+    if ((mt = first.match(RICH_RE.img))) return "[图片]";
+    if ((mt = first.match(RICH_RE.pay))) return `[${mt[1]} ¥${mt[2]}]`;
+    if (RICH_RE.poll.test(first)) return "[投票]";
+    return first.replace(/[\[\]]/g, "").slice(0, 30);
+  }
+  function renderQuoteBar() {
+    if (phoneQuote && phoneQuote.key !== phoneThreadKey()) phoneQuote = null;
+    $("phoneQuoteBar").hidden = !phoneQuote;
+    $("phoneQuoteText").textContent = phoneQuote ? `回复 ${phoneQuote.who}：${phoneQuote.text}` : "";
+  }
+  // ---- send several messages, then the other side replies: the reply starts REPLY_DELAY after your last send unless you keep typing ----
+  const REPLY_DELAY = 2500;
+  let phonePending = null;   // { cid, kind: "char" | "npc" | "group", id }
+  let phoneReplyTimer = null;
+  function phoneReplyLater(p) { phonePending = p; phoneReplyArm(); renderPhone(true); }
+  function phoneReplyArm() { if (phoneReplyTimer) clearTimeout(phoneReplyTimer); phoneReplyTimer = setTimeout(phoneReplyNow, REPLY_DELAY); }
+  function phoneReplyHold() { if (phoneReplyTimer) { clearTimeout(phoneReplyTimer); phoneReplyTimer = null; } }
+  function phoneReplyCancel() { phoneReplyHold(); phonePending = null; }
+  function phonePendingHere() {
+    const c = active();
+    if (!phonePending || !c || phonePending.cid !== c.id) return false;
+    if (phoneGroup) return phonePending.kind === "group" && phonePending.id === phoneGroup;
+    if (phoneWith) return phonePending.kind === "npc" && phonePending.id === phoneWith;
+    return phonePending.kind === "char";
+  }
+  async function phoneReplyNow() {
+    phoneReplyHold();
+    const p = phonePending; if (!p) return;
+    const c = active();
+    if (!c || c.id !== p.cid) { phonePending = null; return; }
+    if (busy || !chatReady()) { phoneReplyTimer = setTimeout(phoneReplyNow, 1000); return; }
+    phonePending = null;
+    if (p.kind === "group") { if (groupById(c, p.id)) await generateGroup(c, p.id, {}); }
+    else if (p.kind === "npc") { if (npcById(c, p.id)) await generate(c, null, { channel: "phone", npc: p.id }); }
+    else await generate(c, null, { channel: "phone" });
   }
   async function phoneSend() {
     const c = active();
     const ta = $("phoneInput");
-    const text = ta.value.trim();
+    let text = ta.value.trim();
     if (!c || busy || !text || !chatReady()) return;
+    if (phoneQuote && phoneQuote.key === phoneThreadKey()) { text = `[引用 ${phoneQuote.who}：${phoneQuote.text}]\n${text}`; phoneQuote = null; }
+    const done = () => { ta.value = ""; ta.style.height = "auto"; save(); renderMessages(); };
     if (phoneGroup) {
       if (!groupById(c, phoneGroup)) return;
       c.chat.push({ id: uid(), role: "user", channel: "phone", group: phoneGroup, speaker: null, content: text, ts: Date.now() });
-      ta.value = ""; ta.style.height = "auto";
-      save(); renderMessages(); renderPhone(true);
-      await generateGroup(c, phoneGroup, {});
+      done(); phoneReplyLater({ cid: c.id, kind: "group", id: phoneGroup });
       return;
     }
     if (phoneWith) {
       if (!npcById(c, phoneWith)) return;
       c.chat.push({ id: uid(), role: "user", channel: "phone", npc: phoneWith, content: text, ts: Date.now() });
-      ta.value = ""; ta.style.height = "auto";
-      save(); renderMessages(); renderPhone(true);
-      await generate(c, null, { channel: "phone", npc: phoneWith });
+      done(); phoneReplyLater({ cid: c.id, kind: "npc", id: phoneWith });
       return;
     }
     if (!(c.phone && c.phone.open)) { c.phone = { ...(c.phone || {}), open: true }; }
     c.chat.push({ id: uid(), role: "user", channel: "phone", content: text, ts: Date.now() });
-    ta.value = ""; ta.style.height = "auto";
-    save(); renderMessages(); renderPhone(true);
-    await generate(c, null, { channel: "phone" });
+    done(); phoneReplyLater({ cid: c.id, kind: "char" });
   }
   async function phoneNudge(kind) {
     const c = active();
     if (!c || busy || !chatReady()) return;
+    phoneReplyCancel();
     const u = state.persona.name || "用户";
     if (phoneGroup) {
       const who = $("phoneSpeaker").value;
@@ -9493,8 +9644,15 @@
   $("phoneSend").onclick = phoneSend;
   // "+" panel: a row of icons (图片 / 转账 / 红包); tapping one opens its sheet, which sends a marker line
   {
-    const sheets = ["pxImg", "pxPay", "pxRed"];
-    const showSheet = (id) => { $("pxGrid").hidden = !!id; for (const k of sheets) $(k).hidden = k !== id; if (id === "pxRed") $("phonePkGrp").hidden = !phoneGroup; if (id) { const f = $(id).querySelector("input"); if (f) setTimeout(() => f.focus(), 0); } };
+    const sheets = ["pxImg", "pxPay", "pxRed", "pxPoll"];
+    const showSheet = (id) => { $("pxGrid").hidden = !!id; $("pxPollBtn").hidden = !phoneGroup; for (const k of sheets) $(k).hidden = k !== id; if (id === "pxRed") $("phonePkGrp").hidden = !phoneGroup; if (id) { const f = $(id).querySelector("input"); if (f) setTimeout(() => f.focus(), 0); } };
+    $("phonePollSend").onclick = () => {
+      const t = $("phonePollTitle").value.trim(); const opts = [...new Set($("phonePollOpts").value.split(/\n|[｜|]/).map((x) => x.trim()).filter(Boolean))];
+      if (!t) { toast("写个标题", true); return; }
+      if (opts.length < 2) { toast("至少两个选项", true); return; }
+      $("phonePollTitle").value = ""; $("phonePollOpts").value = "";
+      phoneSendText(`[投票：${t}｜${opts.slice(0, 5).join("｜")}]`);
+    };
     $("phonePlus").onclick = () => { const on = $("phoneExtra").classList.toggle("on"); if (on) showSheet(null); };
     document.querySelectorAll("#pxGrid .px-app").forEach((b) => { b.onclick = () => showSheet(b.dataset.px); });
     document.querySelectorAll("#phoneExtra .px-back").forEach((b) => { b.onclick = () => showSheet(null); });
@@ -9520,7 +9678,8 @@
   }
   function phoneSendText(text) { const ta = $("phoneInput"); const keep = ta.value; ta.value = text; $("phoneExtra").classList.remove("on"); phoneSend().then(() => { if (keep && !ta.value) ta.value = keep; }); }
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
-  $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
+  $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; if (phonePending) { if (e.target.value.trim()) phoneReplyHold(); else phoneReplyArm(); } });
+  $("phoneQuoteX").onclick = () => { phoneQuote = null; renderQuoteBar(); };
   $("phoneNudge").onclick = () => phoneNudge("first");
   $("phoneSpeaker").addEventListener("change", () => renderPhone());
   $("phoneWait").onclick = () => phoneNudge("wait");
