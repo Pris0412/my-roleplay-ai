@@ -2711,7 +2711,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.66"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.67"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3121,6 +3121,7 @@
     save(); renderMessages(); renderCharList();
     if (!$("phoneBack").hidden) renderPhone();
     await rollbackStatusAfterDelete(c, removed);
+    rollbackNpcsAfterDelete(c, removed, true);
     await rollbackMemoryAfterDelete(c, removed, lo, true);
   }
   async function deleteFloor(c, m) {
@@ -3131,6 +3132,7 @@
     save(); renderMessages(); renderCharList();
     if (!$("phoneBack").hidden) renderPhone();
     await rollbackStatusAfterDelete(c, [m]);
+    rollbackNpcsAfterDelete(c, [m], tail);
     await rollbackMemoryAfterDelete(c, [m], lo, tail);
   }
   // After floors are deleted: memory summaries that covered them now describe things that never happened.
@@ -3198,6 +3200,34 @@
     save(); renderStatusStrip();
     if (!$("stBack").hidden) renderStatusFields();
     toast(`状态面板已退回到${where}`);
+  }
+
+  // After a tail cut, relations and NPC moods go back to what the surviving floors recorded:
+  // relation logs past the new last floor are dropped and the values restored from the last surviving entry;
+  // moods / inner voices come from the newest surviving npcSnap, or are cleared if they were only set in the removed floors.
+  function npcSnapshot(c, ids) { const o = {}; for (const id of ids || []) { const n = npcById(c, id); if (n) o[id] = { mood: n.mood || "", voice: n.voice || "" }; } return o; }
+  function rollbackNpcsAfterDelete(c, removed, tail) {
+    if (!tail || !c) return;
+    const n = floorCount(c);
+    let k = 0;
+    for (const [key, r] of Object.entries(c.rels || {})) {
+      const log = Array.isArray(r.log) ? r.log : [];
+      const keep = log.filter((e) => (e.floor || 0) <= n);
+      if (keep.length === log.length) continue;
+      const last = keep[keep.length - 1];
+      if (last) { r.aff = Math.max(0, Math.min(100, Number(last.to) || 0)); if (last.rel) r.rel = last.rel; r.log = keep; }
+      else delete c.rels[key];
+      k++;
+    }
+    const touched = new Set();
+    for (const m of removed) if (m && m.npcSnap) for (const id of Object.keys(m.npcSnap)) touched.add(id);
+    for (const id of touched) {
+      const npc = npcById(c, id); if (!npc) continue;
+      const last = [...c.chat].reverse().find((m) => m.npcSnap && m.npcSnap[id]);
+      const snap = last ? last.npcSnap[id] : { mood: "", voice: "" };
+      if (npc.mood !== (snap.mood || "") || npc.voice !== (snap.voice || "")) { npc.mood = snap.mood || ""; npc.voice = snap.voice || ""; k++; }
+    }
+    if (k) { save(); renderStatusStrip(); if (!$("stBack").hidden) { renderRelTable(c); renderStatusFields(); } toast(`关系和心情已退回到第 ${n} 楼`); }
   }
 
   function normalizeChar(c) {
@@ -5451,6 +5481,7 @@
       if (!msg.npc && applyStatusFromText(c, res.text, floorOf(c, c.chat.indexOf(msg)))) { msg.statusSnap = statusSnapshot(c); c.status.manualTs = 0; renderStatusStrip(); }
       if (msg.npc && applyNpcStatusFromText(c, msgNpcs(msg), res.text)) { msg.statusSnap = statusSnapshot(c); renderStatusStrip(); if (!$("stBack").hidden) renderRelTable(c); }
       if (!msg.npc) { const pn = presentNow(c); if (pn && pn.ids.length && applyPresentRelFromText(c, pn.ids, res.text) && !$("stBack").hidden) renderRelTable(c); }
+      { const pn = !msg.npc && !(c.phone && c.phone.open) ? presentNow(c) : null; const ids = msg.npc ? msgNpcs(msg) : (pn ? pn.ids : []); if (ids && ids.length) msg.npcSnap = npcSnapshot(c, ids); }
       if (applyAgesFromText(c, res.text)) afterAges(c);
       if (mvuInitEntry(c) && /<UpdateVariable>/i.test(res.text || "")) { const d = mvuData(c); feEmit("mag_variable_updated", { stat_data: d }); feEmit("mag_variable_update_ended", { stat_data: d }); }
       if (!msg.npc && !(c.phone && c.phone.open)) { try { applyCastFromText(c, res.text, msg); } catch (e) { console.error(e); } }
@@ -6717,6 +6748,7 @@
         if (gm.content.trim()) c.chat.push(gm);
       }
       applyNpcStatusFromText(c, g.members.filter((id) => id !== "char"), res.text);
+      { const lastB = [...c.chat].reverse().find((m) => m.batch === batch); if (lastB) lastB.npcSnap = npcSnapshot(c, g.members.filter((id) => id !== "char")); }
       if (applyAgesFromText(c, res.text)) afterAges(c);
       lastGroupNudge = opts.nudge || "";
     } catch (e) {
@@ -6734,8 +6766,10 @@
     const msgs = c.chat.filter((m) => m.group === gid && m.role === "assistant");
     const last = msgs[msgs.length - 1];
     if (!last || !last.batch) { toast("没有可以重来的一轮", true); return; }
+    const removedB = c.chat.filter((m) => m.group === gid && m.batch === last.batch);
     c.chat = c.chat.filter((m) => !(m.group === gid && m.batch === last.batch));
     save(); renderMessages(); renderPhone();
+    rollbackNpcsAfterDelete(c, removedB, true);
     await generateGroup(c, gid, { nudge: lastGroupNudge });
   }
   // ============================================================
