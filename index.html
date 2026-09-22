@@ -2776,7 +2776,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.69"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.70"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -9192,7 +9192,7 @@
   $("zoomTa").addEventListener("input", () => { if (!zoomSrc) return; zoomSrc.value = $("zoomTa").value; zoomSrc.dispatchEvent(new Event("input", { bubbles: true })); });
   $("zoomDone").onclick = closeZoom;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && zoomSrc) { e.stopImmediatePropagation(); e.preventDefault(); closeZoom(); } }, true);
-  for (const id of ["edDesc", "edPersonality", "edScenario", "edUserRole", "edFirst", "edExamples", "edAlt", "edNotes", "edSys", "edPost", "edCss", "memPrompt", "memResult", "ppContent", "npcPersonality", "npcDesc", "pDesc", "sStyle", "sCss", "stVoice", "stExtra"]) zoomable($(id));
+  for (const id of ["edDesc", "edPersonality", "edScenario", "edUserRole", "edFirst", "edExamples", "edAlt", "edNotes", "edSys", "edPost", "edCss", "memPrompt", "memResult", "ppContent", "npcPersonality", "npcDesc", "pDesc", "sStyle", "sWealth", "sCss", "stVoice", "stExtra"]) zoomable($(id));
 
   function field(labelText, input, help) {
     const f = el("div", "field");
