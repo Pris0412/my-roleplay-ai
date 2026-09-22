@@ -674,6 +674,58 @@
   .mo-ci { display: flex; gap: 6px; align-items: center; }
   .mo-ci input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid #e5e5ea; background: #fff; color: inherit; }
   .phone.dark .mo-ci input { background: #2c2c2e; border-color: #3a3a3c; }
+  /* profile page + peeking at someone's phone */
+  .phone-head .who .nm.link { cursor: pointer; }
+  .pf-top { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 6px; width: 100%; }
+  .pf-top .av { width: 76px; height: 76px; border-radius: 50%; background: #d1d1d6; color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 28px; overflow: hidden; }
+  .pf-top .av img { width: 100%; height: 100%; object-fit: cover; }
+  .pf-top .nm { font-size: 18px; font-weight: 600; }
+  .pf-top .sb { font-size: 12px; color: #8e8e93; text-align: center; }
+  .pf-card { background: #fff; border-radius: 14px; padding: 10px 12px; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .phone.dark .pf-card { background: #1c1c1e; }
+  .pf-card .r { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .pf-card .r .k { color: #8e8e93; flex: 0 0 auto; }
+  .pf-card .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(0,0,0,0.08); overflow: hidden; margin: 0 8px; }
+  .pf-card .bar span { display: block; height: 100%; background: #34c759; }
+  .pf-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+  .pf-acts button { border: 0; border-radius: 12px; padding: 12px 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: #fff; color: #0a84ff; }
+  .phone.dark .pf-acts button { background: #1c1c1e; }
+  .pf-acts button.hot { grid-column: 1 / -1; background: linear-gradient(135deg, #5b6cff, #b46bff); color: #fff; }
+  .phone.peeking .phone-body { background: linear-gradient(160deg, #eef1ff, #f7ecff 60%, #fff1f6); }
+  .phone.dark.peeking .phone-body { background: linear-gradient(160deg, #141a33, #221a33 60%, #2a1a26); }
+  .pk-top { border-radius: 16px; padding: 14px 14px 12px; background: linear-gradient(135deg, #5b6cff, #b46bff 60%, #ff7ab8); color: #fff; width: 100%; box-sizing: border-box; }
+  .pk-top .nm { font-size: 16px; font-weight: 600; }
+  .pk-top .sb { font-size: 11px; opacity: 0.9; margin-top: 2px; }
+  .pk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding: 6px 0; }
+  .pk-app { border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; color: inherit; position: relative; padding: 4px 0; }
+  .pk-app .ic { width: 56px; height: 56px; border-radius: 15px; display: grid; place-items: center; font-size: 27px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+  .phone.dark .pk-app .ic { background: #2c2c2e; }
+  .pk-app .lb { font-size: 11px; }
+  .pk-app .bd { position: absolute; top: 0; right: 14px; min-width: 16px; height: 16px; border-radius: 8px; background: #e8453c; color: #fff; font-size: 10px; display: grid; place-items: center; padding: 0 4px; }
+  .pk-bar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 0 6px; }
+  .pk-bar b { flex: 1; font-size: 14px; text-align: center; }
+  .pk-bar button { border: 0; background: transparent; color: #0a84ff; font-size: 13px; cursor: pointer; padding: 4px 6px; font: inherit; }
+  .pk-bar select { border: 0; border-radius: 8px; padding: 4px 6px; font: inherit; font-size: 12px; background: rgba(0,0,0,0.06); color: inherit; }
+  .phone.dark .pk-bar select { background: rgba(255,255,255,0.1); }
+  .pk-list { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+  .pk-row { background: #fff; border-radius: 12px; padding: 8px 12px; display: flex; gap: 10px; align-items: flex-start; }
+  .phone.dark .pk-row { background: #1c1c1e; }
+  .pk-row .ic { font-size: 16px; flex: 0 0 auto; padding-top: 1px; }
+  .pk-row .tx { flex: 1; min-width: 0; font-size: 13px; line-height: 1.45; word-break: break-word; }
+  .pk-row .tx .t { font-size: 11px; color: #8e8e93; margin-top: 2px; }
+  .pk-row .amt { font-size: 14px; font-weight: 600; flex: 0 0 auto; }
+  .pk-row .amt.in { color: #34c759; }
+  .pk-row .new { font-size: 10px; color: #e8453c; border: 1px solid #e8453c; border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: middle; }
+  .pk-row .del { border: 0; background: transparent; color: #c7c7cc; cursor: pointer; font-size: 13px; padding: 0 2px; flex: 0 0 auto; }
+  .pk-row .del:hover { color: #e8453c; }
+  .pk-photo { background: #fff; border-radius: 12px; overflow: hidden; width: 100%; }
+  .phone.dark .pk-photo { background: #1c1c1e; }
+  .pk-photo .ph { height: 96px; display: grid; place-items: center; font-size: 30px; background: linear-gradient(135deg, #e9e9eb, #d8d8dc); color: #8e8e93; }
+  .phone.dark .pk-photo .ph { background: linear-gradient(135deg, #2c2c2e, #3a3a3c); }
+  .pk-photo .cap { padding: 7px 10px; font-size: 13px; line-height: 1.4; }
+  .pk-photo .cap .t { font-size: 11px; color: #8e8e93; margin-top: 2px; }
+  .pk-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+  .pk-hint { font-size: 11px; color: #8e8e93; line-height: 1.5; padding: 4px 4px 0; width: 100%; }
   .ct-tools { display: flex; gap: 6px; padding: 6px 0; }
   .ct-tools .btn { font-size: 12px; padding: 5px 10px; border-radius: 999px; }
   .ct-empty { font-size: 12px; color: #8e8e93; padding: 10px 4px; line-height: 1.5; }
@@ -2711,7 +2763,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.67"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.68"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3235,6 +3287,7 @@
     c.npcs = Array.isArray(c.npcs) ? c.npcs.map(normalizeNpc).filter(Boolean) : [];
     c.rels = c.rels && typeof c.rels === "object" ? c.rels : {};
     c.groups = Array.isArray(c.groups) ? c.groups.map(normalizeGroup).filter(Boolean) : [];
+    c.peeks = c.peeks && typeof c.peeks === "object" && !Array.isArray(c.peeks) ? c.peeks : {};
     c.scene = c.scene && typeof c.scene === "object" ? (Array.isArray(c.scene.npcs) && c.scene.npcs.length ? { npcs: c.scene.npcs.map(String) } : c.scene.npc ? { npcs: [String(c.scene.npc)] } : null) : null;
     c.memory = c.memory && typeof c.memory === "object" ? c.memory : { lastFloor: 0 };
     c.memory.npcDone = c.memory.npcDone && typeof c.memory.npcDone === "object" ? c.memory.npcDone : {};
@@ -5687,6 +5740,7 @@
     $("phoneInput").focus();
   }
   function closePhoneView() {
+    viewStack.length = 0;
     const c = active();
     if (c) { c.phoneLast = { view: phoneView, with: phoneWith, group: phoneGroup }; save(); }
     $("phoneBack").hidden = true; phoneSel = null; phoneEdit = null; phoneWith = null; phoneGroup = null; phoneView = "chat"; $("phoneExtra").classList.remove("on");
@@ -6323,7 +6377,7 @@
     const rowChar = el("button", "ct-row");
     const av = avFill(el("div", "av"), c);
     const tx = el("div"); tx.appendChild(el("div", "nm", c.name)); tx.appendChild(el("div", "sb", c.phone && c.phone.open ? "手机模式进行中" : "当面场景中 · 点开拿出手机"));
-    rowChar.append(av, tx, el("span", "tg on", "主角"));
+    { const right = el("div"); right.style.cssText = "display:flex;align-items:center;gap:4px"; right.appendChild(el("span", "tg on", "主角")); const pk = el("button", "ed", "📱"); pk.title = `翻 ${c.name} 的手机`; pk.onclick = (e) => { e.stopPropagation(); openPeek("char"); }; right.appendChild(pk); rowChar.append(av, tx, right); }
     rowChar.onclick = () => selectContact(null);
     list.appendChild(rowChar);
     list.appendChild(el("div", "ct-h", `联系人 · ${c.npcs.length}`));
@@ -6339,7 +6393,8 @@
       right.appendChild(el("span", "tg" + (npcAppeared(c, n) ? " on" : ""), npcAppeared(c, n) ? "已出场" : "未出场"));
       const meet = el("button", "ed", "当面"); meet.title = `和 ${n.name} 单独走一段当面剧情，${c.name} 不在场（可以再多选几个人）`; meet.onclick = (e) => { e.stopPropagation(); openSceneChooser([n.id]); };
       const ed = el("button", "ed", "✎"); ed.title = "编辑"; ed.onclick = (e) => { e.stopPropagation(); openNpcEditor(n); };
-      right.append(meet, ed);
+      const pk = el("button", "ed", "📱"); pk.title = `翻 ${n.name} 的手机`; pk.onclick = (e) => { e.stopPropagation(); openPeek(n.id); };
+      right.append(meet, ed, pk);
       row.append(a, t, right);
       row.onclick = () => selectContact(n.id);
       list.appendChild(row);
@@ -6367,6 +6422,216 @@
     tools.append(scan, add, mkg);
     list.appendChild(tools);
     body.appendChild(list);
+  }
+  // ----- profile page: tap a name in a private chat, or a row's 📱, to reach the person and their phone -----
+  let profileWho = null;   // "char" or an NPC id
+  const viewStack = [];    // where 「‹」 goes back to from the profile / peek pages (chat → profile → peek and back)
+  function peekOwner(c, who) { return who === "char" ? { id: "char", name: c.name, isChar: true } : npcById(c, who); }
+  function peekOwnerName(c, who) { const o = peekOwner(c, who); return o ? o.name : ""; }
+  function currentViewRef() { return phoneView === "chat" ? { view: "chat", with: phoneWith, group: phoneGroup } : phoneView === "profile" ? { view: "profile", who: profileWho } : { view: "contacts" }; }
+  function goToViewRef(ref) {
+    const c = active(); if (!c) return;
+    $("phone").classList.remove("peeking");
+    if (!ref || ref.view === "contacts") { openContacts(); return; }
+    if (ref.view === "profile") { openProfile(ref.who, false); return; }
+    if (ref.group && groupById(c, ref.group)) { openPhoneGroup(ref.group); return; }
+    if (ref.with && npcById(c, ref.with)) { openPhoneWith(ref.with); return; }
+    phoneWith = null; phoneGroup = null; phoneView = "chat"; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
+    renderPhone(); $("phoneBack").hidden = false;
+  }
+  function openProfile(who, push) {
+    const c = active(); if (!c || !peekOwner(c, who)) return;
+    if (push !== false) viewStack.push(currentViewRef());
+    profileWho = who; phoneView = "profile"; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
+    $("phone").classList.toggle("dark", state.settings.phoneDark === true);
+    renderPhone(); $("phoneBack").hidden = false;
+  }
+  function renderProfile(c, body) {
+    const o = peekOwner(c, profileWho); if (!o) { openContacts(); return; }
+    const u = state.persona.name || "你";
+    const wrap = el("div", "ct-list");
+    const top = el("div", "pf-top");
+    top.appendChild(avFill(el("div", "av"), o.isChar ? c : o));
+    top.appendChild(el("div", "nm", o.name));
+    top.appendChild(el("div", "sb", o.isChar ? (c.tag ? sub(c.tag, c) : "主角") : [o.brief, o.age ? `${o.age} 岁` : ""].filter(Boolean).join(" · ") || "联系人"));
+    wrap.appendChild(top);
+    const card = el("div", "pf-card");
+    const relRow = (label, r) => { const row = el("div", "r"); row.appendChild(el("span", "k", label)); if (r.set) { const bar = el("span", "bar"); const f = el("span"); f.style.width = r.aff + "%"; bar.appendChild(f); row.appendChild(el("span", null, r.rel || "（未定）")); row.appendChild(bar); row.appendChild(el("span", null, `${r.aff} · ${relStage(r.aff)}`)); } else row.appendChild(el("span", null, "还没确定")); return row; };
+    if (o.isChar) { const cu = charUserRel(c); if (cu.aff != null) card.appendChild(relRow(`和 ${u}`, { set: true, rel: cu.rel, aff: cu.aff })); else { const row = el("div", "r"); row.appendChild(el("span", "k", `和 ${u}`)); row.appendChild(el("span", null, cu.rel || "还没确定")); card.appendChild(row); } const mood = c.status && c.status.fields.find((f) => f.key === "心情"); if (mood && mood.value) { const row = el("div", "r"); row.appendChild(el("span", "k", "心情")); row.appendChild(el("span", null, mood.value)); card.appendChild(row); } if (c.status && c.status.voice) card.appendChild(el("div", null, `💭 ${c.status.voice}`)); }
+    else { card.appendChild(relRow(`和 ${u}`, relGet(c, "u", o.id))); const cr = relGet(c, "c", o.id); if (cr.set) card.appendChild(relRow(`和 ${c.name}`, cr)); if (o.mood) { const row = el("div", "r"); row.appendChild(el("span", "k", "心情")); row.appendChild(el("span", null, o.mood)); card.appendChild(row); } if (o.voice) card.appendChild(el("div", null, `💭 ${o.voice}`)); if (o.personality) card.appendChild(el("div", null, o.personality)); }
+    wrap.appendChild(card);
+    const acts = el("div", "pf-acts");
+    const mk = (label, fn, hot) => { const b = el("button", hot ? "hot" : null, label); b.type = "button"; b.onclick = fn; acts.appendChild(b); };
+    mk("💬 私聊", () => { if (o.isChar) selectContact(null); else openPhoneWith(o.id); });
+    if (o.isChar) mk("✎ 编辑角色", () => openEditor(c)); else mk("🚶 当面", () => openSceneChooser([o.id]));
+    if (!o.isChar) mk("✎ 编辑", () => openNpcEditor(o));
+    mk(`📱 翻 ${o.name} 的手机`, () => openPeek(o.id), true);
+    wrap.appendChild(acts);
+    body.appendChild(wrap);
+  }
+  // ----- peeking at someone's phone: god's-eye view, generated app by app, never enters the story -----
+  let peekWho = null, peekApp = null, peekBusy = null;
+  const PEEK_APPS = [["browser", "🌐", "浏览器"], ["bills", "🧾", "账单"], ["album", "🖼", "相册"]];
+  const PEEK_TIERS = ["自动", "拮据", "普通", "宽裕", "富裕", "豪门", "顶级豪门"];
+  const TIER_GUIDE = {
+    "拮据": "拮据：几块几十块的消费为主，食堂、便利店、公交、拼单，偶尔一笔咬牙的大开销。",
+    "普通": "普通：日常几十到几百，外卖、打车、网购、房租水电，月底会紧。",
+    "宽裕": "宽裕：几百到几千不眨眼，餐厅、健身房、旅行、给人买礼物，偶尔奢侈品。",
+    "富裕": "富裕：几千到几万是日常，高档餐厅、酒店、名牌、包车，给身边人转账不心疼。",
+    "豪门": "豪门：几万到几十万随手花，会所年费、私人司机、拍卖会、定制，给人的礼物一件抵别人一年工资。",
+    "顶级豪门": "顶级豪门：消费是私人飞机时段、游艇、拍卖行成交、名下公司的往来、给助理和司机的转账、家族信托的进账，金额六到八位数是日常；不要出现奶茶、外卖、打车这种平民消费，除非正文里明确写了；商家写具体的高端品牌、场所和项目，写出那种钱不是问题的随意感。",
+  };
+  function peekData(c, who) { c.peeks = c.peeks || {}; if (!c.peeks[who]) c.peeks[who] = { tier: "自动", apps: {} }; const d = c.peeks[who]; d.apps = d.apps || {}; d.tier = d.tier || "自动"; return d; }
+  function openPeek(who, push) {
+    const c = active(); if (!c || !peekOwner(c, who)) return;
+    if (push !== false) viewStack.push(currentViewRef());
+    peekWho = who; peekApp = null; phoneView = "peek"; phoneWith = null; phoneGroup = null; phoneSel = null; phoneEdit = null; $("phoneExtra").classList.remove("on");
+    $("phone").classList.toggle("dark", state.settings.phoneDark === true);
+    renderPhone(); $("phoneBack").hidden = false;
+  }
+  function peekContext(c, who) {
+    const u = state.persona.name || "用户";
+    const o = peekOwner(c, who); const nm = o.name;
+    const clip = (t, k) => String(t || "").replace(/<[^>]+>/g, "").slice(0, k);
+    const L = [];
+    if (o.isChar) {
+      L.push(`## ${nm}（主角）`, [c.tag ? sub(c.tag, c) : "", clip(c.description, 900), c.personality ? `性格：${clip(c.personality, 400)}` : ""].filter(Boolean).join("\n"));
+      const st = c.status && c.status.enabled ? c.status.fields.filter((f) => f.value !== "" && f.value != null).map((f) => `${f.key}：${f.value}`).join("；") : "";
+      if (st) L.push(`此刻状态：${st}`);
+      if (c.status && c.status.voice) L.push(`此刻心声：${clip(c.status.voice, 200)}`);
+    } else {
+      L.push(`## ${nm}`, [o.brief, clip(o.desc, 700), o.age ? `年龄：${o.age}` : "", o.personality ? `性格：${o.personality}` : "", o.speech ? `说话方式：${o.speech}` : "", o.others ? `和其他人：${o.others}` : "", o.mood ? `此刻心情：${o.mood}` : "", o.voice ? `此刻心声：${o.voice}` : ""].filter(Boolean).join("\n"));
+    }
+    { const pt = personaText(c); if (pt) L.push(`\n## ${u}（用户）`, clip(pt, 400)); }
+    const rel = []; let stage = "";
+    if (o.isChar) { const cu = charUserRel(c); if (cu.rel || cu.aff != null) { rel.push(`${nm} 和 ${u}：${cu.rel || "（未定）"}${cu.aff != null ? `（好感 ${cu.aff}/100，${relStage(cu.aff)}）` : ""}`); stage = cu.aff != null ? relStage(cu.aff) : cu.rel; } }
+    else { const a = relGet(c, "u", o.id), b = relGet(c, "c", o.id); if (a.set) { rel.push(`${nm} 和 ${u}：${a.rel || "（未定）"}（好感 ${a.aff}/100，${relStage(a.aff)}）${a.note ? ` · ${a.note}` : ""}`); stage = relStage(a.aff); } if (b.set) rel.push(`${nm} 和 ${c.name}：${b.rel || "（未定）"}（好感 ${b.aff}/100）${b.note ? ` · ${b.note}` : ""}`); }
+    for (const n of c.npcs) { if (!o.isChar && n.id === o.id) continue; const r = o.isChar ? relGet(c, "c", n.id) : null; if (r && r.set) rel.push(`${nm} 和 ${n.name}：${r.rel || "（未定）"}（好感 ${r.aff}/100）`); }
+    if (rel.length) L.push("\n## 人际关系", rel.map((x) => "- " + x).join("\n"));
+    const isMine = (m) => o.isChar ? !m.npc : (msgHasNpc(m, o.id) || m.speaker === o.id || (!m.npc && !m.group && [o.name, ...(o.aliases || [])].some((x) => x && (m.content || "").includes(x))));
+    const recent = c.chat.filter((m) => m.kind !== "divider" && !m.error && !m.hidden && m.channel !== "moments" && isMine(m)).slice(-14)
+      .map((m) => { const w = m.role === "user" ? u : m.group ? groupSpeakerName(c, m) : m.npc ? npcName(c, m.npc) : c.name; const tag = m.group ? "[群聊] " : m.channel === "phone" ? "[手机] " : ""; return `${tag}${w}：${clip(stripStatus(stripReasoning(sub(m.content, c))), 320)}`; });
+    L.push("\n## 最近的剧情", recent.length ? recent.join("\n") : "（还没开始，按设定和世界观写 TA 平时的样子）");
+    const tf = c.status && c.status.fields.find((f) => f.key === "时间");
+    L.push(`\n剧情里现在的时间：${tf && tf.value ? tf.value : "（没写，自己定一个合理的）"}`);
+    return { text: L.join("\n"), stage, nm, u };
+  }
+  function peekAppPrompt(c, who, app, prev) {
+    const ctx = peekContext(c, who); const { nm, u, stage } = ctx;
+    const d = peekData(c, who);
+    const L = [];
+    const label = app === "browser" ? "浏览器的搜索记录" : app === "bills" ? "账单（最近的花销和进账）" : "相册里最近的照片";
+    L.push(`这是一场角色扮演的资料。用户「${u}」正在用上帝视角偷看「${nm}」的手机里${label}（${nm} 本人不知道，这件事不进剧情）。请根据资料写出${prev ? "从上次偷看到现在**新增**的" : "到目前为止的"}内容。`, "");
+    L.push(ctx.text);
+    if (prev && prev.items.length) L.push("\n## 上次看到的（不要重复，接着往后写新增的）", prev.items.slice(0, 8).map((x) => `- ${x.t ? x.t + " " : ""}${x.q || x.item || x.desc}${x.amt != null ? ` ${x.amt}` : ""}`).join("\n"));
+    L.push("\n## 写法");
+    L.push(`- 阶段：${nm} 和 ${u} 现在是「${stage || "未定"}」。疏远/认识阶段以日常为主，混一两条藏着的心思；朋友/暧昧阶段写试探、纠结、偷偷打听；亲近/亲密阶段写亲密、占有、计划两人的事，尺度允许时可以直接出现性相关的内容。`);
+    L.push(`- 尺度：${nsfwRule(c)}`);
+    L.push(`- 至少一半的条目是 ${nm} 不会当面说的、和最近剧情直接相关的；其余是日常，两者按时间自然穿插。不要照抄已经说出口的心声，写心声背后 TA 真正去做了什么。`);
+    if (app === "browser") L.push("- 搜索词像真人打字：短、有错字也行、有时是一句问句。可以有反复搜同一件事的痕迹。");
+    if (app === "bills") {
+      const tier = d.tier && d.tier !== "自动" ? d.tier : "";
+      L.push(tier ? `- 经济档位已定为「${tier}」。${TIER_GUIDE[tier]}` : `- 先按人设和世界观判断 ${nm} 的经济档位（拮据 / 普通 / 宽裕 / 富裕 / 豪门 / 顶级豪门），写进 JSON 的 tier，再按档写消费：\n${Object.values(TIER_GUIDE).map((x) => "  · " + x).join("\n")}`);
+      L.push(`- 正文里 ${nm} 买过、付过的东西必须出现在账单里。商家、项目写具体，金额用数字，支出为负、收入为正。可以有给别人的转账和收款，写清对方。`);
+    }
+    if (app === "album") L.push(`- 每张照片一句描述：拍了什么、谁在里面、什么场合、构图或细节。可以有偷拍 ${u} 的、和别人的合照、截图、删了又恢复的、深夜自拍。`);
+    L.push(`- 时间用剧情里的时间写法（如「周三 23:10」「昨天 08:15」），按时间倒序，最新的在前。语言：${langHint()}`);
+    L.push(prev ? "- 数量：3 到 6 条，不重复上次的。" : app === "bills" ? "- 数量：6 到 10 条。" : "- 数量：8 到 12 条。");
+    L.push("\n只输出 JSON：");
+    if (app === "browser") L.push('{"items":[{"t":"时间","q":"搜索词"}]}');
+    else if (app === "bills") L.push('{"tier":"档位","items":[{"t":"时间","item":"商家或项目","amt":-金额或+金额,"to":"对方，没有就空字符串"}]}');
+    else L.push('{"items":[{"t":"时间","desc":"照片描述"}]}');
+    return L.join("\n");
+  }
+  async function peekRefresh(c, who, app) {
+    if (peekBusy || !chatReady()) return;
+    const o = peekOwner(c, who); if (!o) return;
+    const d = peekData(c, who);
+    const prev = d.apps[app] && d.apps[app].items && d.apps[app].items.length ? d.apps[app] : null;
+    const prompt = peekAppPrompt(c, who, app, prev);
+    peekBusy = new AbortController(); renderPhone();
+    try {
+      const res = await completeJson(prompt, { signal: peekBusy.signal, tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      if (!res || typeof res !== "object") throw new Error("模型没有给出可用的内容");
+      const rev = (prev ? prev.rev : 0) + 1;
+      const str = (v, k) => String(v == null ? "" : v).trim().slice(0, k);
+      const num = (v) => { const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.-]/g, "")); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+      const raw = Array.isArray(res.items) ? res.items : [];
+      let items;
+      if (app === "browser") items = raw.map((x) => ({ t: str(x && x.t, 30), q: str(x && x.q, 80), rev })).filter((x) => x.q);
+      else if (app === "bills") items = raw.map((x) => ({ t: str(x && x.t, 30), item: str(x && x.item, 60), amt: num(x && x.amt), to: str(x && x.to, 30), rev })).filter((x) => x.item);
+      else items = raw.map((x) => ({ t: str(x && x.t, 30), desc: str(x && x.desc, 160), rev })).filter((x) => x.desc);
+      const slot = d.apps[app] || { items: [] };
+      slot.items = items.concat(slot.items || []).slice(0, 60);
+      slot.rev = rev; slot.ts = Date.now(); slot.floor = floorOf(c, c.chat.length - 1);
+      if (app === "bills" && res.tier && (!d.tier || d.tier === "自动")) slot.tierAuto = str(res.tier, 10);
+      d.apps[app] = slot;
+      save();
+      toast(items.length ? `${o.name} 的${PEEK_APPS.find((a) => a[0] === app)[2]}${prev ? "有新东西了" : "翻出来了"}` : "这次没有新东西");
+    } catch (e) {
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) toast("失败：" + (e && e.message ? e.message : e), true);
+    } finally { peekBusy = null; renderPhone(); }
+  }
+  function renderPeek(c, body) {
+    const o = peekOwner(c, peekWho); if (!o) { openContacts(); return; }
+    const d = peekData(c, peekWho);
+    const busyNow = !!peekBusy;
+    const wrap = el("div", "ct-list");
+    if (!peekApp) {
+      const top = el("div", "pk-top");
+      top.appendChild(el("div", "nm", `${o.name} 的手机`));
+      const seen = PEEK_APPS.filter((a) => d.apps[a[0]] && d.apps[a[0]].items.length);
+      top.appendChild(el("div", "sb", seen.length ? `翻过：${seen.map((a) => a[2]).join("、")} · 上帝视角，TA 不知道` : "还没翻过 · 上帝视角，不进剧情，TA 不知道"));
+      wrap.appendChild(top);
+      const grid = el("div", "pk-grid");
+      for (const [key, ic, lb] of PEEK_APPS) {
+        const b = el("button", "pk-app"); b.type = "button";
+        b.appendChild(el("div", "ic", ic)); b.appendChild(el("div", "lb", lb));
+        const slot = d.apps[key]; const cnt = slot && slot.rev > 1 ? slot.items.filter((x) => x.rev === slot.rev).length : 0;
+        if (cnt) b.appendChild(el("span", "bd", String(cnt)));
+        b.onclick = () => { peekApp = key; renderPhone(); };
+        grid.appendChild(b);
+      }
+      wrap.appendChild(grid);
+      wrap.appendChild(el("div", "pk-hint", "点一个 app 进去，第一次进要翻一翻才有内容；每个 app 各自生成，只花它那一份。不会自动更新，想看新的再点。"));
+      if (seen.length) { const tools = el("div", "ct-tools"); const fg = el("button", "btn ghost", "忘掉这部手机"); fg.onclick = () => { if (!confirm(`忘掉翻过的 ${o.name} 的手机？下次再翻会重新生成。`)) return; delete c.peeks[peekWho]; save(); renderPhone(); }; tools.appendChild(fg); wrap.appendChild(tools); }
+      body.appendChild(wrap);
+      return;
+    }
+    const app = PEEK_APPS.find((x) => x[0] === peekApp) || PEEK_APPS[0];
+    const slot = d.apps[peekApp];
+    const has = !!(slot && slot.items.length);
+    const isNew = (x) => slot && x.rev === slot.rev && slot.rev > 1;
+    const newTag = (x) => (isNew(x) ? el("span", "new", "新") : null);
+    const bar = el("div", "pk-bar");
+    const back = el("button", null, "‹ 桌面"); back.type = "button"; back.onclick = () => { peekApp = null; renderPhone(); };
+    bar.appendChild(back); bar.appendChild(el("b", null, `${app[1]} ${app[2]}`));
+    if (peekApp === "bills") {
+      const sel = document.createElement("select"); sel.title = "经济档位：自动让模型按人设判断，也可以直接定";
+      for (const t of PEEK_TIERS) { const op = document.createElement("option"); op.value = t; op.textContent = t === "自动" ? (slot && slot.tierAuto ? `自动（${slot.tierAuto}）` : "自动") : t; sel.appendChild(op); }
+      sel.value = PEEK_TIERS.includes(d.tier) ? d.tier : "自动"; sel.disabled = busyNow;
+      sel.onchange = () => { d.tier = sel.value; save(); };
+      bar.appendChild(sel);
+    }
+    const rf = el("button", null, busyNow ? "翻着…" : has ? "看看新的" : "翻一翻"); rf.type = "button"; rf.disabled = busyNow || !chatReady(); rf.onclick = () => peekRefresh(c, peekWho, peekApp); bar.appendChild(rf);
+    wrap.appendChild(bar);
+    const delBtn = (x) => { const b = el("button", "del", "✕"); b.type = "button"; b.title = "删掉这条"; b.onclick = () => { slot.items = slot.items.filter((y) => y !== x); save(); renderPhone(); }; return b; };
+    if (busyNow && !has) wrap.appendChild(el("div", "ct-empty", `正在翻 ${o.name} 的${app[2]}…`));
+    else if (!has) wrap.appendChild(el("div", "ct-empty", `还没翻过 ${o.name} 的${app[2]}。点右上角「翻一翻」。`));
+    else if (peekApp === "browser") {
+      const list = el("div", "pk-list");
+      for (const x of slot.items) { const r = el("div", "pk-row"); r.appendChild(el("span", "ic", "🔍")); const tx = el("div", "tx"); tx.appendChild(document.createTextNode(x.q)); const nt = newTag(x); if (nt) tx.appendChild(nt); if (x.t) tx.appendChild(el("div", "t", x.t)); r.appendChild(tx); r.appendChild(delBtn(x)); list.appendChild(r); }
+      wrap.appendChild(list);
+    } else if (peekApp === "bills") {
+      const list = el("div", "pk-list");
+      for (const x of slot.items) { const r = el("div", "pk-row"); r.appendChild(el("span", "ic", x.amt >= 0 ? "💰" : "🛍")); const tx = el("div", "tx"); tx.appendChild(document.createTextNode(x.item)); const nt = newTag(x); if (nt) tx.appendChild(nt); tx.appendChild(el("div", "t", [x.to, x.t].filter(Boolean).join(" · "))); r.appendChild(tx); r.appendChild(el("span", "amt" + (x.amt >= 0 ? " in" : ""), `${x.amt >= 0 ? "+" : "-"}${Math.abs(x.amt).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)); r.appendChild(delBtn(x)); list.appendChild(r); }
+      wrap.appendChild(list);
+    } else {
+      const grid = el("div", "pk-photos");
+      for (const x of slot.items) { const ph = el("div", "pk-photo"); ph.appendChild(el("div", "ph", "🖼")); const cap = el("div", "cap"); cap.appendChild(document.createTextNode(x.desc)); const nt = newTag(x); if (nt) cap.appendChild(nt); const t = el("div", "t"); t.appendChild(document.createTextNode(x.t || "")); const db = delBtn(x); db.style.float = "right"; t.appendChild(db); cap.appendChild(t); ph.appendChild(cap); grid.appendChild(ph); }
+      wrap.appendChild(grid);
+    }
+    body.appendChild(wrap);
   }
   // ----- NPC editor -----
   let npcEditing = null;
@@ -7268,6 +7533,24 @@
     if (!c) return;
     const body = $("phoneBody");
     const contacts = phoneView === "contacts";
+    $("phone").classList.toggle("peeking", phoneView === "peek");
+    $("phoneName").classList.remove("link"); $("phoneName").onclick = null;
+    if (phoneView === "profile" || phoneView === "peek") {
+      const who = phoneView === "peek" ? peekWho : profileWho;
+      const o = peekOwner(c, who); if (!o) { phoneView = "contacts"; renderPhone(); return; }
+      $("phoneClose").textContent = phoneView === "peek" ? "‹ 放回去" : "‹ 返回"; $("phoneClose").title = phoneView === "peek" ? "放下 TA 的手机" : "回到刚才的地方";
+      $("phoneExit").hidden = true;
+      $("phoneName").textContent = phoneView === "peek" ? `${o.name} 的手机` : o.name;
+      $("phoneStatus").textContent = phoneView === "peek" ? (peekBusy ? "正在翻…" : "上帝视角 · TA 不知道") : (o.isChar ? "主角" : (npcAppeared(c, o) ? "联系人" : "还没在故事里出场"));
+      $("phoneStatus").classList.remove("link"); $("phoneStatus").onclick = null; $("phoneStatus").title = "";
+      document.querySelector(".phone-tools").hidden = true;
+      document.querySelector(".phone-foot").hidden = true; $("phoneExtra").classList.remove("on"); $("phoneQuoteBar").hidden = true;
+      const keepTop = body.scrollTop;
+      body.innerHTML = "";
+      if (phoneView === "peek") renderPeek(c, body); else renderProfile(c, body);
+      body.scrollTop = keepTop;
+      return;
+    }
     if (phoneView === "moments") {
       $("phoneClose").textContent = "‹ 联系人"; $("phoneClose").title = "回到联系人列表";
       $("phoneExit").hidden = true;
@@ -7320,6 +7603,7 @@
     const typing = grp ? groupTyping === grp.id : (busy && busy.msgId && c.chat.find((m) => m.id === busy.msgId && m.channel === "phone" && (m.npc || null) === phoneWith));
     const charChat = !grp && !npc;
     $("phoneStatus").textContent = grp ? (typing ? "有人正在输入…" : `${grp.members.length + 1} 人 · ${grp.members.map((id) => groupMemberName(c, id)).join("、")}`) : typing ? "正在输入…" : npc ? (npcAppeared(c, npc) ? `在线${npc.mood ? " · " + npc.mood : ""}` : "还没在故事里出场 · 初次联系") : phoneMode(c) === "together" ? "🤫 同一场合，悄悄发 ▾" : `🚶 不在一处${st && st.value ? ` · TA 在${st.value}` : ""} ▾`;
+    if (!grp && !contacts) { $("phoneName").classList.add("link"); $("phoneName").title = "个人页"; $("phoneName").onclick = () => openProfile(phoneWith || "char"); }
     $("phoneStatus").classList.toggle("link", charChat && !typing);
     $("phoneStatus").title = charChat ? "点一下切换：不在一处 / 同一场合悄悄发，或补充情境" : "";
     $("phoneStatus").onclick = charChat && !typing ? openPhoneSceneSwitch : null;
@@ -9643,7 +9927,7 @@
   $("sceneCancel").onclick = () => { $("sceneBack").hidden = true; };
   $("sceneGo").onclick = sceneChooserGo;
   $("sceneBack").addEventListener("click", (e) => { if (e.target === $("sceneBack")) $("sceneBack").hidden = true; });
-  $("phoneClose").onclick = () => { if (phoneView === "contacts") closePhoneView(); else { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); } };
+  $("phoneClose").onclick = () => { if (phoneView === "profile" || phoneView === "peek") { goToViewRef(viewStack.pop()); } else if (phoneView === "contacts") closePhoneView(); else { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); } };
   $("phoneContacts").onclick = () => { phoneView = "contacts"; phoneSel = null; phoneEdit = null; renderPhone(); };
   $("phoneMemo").onclick = () => { const c = active(); if (!c) return; if (phoneGroup) { const g = groupById(c, phoneGroup); if (g) openMemoryForNpc(groupAsNpc(c, g)); return; } const n = phoneWith ? npcById(c, phoneWith) : null; if (n) openMemoryForNpc(n); };
   $("phoneRedo").onclick = groupRedo;
@@ -11021,7 +11305,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
   // ============================================================
   // Save slots (存档): snapshot the chat-side of a character and go back later
   // ============================================================
-  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn", "mvuEdits"];
+  const SAVE_FIELDS = ["chat", "status", "rels", "memory", "scene", "phone", "usage", "vars", "npcs", "groups", "notes", "notesOn", "mvuEdits", "peeks"];
   function deep(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
   function saveSnapshot(c) {
     const d = {};
