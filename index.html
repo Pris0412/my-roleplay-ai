@@ -1404,6 +1404,11 @@
           <div class="help">每行一条，随每次回复一起发给模型。可以随便删改、加自己讨厌的八股词；留空就等于「跟随预设 / 不注入」。可用 {{user}} 代表你。情感浓度和尺度不在这里，它们单独发。 <button class="btn ghost" id="sStyleReset" type="button" style="font-size:12px;padding:2px 8px;vertical-align:baseline">恢复默认</button></div>
         </div>
         <div class="field">
+          <label for="sWealth">有钱人写法 <button class="btn ghost" id="sWealthReset" type="button" style="float:right;padding:2px 8px;font-size:11px">恢复默认</button></label>
+          <textarea id="sWealth" class="mono" rows="6" style="font-size:12px;min-height:110px" placeholder="留空就不发。"></textarea>
+          <div class="help">只在角色卡看起来有钱时才发（描述、标签里有「豪门 / 少爷 / 千金 / 总裁 / 老钱」这类词），普通卡不带。每张卡可以在编辑里强制开或关。治的是模型把有钱人写成普通人：自己熬粥、洗得发白的衬衫、穿 AJ。</div>
+        </div>
+        <div class="field">
           <label for="sTheme">外观</label>
           <select id="sTheme">
             <option value="system">跟随系统（默认）</option>
@@ -1628,6 +1633,14 @@
             <select id="edStyle">
               <option value="inherit">跟随全局设置</option>
               <option value="off">不注入 · 这张卡不发文风规则</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="edWealth">有钱人写法（这张卡）</label>
+            <select id="edWealth">
+              <option value="auto">自动 · 描述里像有钱人就发</option>
+              <option value="on">开 · 一直发</option>
+              <option value="off">关 · 不发</option>
             </select>
           </div>
           <div class="field">
@@ -2763,7 +2776,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.68"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.69"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4379,7 +4392,7 @@
     renderAvatar($("pAvatar"), personaAv(), "lg");
     $("sTier").value = state.settings.tier;
     $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" || state.settings.len === "follow" ? state.settings.len : "medium";
-    $("sStyle").value = styleText();
+    $("sStyle").value = styleText(); $("sWealth").value = wealthText();
     $("sLenMin").value = state.settings.lenMin || 600;
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
@@ -4494,19 +4507,34 @@
   function nsfwRule(c) { return `${NSFW_FIXED}${NSFW_RULES[nsfwLevel(c)] || ""}`; }
   // Editable in 设置 › 生成. settings.style == null → default text; "" → nothing injected; a card can opt out with c.style === "off".
   const DEFAULT_STYLE_RULES = [
-    "结构：不要套模板。不要每楼都「环境一句、动作、对白、动作、意味深长收尾」；段落长短不齐，允许只有一两句话的短楼。",
-    "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」。",
-    "结尾：不以留白句收尾（「他没有再说什么」「夜还很长」之类），不以抛问题收尾，不替 {{user}} 总结感受（「你感到…」「你知道…」）。冲突不要在同一楼和解。",
-    "写法：情绪写过程不写结论，不说「他慌了」，写他把杯子放歪、话说到一半停住；身体反应不只写脸，写手、呼吸、姿势、距离。场景没变就不重描环境和光线，人身上、手上、用着的东西照写。",
-    "对白：像真人，会打断、说半句、重复、答非所问，不要每句都完整得体。出现非普通话的内容（方言、粤语、英文、法语等任何语言），那句话后面必须紧跟括号（）写出中文意思，一句都不能漏。",
+    "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」；不替 {{user}} 总结感受（「你感到…」「你知道…」）。",
+    "翻译：出现非普通话的内容（方言、粤语、英文、法语等任何语言，包括牌子和人名），那句话或那个词后面必须紧跟括号（）写出中文意思，一句都不能漏。",
     "过去：凡是和 {{user}} 有关的往事（角色和 {{user}}、{{user}} 和各 NPC 之间），只认角色卡、世界书、不能忘的事和正文里明确写过的内容。设定说有过去但没写细节，就只能说「以前」「那时候」「你知道的」，不要发明具体的事件、对话、地点、物件、日期、昵称，也不要发明告白、初吻、约定、定情物、关系进展。尤其不要替 {{user}} 记得：{{user}} 过去做过什么、说过什么、有什么习惯，没写过的就当不知道。{{user}} 在正文里说出的往事，「发生了什么」这一层就是既定事实，之后不能否认、不能改细节；但为什么、当时怎么想，两个人可以各有版本：角色可以有自己当时的感受、动机和误会，这是角色自己的内心，可以按人设补，也可以一直误会到剧情里说开为止；对 {{user}} 当时的动机和感受只能说「我以为」，不能当事实。角色自己先说出的往事，{{user}} 接了才算数，没接或反驳的以后不再提。角色和 NPC 之间、NPC 和 NPC 之间的过去可以按各自设定合理补充，说出来就要前后一致。",
-    "物件：穿的、开的、用的东西要有名字，角色卡里写了牌子、款式、颜色就用出来，没写的按人设和家境自己定一个，之后保持一致。每楼至少一两处具体物件的细节，写此刻用到、和动作连着的那一件，不开清单。家境好的角色，生活质感要写出来：住哪、开什么、穿什么、用什么、花钱的方式和随手的习惯，用具体的东西和动作让人感觉到他有钱，不要写得像普通人。",
   ].join("\n");
+  // ---- how to write rich characters. Sent only when the card looks wealthy (or the card forces it on) ----
+  const DEFAULT_WEALTH_RULE = [
+    "家境：有钱的角色按真正的有钱人写。",
+    "底子：管家叫醒，早餐做好了摆在那，出门司机在楼下；衣服是定制或熟悉的牌子，旧了也是好东西；看病有私人医生，吃饭有固定的几家；手机里没有外卖软件，身上没现金，账单从来不是自己付；不知道一杯奶茶多少钱，不是抠，是没关心过。",
+    "禁令：做饭洗衣打扫开车这些事有人做（阿姨、管家、司机、助理），他自己不下厨、不熬粥、不洗衬衫；衣服不会洗得发白；东西坏了是换不是修。",
+    "花钱没有戏剧性：几百几千的东西连想都不想、连提都不提，「大手一挥」只配六位数以上的场面。",
+    "牌子要和家境对上：老钱、豪门是 Loro Piana、Brunello Cucinelli、Zegna 定制、Berluti、Patek Philippe、Bentley、Range Rover，很多东西没有牌子只有裁缝和工坊，不穿运动潮牌、不穿大 logo；新贵才是 Gucci、Balenciaga、劳力士、保时捷；普通人才是 Adidas、AJ、优衣库；穷人没牌子。老钱不炫、不报价格；同一个人别每次都同一个牌子。",
+    "穿的、开的、用的按人设定一个具体的，之后保持一致；用到才写，不开清单。穷的角色反过来，钱是每天要算的。",
+  ].join("\n");
+  const WEALTH_KEYS = /豪门|富二代|富家|有钱|巨富|首富|少爷|千金|总裁|集团|老钱|继承人|财阀|世家|贵族|亿万|富豪|大小姐|名门|上流|资本家|董事长/;
+  function wealthText() { const t = state.settings.wealthRule; return typeof t === "string" ? t : DEFAULT_WEALTH_RULE; }
+  function wealthOn(c) {
+    if (!c || c.wealth === "off") return false;
+    if (c.wealth === "on") return true;
+    const blob = [c.tag, c.description, c.personality, c.scenario, (c.tags || []).join(" ")].join("\n");
+    return WEALTH_KEYS.test(blob);
+  }
   function styleText() { const t = state.settings.style; return typeof t === "string" ? t : DEFAULT_STYLE_RULES; }
   function styleOff(c) { return (c && c.style === "off") || !styleText().trim(); }
   function styleLines(c, u) {
     if (styleOff(c)) return [];
-    return styleText().split("\n").map((x) => x.trim()).filter(Boolean).map((x) => x.replace(/\{\{user\}\}/gi, u));
+    const base = styleText().split("\n").map((x) => x.trim()).filter(Boolean);
+    const w = wealthOn(c) && wealthText().trim() ? [wealthText().split("\n").map((x) => x.trim()).filter(Boolean).join(" ")] : [];
+    return [...base, ...w].map((x) => x.replace(/\{\{user\}\}/gi, u));
   }
   function styleRules(c, u) {
     return [...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
@@ -4516,7 +4544,7 @@
   // A few words at the very end of the prompt, where instructions bite hardest: the rules that are easiest to forget.
   function tailReminder(c, u) {
     const items = [];
-    if (!styleOff(c)) items.push(`往事只认写过的，${u} 说出的算数`, "穿的、开的、用的写出牌子和款式");
+    if (!styleOff(c)) { items.push(`往事只认写过的，${u} 说出的算数`); if (wealthOn(c) && wealthText().trim()) items.push("有钱人按有钱人写：家务有人做，几百几千不值一提，牌子对档"); }
     const v = state.settings.voice;
     if (v === "strict" || v === "restate") items.push(`不替 ${u} 说话，不写 ${u} 的动作和内心`);
     else if (v === "describe" || v === "expand") items.push(`不替 ${u} 说话、做决定`);
@@ -8630,7 +8658,7 @@
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edUserRole").value = d.userRole || "";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edWealth").value = d.wealth === "on" || d.wealth === "off" ? d.wealth : "auto"; $("edUserRole").value = d.userRole || "";
     renderEdBook();
     refreshCharRx();
     $("editorDelete").hidden = !c;
@@ -8681,6 +8709,7 @@
     d.emotion = $("edEmotion").value === "inherit" ? "" : $("edEmotion").value;
     d.nsfw = $("edNsfw").value === "inherit" ? "" : $("edNsfw").value;
     d.style = $("edStyle").value === "off" ? "off" : "";
+    d.wealth = $("edWealth").value === "auto" ? "" : $("edWealth").value;
     d.worldName = $("edWorld").value;
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
@@ -9858,6 +9887,8 @@
   $("sNsfw").addEventListener("change", (e) => { state.settings.nsfw = e.target.value; save(); refreshContextMeter(); renderMessages(); toast("尺度：" + e.target.options[e.target.selectedIndex].textContent); });
   $("sStyle").addEventListener("input", (e) => { state.settings.style = e.target.value === DEFAULT_STYLE_RULES ? null : e.target.value; save(); refreshContextMeter(); });
   $("sStyleReset").onclick = () => { state.settings.style = null; $("sStyle").value = DEFAULT_STYLE_RULES; save(); refreshContextMeter(); toast("已恢复默认文风规则"); };
+  $("sWealth").addEventListener("input", (e) => { state.settings.wealthRule = e.target.value === DEFAULT_WEALTH_RULE ? null : e.target.value; save(); refreshContextMeter(); });
+  $("sWealthReset").onclick = () => { state.settings.wealthRule = null; $("sWealth").value = DEFAULT_WEALTH_RULE; save(); refreshContextMeter(); toast("已恢复默认有钱人写法"); };
   $("inspire").onclick = inspire;
   // ▶ 再写一段: the character (or the NPC you're alone with) carries on without a new message from you
   function continueStory() {
