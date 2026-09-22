@@ -755,6 +755,9 @@
   .phone.dark .phone-foot textarea { background: #1c1c1e; color: #f2f2f7; border-color: rgba(255,255,255,0.15); }
   .phone-foot .send { width: 36px; height: 36px; border-radius: 50%; border: 0; background: #0a84ff; color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; }
   .phone-foot .send:disabled { opacity: 0.5; }
+  .phone-foot .send.go { width: auto; padding: 0 12px; border-radius: 18px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  .phone-foot .send:not(.go) { background: #c7c7cc; }
+  .phone.dark .phone-foot .send:not(.go) { background: #48484a; }
   .composer textarea {
     width: 100%;
     min-height: 48px; max-height: 200px;
@@ -2505,7 +2508,8 @@
     <div class="phone-foot">
       <button class="ib plus" id="phonePlus" title="图片 / 转账 / 红包 / 投票" aria-label="更多">＋</button>
       <textarea id="phoneInput" rows="1" placeholder="iMessage"></textarea>
-      <button class="send" id="phoneSend" aria-label="发送">↑</button>
+      <button class="send" id="phoneSend" aria-label="只发出去，先不让 TA 回" title="只发出去，先不让 TA 回">↑</button>
+      <button class="send go" id="phoneGo" aria-label="发送并让 TA 回" title="发送并让 TA 回（键盘 Enter 也是这个）">Enter</button>
     </div>
   </div>
 </div>
@@ -2776,7 +2780,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.70"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.71"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -7675,7 +7679,7 @@
       g.onclick = (e) => { if (busy || e.target.closest("button, textarea, input")) return; phoneSel = phoneSel === m.id ? null : m.id; renderPhone(); };
       body.appendChild(g);
     }
-    if (phonePendingHere() && !busy) { const w = el("div", "pm sys"); w.appendChild(document.createTextNode("等你说完再回 · ")); const go = el("button", "lnk", "立即回复"); go.type = "button"; go.onclick = (e) => { e.stopPropagation(); phoneReplyNow(); }; w.appendChild(go); body.appendChild(w); }
+    if (phonePendingHere() && !busy) { const w = el("div", "pm sys"); w.appendChild(document.createTextNode("已发出，还没让 TA 回 · 按 Enter 或 ")); const go = el("button", "lnk", "立即回复"); go.type = "button"; go.onclick = (e) => { e.stopPropagation(); phoneReplyNow(); }; w.appendChild(go); body.appendChild(w); }
     if (grp && typing) body.appendChild(el("div", "pm typing", "•••"));
     renderQuoteBar();
     if (!thread.some((x) => x.m.channel === "phone")) body.appendChild(el("div", "pm sys", grp ? `群里还没人说话。你先发一条，或者点「让他们聊一会儿」。` : npc ? `还没有和 ${npc.name} 聊过。你先发一条，或者点「让 ${npc.name} 先开口」。${c.name} 不会看到这里的内容。` : "还没有消息。你先发一条，或者点「让 TA 先开口」。"));
@@ -7697,14 +7701,10 @@
     $("phoneQuoteBar").hidden = !phoneQuote;
     $("phoneQuoteText").textContent = phoneQuote ? `回复 ${phoneQuote.who}：${phoneQuote.text}` : "";
   }
-  // ---- send several messages, then the other side replies: the reply starts REPLY_DELAY after your last send unless you keep typing ----
-  const REPLY_DELAY = 2500;
-  let phonePending = null;   // { cid, kind: "char" | "npc" | "group", id }
-  let phoneReplyTimer = null;
-  function phoneReplyLater(p) { phonePending = p; phoneReplyArm(); renderPhone(true); }
-  function phoneReplyArm() { if (phoneReplyTimer) clearTimeout(phoneReplyTimer); phoneReplyTimer = setTimeout(phoneReplyNow, REPLY_DELAY); }
-  function phoneReplyHold() { if (phoneReplyTimer) { clearTimeout(phoneReplyTimer); phoneReplyTimer = null; } }
-  function phoneReplyCancel() { phoneReplyHold(); phonePending = null; }
+  // ---- ↑ only posts the message (keep typing, send several); Enter posts and asks the other side to reply ----
+  let phonePending = null;   // { cid, kind: "char" | "npc" | "group", id } while posted messages wait for a reply
+  function phoneReplyLater(p) { phonePending = p; renderPhone(true); }
+  function phoneReplyCancel() { phonePending = null; }
   function phonePendingHere() {
     const c = active();
     if (!phonePending || !c || phonePending.cid !== c.id) return false;
@@ -7713,38 +7713,40 @@
     return phonePending.kind === "char";
   }
   async function phoneReplyNow() {
-    phoneReplyHold();
     const p = phonePending; if (!p) return;
     const c = active();
     if (!c || c.id !== p.cid) { phonePending = null; return; }
-    if (busy || !chatReady()) { phoneReplyTimer = setTimeout(phoneReplyNow, 1000); return; }
+    if (busy || !chatReady()) return;
     phonePending = null;
     if (p.kind === "group") { if (groupById(c, p.id)) await generateGroup(c, p.id, {}); }
     else if (p.kind === "npc") { if (npcById(c, p.id)) await generate(c, null, { channel: "phone", npc: p.id }); }
     else await generate(c, null, { channel: "phone" });
   }
-  async function phoneSend() {
+  // mode "post": put the message in the thread and wait; mode "go" (Enter): post it, then reply right away
+  async function phoneSend(mode) {
+    const go = mode === "go";
     const c = active();
     const ta = $("phoneInput");
     let text = ta.value.trim();
-    if (!c || busy || !text || !chatReady()) return;
+    if (!c || busy || !chatReady()) return;
+    if (!text) { if (go && phonePendingHere()) await phoneReplyNow(); return; }
     if (phoneQuote && phoneQuote.key === phoneThreadKey()) { text = `[引用 ${phoneQuote.who}：${phoneQuote.text}]\n${text}`; phoneQuote = null; }
     const done = () => { ta.value = ""; ta.style.height = "auto"; save(); renderMessages(); };
     if (phoneGroup) {
       if (!groupById(c, phoneGroup)) return;
       c.chat.push({ id: uid(), role: "user", channel: "phone", group: phoneGroup, speaker: null, content: text, ts: Date.now() });
-      done(); phoneReplyLater({ cid: c.id, kind: "group", id: phoneGroup });
+      done(); phoneReplyLater({ cid: c.id, kind: "group", id: phoneGroup }); if (go) await phoneReplyNow();
       return;
     }
     if (phoneWith) {
       if (!npcById(c, phoneWith)) return;
       c.chat.push({ id: uid(), role: "user", channel: "phone", npc: phoneWith, content: text, ts: Date.now() });
-      done(); phoneReplyLater({ cid: c.id, kind: "npc", id: phoneWith });
+      done(); phoneReplyLater({ cid: c.id, kind: "npc", id: phoneWith }); if (go) await phoneReplyNow();
       return;
     }
     if (!(c.phone && c.phone.open)) { c.phone = { ...(c.phone || {}), open: true }; }
     c.chat.push({ id: uid(), role: "user", channel: "phone", content: text, ts: Date.now() });
-    done(); phoneReplyLater({ cid: c.id, kind: "char" });
+    done(); phoneReplyLater({ cid: c.id, kind: "char" }); if (go) await phoneReplyNow();
   }
   async function phoneNudge(kind) {
     const c = active();
@@ -9990,7 +9992,8 @@
   $("phoneSceneNote").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); phoneSceneGo(); } });
   $("phoneExit").onclick = () => { if (phoneWith) closePhoneView(); else exitPhone(true); };
   $("phoneBack").addEventListener("click", (e) => { if (e.target === $("phoneBack")) closePhoneView(); });
-  $("phoneSend").onclick = phoneSend;
+  $("phoneSend").onclick = () => phoneSend("post");
+  $("phoneGo").onclick = () => phoneSend("go");
   // "+" panel: a row of icons (图片 / 转账 / 红包); tapping one opens its sheet, which sends a marker line
   {
     const sheets = ["pxImg", "pxPay", "pxRed", "pxPoll"];
@@ -10025,9 +10028,9 @@
     };
     for (const id of ["phoneImgDesc", "phonePayNote", "phoneRedNote", "phonePayAmt", "phoneRedAmt"]) $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const go = $(id === "phoneImgDesc" ? "phoneImgSend" : id.startsWith("phonePay") ? "phonePaySend" : "phoneRedSend"); go.click(); } });
   }
-  function phoneSendText(text) { const ta = $("phoneInput"); const keep = ta.value; ta.value = text; $("phoneExtra").classList.remove("on"); phoneSend().then(() => { if (keep && !ta.value) ta.value = keep; }); }
-  $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend(); } });
-  $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; if (phonePending) { if (e.target.value.trim()) phoneReplyHold(); else phoneReplyArm(); } });
+  function phoneSendText(text) { const ta = $("phoneInput"); const keep = ta.value; ta.value = text; $("phoneExtra").classList.remove("on"); phoneSend("go").then(() => { if (keep && !ta.value) ta.value = keep; }); }
+  $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend("go"); } });
+  $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneQuoteX").onclick = () => { phoneQuote = null; renderQuoteBar(); };
   $("phoneNudge").onclick = () => phoneNudge("first");
   $("phoneSpeaker").addEventListener("change", () => renderPhone());
