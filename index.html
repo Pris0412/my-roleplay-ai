@@ -1040,6 +1040,8 @@
   .hit .s mark { background: var(--accent-soft); color: var(--accent-strong); padding: 0 1px; }
   .mem-result { min-height: 160px; }
   .rel-cards { display: flex; flex-direction: column; gap: 8px; }
+  .lock-pill { border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 10px; font-size: 12px; background: var(--raised); color: var(--muted); cursor: pointer; white-space: nowrap; font: inherit; font-size: 12px; }
+  .lock-pill.on { background: #e8453c; border-color: #e8453c; color: #fff; font-weight: 600; }
   .rel-card { border: 1px solid var(--line); border-radius: 12px; background: var(--raised); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
   .rel-card .hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .rel-card .hd b { font-size: 14px; }
@@ -2808,7 +2810,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.74"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.75"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -6200,6 +6202,7 @@
     }
     return relSet(c, side, npcId, rel, stage ? stageAff(stage) : (prev.set ? prev.aff : 48), note, why);
   }
+  function lockPill(locked, onclick, what) { const b = el("button", "lock-pill" + (locked ? " on" : ""), locked ? "🔒 已锁定" : "🔓 未锁"); b.type = "button"; b.title = locked ? `${what}已锁定：模型不能改，点一下解锁` : `锁住${what}：模型不能改，只能在这一档里演`; b.onclick = onclick; return b; }
   function relLockToggle(c, side, npcId) { const k = relKey(side, npcId); if (c.rels && c.rels[k]) { c.rels[k].lock = !c.rels[k].lock; save(); } }
   function charUserRel(c) {
     const st = c.status;
@@ -6239,8 +6242,7 @@
     const t = document.createElement("input"); t.value = r.rel; t.placeholder = r.set ? "关系" : "未设定";
     const num = document.createElement("select"); num.className = "mono"; num.style.cssText = "padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)";
     { const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "阶段 —"; num.appendChild(o0); for (const st of STAGES) { const o = document.createElement("option"); o.value = st; o.textContent = st; num.appendChild(o); } num.value = r.set ? r.stage : ""; }
-    const lock = el("button", "btn ghost", r.lock ? "🔒" : "🔓"); lock.title = r.lock ? "阶段已锁定：模型不能改，点一下解锁" : "锁住阶段：模型不能改，只能在这一档里演"; lock.style.cssText = "padding:2px 8px;font-size:13px"; lock.disabled = !r.set;
-    lock.onclick = () => { relLockToggle(c, side, n.id); renderRelTable(c); };
+    const lock = lockPill(r.lock, () => { relLockToggle(c, side, n.id); renderRelTable(c); }, "阶段"); lock.disabled = !r.set;
     ln.append(t, num, lock);
     const meta = el("div", "rel-meta");
     const chip = el("span", "stage", r.set ? `${relStage(r.aff)} ${relTrend(r)}${r.lock ? " 🔒" : ""}`.trim() : "未设定"); chip.style.background = r.set ? relStageColor(r.aff) : "var(--line-strong)";
@@ -8019,8 +8021,7 @@
         { const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "还没定（模型第一次回复时按卡定）"; sel.appendChild(o0); for (const stg of STAGES) { const o = document.createElement("option"); o.value = stg; o.textContent = stg; sel.appendChild(o); } }
         sel.value = parseStage(f.value) || "";
         sel.addEventListener("change", () => { const from = parseStage(f.value) || null; f.value = sel.value; if (sel.value && sel.value !== from) { st.stageFloor = floorCount(c); st.stageLog = (st.stageLog || []).concat([{ floor: st.stageFloor, from, to: sel.value, why: "手动修改" }]).slice(-30); } markStatusManual(c); save(); renderStatusStrip(); if (!$("stBack").hidden) renderRelTable(c); });
-        const lk = el("button", "btn ghost", st.stageLock ? "🔒" : "🔓"); lk.title = st.stageLock ? "阶段已锁定，点一下解锁" : "锁住阶段：模型不能改"; lk.style.cssText = "padding:4px 8px";
-        lk.onclick = () => { st.stageLock = !st.stageLock; save(); $("stStageLock").checked = !!st.stageLock; renderStatusFields(); renderRomanceChip(); };
+        const lk = lockPill(!!st.stageLock, () => { st.stageLock = !st.stageLock; save(); $("stStageLock").checked = !!st.stageLock; renderStatusFields(); renderRomanceChip(); }, "阶段");
         wrap.append(sel, lk);
       } else {
         const t = document.createElement("input"); t.value = f.value; t.placeholder = "（未知）";
