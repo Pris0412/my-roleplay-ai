@@ -2808,7 +2808,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.73"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.74"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -8013,6 +8013,15 @@
         const syncTo = (v) => { f.value = Math.max(0, Math.min(100, Math.round(Number(v) || 0))); r.value = f.value; n.value = f.value; markStatusManual(c); save(); renderStatusStrip(); };
         r.addEventListener("input", () => syncTo(r.value)); n.addEventListener("change", () => syncTo(n.value));
         wrap.append(r, n);
+      } else if (f.key === "阶段") {
+        const sel = document.createElement("select");
+        sel.style.cssText = "flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)";
+        { const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "还没定（模型第一次回复时按卡定）"; sel.appendChild(o0); for (const stg of STAGES) { const o = document.createElement("option"); o.value = stg; o.textContent = stg; sel.appendChild(o); } }
+        sel.value = parseStage(f.value) || "";
+        sel.addEventListener("change", () => { const from = parseStage(f.value) || null; f.value = sel.value; if (sel.value && sel.value !== from) { st.stageFloor = floorCount(c); st.stageLog = (st.stageLog || []).concat([{ floor: st.stageFloor, from, to: sel.value, why: "手动修改" }]).slice(-30); } markStatusManual(c); save(); renderStatusStrip(); if (!$("stBack").hidden) renderRelTable(c); });
+        const lk = el("button", "btn ghost", st.stageLock ? "🔒" : "🔓"); lk.title = st.stageLock ? "阶段已锁定，点一下解锁" : "锁住阶段：模型不能改"; lk.style.cssText = "padding:4px 8px";
+        lk.onclick = () => { st.stageLock = !st.stageLock; save(); $("stStageLock").checked = !!st.stageLock; renderStatusFields(); renderRomanceChip(); };
+        wrap.append(sel, lk);
       } else {
         const t = document.createElement("input"); t.value = f.value; t.placeholder = "（未知）";
         t.style.cssText = "flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)";
