@@ -1314,7 +1314,15 @@
       </div>
 
       <div class="section">
-        <div class="section-title">你的人设</div>
+        <div class="section-title">你的人设 <span class="stat">可以建几套，每张卡在编辑里选用哪套</span></div>
+        <div class="wi-toolbar" style="margin-bottom:8px">
+          <select id="pPick" style="flex:1;min-width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"></select>
+          <button class="btn ghost" id="pNew">＋ 新建</button>
+          <button class="btn ghost" id="pCopy">复制</button>
+          <button class="btn ghost" id="pDefault">设为默认</button>
+          <button class="btn ghost" id="pDel">删除</button>
+        </div>
+        <div class="help" id="pPickHelp" style="margin-bottom:8px"></div>
         <div class="avatar-row" style="margin-bottom:10px">
           <div class="avatar lg" id="pAvatar"></div>
           <div class="controls">
@@ -1550,7 +1558,12 @@
       <div class="field">
         <label for="edUserRole">你在这个故事里的身份（这张卡）</label>
         <textarea id="edUserRole" placeholder="身份、背景、和主角的初始关系。例如：靠奖学金进来的插班生，家里开小面馆，和他分在同一个宿舍。留空就只用设置里的全局人设。"></textarea>
-        <div class="help">设置里的人设是你的底子（名字、外貌、性格），换卡不变；这一栏跟卡走，发给模型时接在人设后面。</div>
+        <div class="help">人设是你的底子（名字、外貌、性格），在设置里建，可以有几套；这一栏跟卡走，发给模型时接在人设后面。</div>
+      </div>
+      <div class="field">
+        <label for="edPersona">我的人设（这张卡）</label>
+        <select id="edPersona"></select>
+        <div class="help">这张卡用设置里的哪一套人设。中途换的话，旧对话里已经叫过的名字不会自动改。</div>
       </div>
       <div class="field">
         <label for="edFirst">开场白</label>
@@ -2780,7 +2793,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.71"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.72"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -2828,6 +2841,7 @@
       characters,
       activeId: characters[0].id,
       persona: { name: "旅人", desc: "" },
+      personas: [{ id: "p1", name: "旅人", desc: "", image: "" }], personaDefault: "p1",
       settings: { tier: "default", len: "medium", lenMin: 600, lenMax: 1000, lang: "auto", mem: "40", voice: "strict", memPrompt: "", ragOn: true, ragK: 10, backend: "claude", htmlMode: "inline" },
       api: { url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true },
       regex: [],
@@ -3311,7 +3325,8 @@
     c.saves = Array.isArray(c.saves) ? c.saves.filter((s) => s && s.data && typeof s.data === "object") : [];
     c.usage = c.usage && typeof c.usage === "object" ? { prompt: Number(c.usage.prompt) || 0, completion: Number(c.usage.completion) || 0, calls: Number(c.usage.calls) || 0, real: Number(c.usage.real) || 0 } : { prompt: 0, completion: 0, calls: 0, real: 0 };
     c.altGreetings = Array.isArray(c.altGreetings) ? c.altGreetings : [];
-    c.userRole = typeof c.userRole === "string" ? c.userRole : ""; // who you are in this story; the global persona stays the base
+    c.userRole = typeof c.userRole === "string" ? c.userRole : ""; // who you are in this story; the chosen persona stays the base
+    c.personaId = typeof c.personaId === "string" ? c.personaId : "";
     c.age = ageNum(c.age); c.userAge = ageNum(c.userAge);
     c.creatorNotes = c.creatorNotes || "";
     c.creator = c.creator || "";
@@ -3389,6 +3404,10 @@
     s.api = Object.assign({ url: "", key: "", model: "", models: [], temperature: 1, topP: 1, maxTokens: 2048, maxContext: 32000, stream: true, followPreset: true }, s.api || {});
     s.settings = s.settings || {};
     s.settings.backend = s.settings.backend || "claude";
+    s.persona = s.persona && typeof s.persona === "object" ? s.persona : { name: "旅人", desc: "" };
+    if (!Array.isArray(s.personas) || !s.personas.length) s.personas = [{ id: "p1", name: s.persona.name || "旅人", desc: s.persona.desc || "", image: s.persona.image || "" }];
+    s.personas = s.personas.map((x, i) => ({ id: String(x && x.id || "p" + (i + 1)), name: String(x && x.name || "").trim() || "旅人", desc: String(x && x.desc || ""), image: x && typeof x.image === "string" ? x.image : "" }));
+    if (!s.personas.some((x) => x.id === s.personaDefault)) s.personaDefault = s.personas[0].id;
     return s;
   }
   let lsHadData = false;
@@ -3405,6 +3424,7 @@
   }
   function save() {
     state.savedAt = Date.now();
+    if (Array.isArray(state.personas) && state.personas.length) state.persona = personaFor(active()) || state.persona; // stored persona = the effective one
     lastJson = JSON.stringify(state);
     lastBytes = new Blob([lastJson]).size;
     try { localStorage.setItem(LS_KEY, lastJson); lsOk = true; }
@@ -3434,6 +3454,22 @@
   const isSafari = () => /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
 
   let state = load();
+  // ---- several user personas: each card picks one (or the default); state.persona always points at the effective one ----
+  function personaById(id) { return (state.personas || []).find((x) => x.id === id) || null; }
+  function personaFor(c) { return (c && c.personaId && personaById(c.personaId)) || personaById(state.personaDefault) || state.personas[0]; }
+  const personaShown = new Map(); // card id → persona id last used, to warn once when a card switches persona mid-story
+  function syncPersona() {
+    const c = active();
+    const p = personaFor(c);
+    if (p && state.persona !== p) state.persona = p;
+    if (c && p) {
+      const prev = personaShown.get(c.id);
+      if (prev && prev !== p.id && c.chat.length > 1) toast(`这张卡现在用人设「${p.name}」。旧对话里已经叫过的名字和记忆不会自动改。`);
+      personaShown.set(c.id, p.id);
+    }
+    return p;
+  }
+  syncPersona();
   let sample = null;          // claude.use("sample") namespace, or null
   let downloads = null;       // claude.use("downloads") namespace, or null
   let sampleReady = false;    // resolved once (either way)
@@ -4093,6 +4129,7 @@
   // Rendering
   // ============================================================
   function renderAll() {
+    syncPersona();
     renderCharList();
     renderHead();
     { const c = active(); $("mvuBtn").hidden = !(c && mvuInitEntry(c)); }
@@ -4390,10 +4427,23 @@
     return generate(c, null, o);
   }
 
+  let personaEditing = null; // persona id open in the settings editor
+  function pEdit() { return personaById(personaEditing) || (personaEditing = state.persona.id, state.persona); }
+  function renderPersonaPicker() {
+    const sel = $("pPick"); sel.innerHTML = "";
+    for (const x of state.personas) { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name + (x.id === state.personaDefault ? "（默认）" : ""); sel.appendChild(o); }
+    sel.value = pEdit().id;
+    const c = active(); const eff = personaFor(c);
+    $("pPickHelp").textContent = c ? `「${c.name}」现在用的是：${eff.name}${c.personaId && personaById(c.personaId) ? "（这张卡指定的）" : "（默认）"}。换一张卡用哪套，在角色编辑里选。` : "";
+    $("pDel").disabled = state.personas.length <= 1;
+    $("pDefault").disabled = pEdit().id === state.personaDefault;
+  }
   function renderSettings() {
-    $("pName").value = state.persona.name || "";
-    $("pDesc").value = state.persona.desc || "";
-    renderAvatar($("pAvatar"), personaAv(), "lg");
+    const pe = pEdit();
+    renderPersonaPicker();
+    $("pName").value = pe.name || "";
+    $("pDesc").value = pe.desc || "";
+    renderAvatar($("pAvatar"), { image: pe.image || "", name: pe.name || "你", color: "var(--accent-soft)" }, "lg");
     $("sTier").value = state.settings.tier;
     $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" || state.settings.len === "follow" ? state.settings.len : "medium";
     $("sStyle").value = styleText(); $("sWealth").value = wealthText();
@@ -8655,6 +8705,7 @@
     normalizeChar(editing.draft);
     const d = editing.draft;
     $("editorTitle").textContent = c ? `编辑 · ${c.name}` : "新建角色";
+    { const sel = $("edPersona"); sel.innerHTML = ""; const dp = personaById(state.personaDefault) || state.personas[0]; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = `默认（${dp.name}）`; sel.appendChild(o0); for (const x of state.personas) { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; sel.appendChild(o); } sel.value = d.personaId && personaById(d.personaId) ? d.personaId : ""; }
     $("edName").value = d.name; $("edTag").value = d.tag || ""; $("edEmoji").value = d.emoji || "";
     $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || "";
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
@@ -8702,6 +8753,7 @@
     d.examples = $("edExamples").value.trim();
     d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
     d.userRole = $("edUserRole").value.trim();
+    d.personaId = $("edPersona").value || "";
     d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
     d.creator = $("edCreator").value.trim();
     d.creatorNotes = $("edNotes").value.trim();
@@ -9057,6 +9109,7 @@
     d.scenario = $("edScenario").value.trim(); d.firstMessage = $("edFirst").value.trim(); d.examples = $("edExamples").value.trim();
     d.altGreetings = $("edAlt").value.split(/^\s*---\s*$/m).map((x) => x.trim()).filter(Boolean);
     d.userRole = $("edUserRole").value.trim();
+    d.personaId = $("edPersona").value || "";
     d.tags = $("edTags").value.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
     d.creator = $("edCreator").value.trim(); d.creatorNotes = $("edNotes").value.trim();
     d.systemPrompt = $("edSys").value.trim(); d.postHistory = $("edPost").value.trim();
@@ -9848,15 +9901,31 @@
   });
   $("edClearImage").onclick = () => { if (editing) { editing.draft.image = ""; renderEditorAvatar(); } };
 
-  $("pName").addEventListener("input", (e) => { state.persona.name = e.target.value; save(); renderMessages(); renderHead(); renderAvatar($("pAvatar"), personaAv(), "lg"); });
+  const pAfter = () => { save(); syncPersona(); renderPersonaPicker(); renderAvatar($("pAvatar"), { image: pEdit().image || "", name: pEdit().name || "你", color: "var(--accent-soft)" }, "lg"); renderMessages(); renderHead(); if (!$("phoneBack").hidden) renderPhone(); };
+  $("pName").addEventListener("input", (e) => { pEdit().name = e.target.value; pAfter(); });
   $("pImage").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    try { state.persona.image = await readImage(f); save(); renderAvatar($("pAvatar"), personaAv(), "lg"); renderMessages(); renderPhone(); toast("头像已更新"); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+    try { pEdit().image = await readImage(f); pAfter(); toast("头像已更新"); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
     e.target.value = "";
   });
-  $("pClearImage").onclick = () => { state.persona.image = ""; save(); renderAvatar($("pAvatar"), personaAv(), "lg"); renderMessages(); renderPhone(); };
-  $("pDesc").addEventListener("input", (e) => { state.persona.desc = e.target.value; save(); });
+  $("pClearImage").onclick = () => { pEdit().image = ""; pAfter(); };
+  $("pDesc").addEventListener("input", (e) => { pEdit().desc = e.target.value; save(); });
+  $("pPick").addEventListener("change", (e) => { personaEditing = e.target.value; renderSettings(); });
+  $("pNew").onclick = () => { const x = { id: uid(), name: "新人设", desc: "", image: "" }; state.personas.push(x); personaEditing = x.id; save(); renderSettings(); $("pName").focus(); $("pName").select(); };
+  $("pCopy").onclick = () => { const src = pEdit(); const x = { id: uid(), name: src.name + " 2", desc: src.desc, image: src.image }; state.personas.push(x); personaEditing = x.id; save(); renderSettings(); };
+  $("pDefault").onclick = () => { state.personaDefault = pEdit().id; pAfter(); toast(`「${pEdit().name}」已设为默认人设`); };
+  $("pDel").onclick = async () => {
+    if (state.personas.length <= 1) return;
+    const x = pEdit();
+    const used = state.characters.filter((c) => c.personaId === x.id).map((c) => c.name);
+    if (!(await askConfirm(`删除人设「${x.name}」？${used.length ? `用它的卡（${used.join("、")}）会改回默认。` : ""}`, "删除", true))) return;
+    state.personas = state.personas.filter((y) => y.id !== x.id);
+    for (const c of state.characters) if (c.personaId === x.id) c.personaId = "";
+    if (state.personaDefault === x.id) state.personaDefault = state.personas[0].id;
+    personaEditing = state.personaDefault;
+    save(); syncPersona(); renderSettings(); renderMessages(); renderHead();
+  };
   $("sTier").addEventListener("change", (e) => { state.settings.tier = e.target.value; save(); });
   $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); });
   $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
