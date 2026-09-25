@@ -2825,7 +2825,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.76"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.77"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5521,8 +5521,9 @@
     return out;
   }
   // OpenAI-compatible chat completion with SSE streaming. Resolves { text, truncated }.
-  async function apiChat(messages, { onText, signal } = {}) {
+  async function apiChat(messages, { onText, signal, maxTokens } = {}) {
     const body = { model: state.api.model, messages: withCacheMarks(messages), stream: !!state.api.stream, ...samplerParams() };
+    if (maxTokens && (!body.max_tokens || body.max_tokens < maxTokens)) body.max_tokens = maxTokens; // one-off JSON jobs (card wizard) need more room than a chat reply
     if (body.stream) body.stream_options = { include_usage: true };
     const estimate = messages.reduce((n, m) => n + rawTokens(m.content), 0);
     let usage = null;
@@ -5613,10 +5614,10 @@
     recordUsage(inputAsText(input), res.text, t0);
     return { text: res.text, truncated: !!res.truncated, modelTierApplied: res.modelTierApplied };
   }
-  async function completeJson(prompt, { signal, tier } = {}) {
+  async function completeJson(prompt, { signal, tier, maxTokens } = {}) {
     const t0 = Date.now();
     if (!isCustom()) { const v = await sample.json(prompt, { cache: false, modelTier: tier || state.settings.tier, signal }); recordUsage(prompt, JSON.stringify(v), t0); return v; }
-    const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字。" }], { signal });
+    const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字。" }], { signal, maxTokens });
     recordUsage(prompt, text, t0);
     const body = stripReasoning(text);
     const tryParse = (t) => { try { return JSON.parse(t); } catch (e) { return undefined; } };
@@ -11037,7 +11038,7 @@
   // the card wizard keeps this reference in its own prompt only; it is not a world book any more
   const luxuryText = () => LUX_ENTRIES.map((e) => e.content).join("\n\n");
 
-  const WIZ_GREET_LEN = "每个 1300–1600 字（按中文字数算，不能少于 1300）";
+  const WIZ_GREET_LEN = "每个 1000–1500 字左右（中文字数，写满一个完整的场面就够，不为凑字数注水）";
   const WIZ_DEFAULT_PREFS = [
     "- 外貌默认干净：无疤、无痣、无纹身、无胎记，除非用户自己写了。",
     "- 永久禁用「雪松」味。家境好的随机一款顶奢香水并写牌子；家境普通或穷的是淡淡薄荷 / 皂香 / 洗衣粉味。",
@@ -11216,7 +11217,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const note = $("wzFixNote").value.trim(); if (!note) { toast("先写修改意见", true); $("wzFixNote").focus(); return; }
     const b = $("wzFix"); b.disabled = true; b.textContent = "改着…"; $("wzFixStat").textContent = "";
     try {
-      const v = await completeJson(wizFixPrompt(note, $("wzFixScope").value), { tier: state.settings.tier });
+      const v = await completeJson(wizFixPrompt(note, $("wzFixScope").value), { tier: state.settings.tier, maxTokens: 12000 });
       if (!v || typeof v !== "object") throw Object.assign(new Error("bad"), { code: "invalid_json" });
       wizFixHistory.push(wizSnapshot());
       const n = wizMergeFix(v);
@@ -11233,7 +11234,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     if (mode === "fix" && !note) { toast("先在下面写开场白的修改意见", true); $("wzGNote").focus(); return; }
     const keep = btn.textContent; btn.disabled = true; btn.textContent = "…";
     try {
-      const v = await completeJson(wizGreetingPrompt(mode, idx, note), { tier: state.settings.tier });
+      const v = await completeJson(wizGreetingPrompt(mode, idx, note), { tier: state.settings.tier, maxTokens: 6000 });
       const g = v && typeof v.greeting === "string" ? v.greeting.trim() : "";
       if (!g) throw Object.assign(new Error("bad"), { code: "invalid_json" });
       wizFixHistory.push(wizSnapshot()); $("wzFixUndo").disabled = false;
@@ -11278,14 +11279,14 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const prog = $("wzProg"); prog.hidden = false;
     try {
       prog.textContent = "第 1 / 2 步：写主角卡…（可能要半分钟）";
-      const ch = await completeJson(wizCharPrompt(seeds), { tier: state.settings.tier });
+      const ch = await completeJson(wizCharPrompt(seeds), { tier: state.settings.tier, maxTokens: 16000 });
       if (!ch || !ch.name || !ch.sections) throw Object.assign(new Error("bad"), { code: "invalid_json" });
       ch.sections = Object.fromEntries(WIZ_SECTIONS.map((k) => [k, yamlStr(ch.sections[k])]));
       ch.greetings = Array.isArray(ch.greetings) ? ch.greetings.map(String).filter(Boolean) : [String(ch.greetings || "")];
       ch.tags = Array.isArray(ch.tags) ? ch.tags.map(String) : [];
       ch.status = ch.status && typeof ch.status === "object" ? ch.status : {};
       prog.textContent = "第 2 / 2 步：写世界书和 NPC…";
-      const wv = await completeJson(wizWorldPrompt(seeds, ch), { tier: state.settings.tier });
+      const wv = await completeJson(wizWorldPrompt(seeds, ch), { tier: state.settings.tier, maxTokens: 12000 });
       const world = Object.assign({ worldName: "", overview: "", places: [], factions: [], relations: "" }, (wv && wv.world) || {});
       for (const k of ["places", "factions"]) if (!Array.isArray(world[k])) world[k] = [];
       world.relations = yamlStr(world.relations);
@@ -11317,7 +11318,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     return box;
   }
   async function wizReroll(kind, key, idx) {
-    const v = await completeJson(wizRerollPrompt(kind, key, idx), { tier: state.settings.tier });
+    const v = await completeJson(wizRerollPrompt(kind, key, idx), { tier: state.settings.tier, maxTokens: 4000 });
     if (!v || v.value == null) { toast("没刷出来，再试一次", true); return; }
     const val = yamlStr(v.value);
     const r = wiz.result;
@@ -11427,7 +11428,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     if (!seeds.premise) { toast("先在上面写一句：书名 + #标签", true); $("wzPremise").focus(); return; }
     const b = $("wzRead"); b.disabled = true; b.textContent = "解读中…";
     try {
-      const r = await completeJson(wizReadPrompt(seeds), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      const r = await completeJson(wizReadPrompt(seeds), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, maxTokens: 4000 });
       if (!r || typeof r !== "object") throw Object.assign(new Error("bad"), { code: "invalid_json" });
       const lines = [
         `题材: ${yamlStr(r.genre)}`, `基调: ${yamlStr(r.tone)}`, `结构: ${r.structure === "ensemble" ? "群像 · 多个追求者（挑一个当主角色，其余是 NPC）" : "单人对手戏"}`,
@@ -11450,7 +11451,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const reading = $("wzReading").value.trim(); if (!reading) { toast("先解读一次", true); return; }
     const b = $("wzReadFix"); b.disabled = true; b.textContent = "改着…";
     try {
-      const v = await completeJson(wizReadFixPrompt(wizSeeds(false), reading, note), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      const v = await completeJson(wizReadFixPrompt(wizSeeds(false), reading, note), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, maxTokens: 4000 });
       const t = v && typeof v.reading === "string" ? v.reading.trim() : "";
       if (!t) throw Object.assign(new Error("bad"), { code: "invalid_json" });
       wizReadHistory.push(reading); $("wzReadUndo").disabled = false;
