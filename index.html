@@ -2554,8 +2554,8 @@
       <div id="wzStep1">
         <div class="help" id="wzHint"></div>
         <div class="field">
-          <label for="wzPremise">一句话建卡（可空）：像写小说简介一样，书名 + #标签</label>
-          <textarea id="wzPremise" rows="2" placeholder="例如：《我在贵族学校当NPC》 #万人迷　或　《和死对头联姻的第三年》 #先婚后爱 #豪门"></textarea>
+          <label for="wzPremise">一句话建卡 / 想法（可空）：书名 + #标签，或者一句话想法，随便写</label>
+          <textarea id="wzPremise" rows="2" placeholder="例如：《我在贵族学校当NPC》 #万人迷　或　《和死对头联姻的第三年》 #先婚后爱 #豪门　或　冷傲的学生会长，我是刚转来的"></textarea>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
             <button class="btn" id="wzRead" type="button">先解读</button>
             <span class="help" style="margin:0">模型先把这句话读成题材、你的位置、主角色、阵容和基调，你看过改过再生成，免得理解歪了整张卡都歪。</span>
@@ -2563,10 +2563,15 @@
           <div id="wzReadBox" hidden style="margin-top:8px">
             <div class="wz-field-h"><span>解读（改哪里就改哪里，生成会照这份来）</span></div>
             <textarea id="wzReading" rows="10" class="mono" style="font-size:12px"></textarea>
+            <div class="wz-field-h" style="margin-top:6px"><span>修改意见（只改提到的，其他不动）</span></div>
+            <textarea id="wzReadNote" rows="2" placeholder="例如：主角别那么凶；背景换到 30 年代；NPC 少一个；我的身份换成转学生"></textarea>
+            <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+              <button class="btn" id="wzReadFix" type="button">按意见改解读</button>
+              <button class="btn ghost" id="wzReadUndo" type="button" disabled>撤回上一次</button>
+            </div>
           </div>
         </div>
         <div class="field"><label>题材</label><div id="wzGenres" style="display:flex;gap:6px;flex-wrap:wrap"></div><input id="wzGenreCustom" placeholder="自己写：例如「民国上海滩」「赛博朋克黑帮」「校园 + 灵异」" hidden style="margin-top:6px"></div>
-        <div class="field"><label for="wzLine">一句话想法（可空）</label><textarea id="wzLine" rows="2" placeholder="例如：冷傲的学生会长，我是刚转来的；或者：豪门继承人和家里安排的联姻对象；或者什么都不写"></textarea></div>
         <div class="field"><label for="wzGender">主角性别</label><select id="wzGender" style="max-width:200px"><option>男</option><option>女</option><option>其他</option></select></div>
         <div class="field"><label>外貌类型（默认帅 / 美，选的是哪一种）</label><div id="wzLooks" style="display:flex;gap:6px;flex-wrap:wrap"></div><input id="wzLookCustom" placeholder="自己写：例如「书卷气但很高，笑起来有点坏」" hidden style="margin-top:6px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
@@ -2602,6 +2607,16 @@
       </div>
       <div id="wzStep2" hidden>
         <div class="help">每一栏都能改，也能单独「重刷」。满意了点最下面「创建角色卡」：会建好角色（描述是 YAML）、状态面板初值、绑一本世界书（背景 / 人物关系 / 地点 / 势力 / 人物）、NPC 进通讯录并填好关系。</div>
+        <div class="wz-field" id="wzFixBox" style="margin-bottom:10px">
+          <div class="wz-field-h"><span>修改意见（基于解读的大方向，只改提到的，其他原样）</span></div>
+          <textarea id="wzFixNote" rows="2" placeholder="例如：性格再冷一点；开场白改成在图书馆相遇；阿桥改成女的；世界背景别那么压抑"></textarea>
+          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+            <select id="wzFixScope" style="padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"><option value="auto">范围：按意见判断</option><option value="char">只改主角</option><option value="greetings">只改开场白</option><option value="world">只改世界书</option><option value="npcs">只改 NPC</option><option value="userRoles">只改我的身份</option></select>
+            <button class="btn" id="wzFix" type="button">按意见改</button>
+            <button class="btn ghost" id="wzFixUndo" type="button" disabled>撤回上一次</button>
+            <span class="stat" id="wzFixStat"></span>
+          </div>
+        </div>
         <div id="wzResult"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="btn" id="wzBackTo1">‹ 回去改提示</button>
@@ -2810,7 +2825,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.75"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.76"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -11022,6 +11037,7 @@
   // the card wizard keeps this reference in its own prompt only; it is not a world book any more
   const luxuryText = () => LUX_ENTRIES.map((e) => e.content).join("\n\n");
 
+  const WIZ_GREET_LEN = "每个 1300–1600 字（按中文字数算，不能少于 1300）";
   const WIZ_DEFAULT_PREFS = [
     "- 外貌默认干净：无疤、无痣、无纹身、无胎记，除非用户自己写了。",
     "- 永久禁用「雪松」味。家境好的随机一款顶奢香水并写牌子；家境普通或穷的是淡淡薄荷 / 皂香 / 洗衣粉味。",
@@ -11041,7 +11057,7 @@
     if (genre === "自定义") genre = $("wzGenreCustom").value.trim() || "随机";
     let look = ($("wzLooks").querySelector(".on") || {}).dataset ? $("wzLooks").querySelector(".on").dataset.v : "随机";
     if (look === "自定义") look = $("wzLookCustom").value.trim() || "随机";
-    const s = { genre, line: $("wzLine").value.trim(), gender: $("wzGender").value, look, random: !!random, premise: $("wzPremise").value.trim(), reading: $("wzReadBox").hidden ? "" : $("wzReading").value.trim() };
+    const s = { genre, line: "", gender: $("wzGender").value, look, random: !!random, premise: $("wzPremise").value.trim(), reading: $("wzReadBox").hidden ? "" : $("wzReading").value.trim() };
     if (!random) Object.assign(s, { name: $("wzName").value.trim(), age: $("wzAge").value.trim(), role: $("wzRole").value.trim(), persona: $("wzPersona").value.trim(), family: $("wzFamily").value.trim(), rel: $("wzRel").value.trim(), xp: $("wzXP").value.trim(), world: $("wzWorld").value.trim(), npcs: [...$("wzNpcs").querySelectorAll(".wz-npc")].map((row) => ({ gender: row.querySelector("select").value, hint: row.querySelector("input").value.trim() })).filter((n) => n.hint) });
     else Object.assign(s, { name: "", age: "", role: "", persona: "", family: "", rel: "", xp: "", world: "", npcs: [] });
     return s;
@@ -11053,7 +11069,7 @@
     return [
       `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。用户扮演 ${u}（${u} 的人设由用户自己写，你不要写）。${WORLD_RULE} 所有角色（主角和每一个 NPC）年龄不低于 18 岁；校园题材写成大学或刚成年，不写未成年人。`,
       `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.xp ? `\n- XP / 偏好方向：${seeds.xp}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
-      seeds.premise ? `\n## 一句话简介（书名 + 标签，网文 / 漫画式的写法，按圈内的常见含义理解标签）\n${seeds.premise}` : "",
+      seeds.premise ? `\n## 用户的一句话（书名 + 标签按圈内的常见含义理解；一句话想法就照字面）\n${seeds.premise}` : "",
       seeds.reading ? `\n## 已确认的解读（用户看过并认可，必须照这个来：题材、你的位置、主角色、阵容、基调都以此为准）\n${seeds.reading}` : "",
       state.persona.desc && state.persona.desc.trim() ? `\n## ${u} 的人设底子（用户自己写的，不要改写；身份和背景可以在 userRoles 里推荐）\n${state.persona.desc.trim().slice(0, 400)}` : "",
       `\n## 建卡偏好（必须遵守）\n${wizPrefs()}`,
@@ -11063,7 +11079,7 @@
   function wizReadPrompt(seeds) {
     const u = state.persona.name || "用户";
     return [
-      `你是资深的角色扮演卡作者，熟悉网文、漫画、乙游的题材和标签用法。用户给了一句小说简介式的输入（书名 + #标签），请把它读成一份建卡用的解读，先不写卡。用户扮演 ${u}。${WORLD_RULE}`,
+      `你是资深的角色扮演卡作者，熟悉网文、漫画、乙游的题材和标签用法。用户给了一句输入（可能是小说简介式的书名 + #标签，也可能只是一句话想法），请把它读成一份建卡用的解读，先不写卡。用户扮演 ${u}。${WORLD_RULE}`,
       `\n## 输入\n${seeds.premise}${seeds.genre && seeds.genre !== "随机" ? `\n题材倾向：${seeds.genre}` : ""}${seeds.line ? `\n补充想法：${seeds.line}` : ""}`,
       state.persona.desc && state.persona.desc.trim() ? `\n## ${u} 的人设底子\n${state.persona.desc.trim().slice(0, 400)}` : "",
       `\n## 要求
@@ -11101,7 +11117,7 @@
 - emoji：一个代表他的 emoji
 - tags：题材 / 类型标签列表（3–5 个）
 - scenario：开场场景（${u} 和主角此刻在哪、为什么碰上，40–80 字）
-- greetings：2–3 个不同的开场白（主角视角第一条消息，叙述用正常文字、不加星号，对白用「」，150–300 字，结尾留给 ${u} 接话，三个相遇方式要不同）
+- greetings：2 个不同的开场白（主角视角第一条消息，叙述用正常文字、不加星号，对白用「」，${WIZ_GREET_LEN}，有场景、有人、有一件正在发生的事，结尾留给 ${u} 接话，两个相遇方式要不同）
 - rules：写这个角色时的 3–6 条注意事项（怎么写他才像他；家境好的一定包含富人写法）
 - status：{地点, 时间, 心情, 穿着}（开场那一刻的）
 只输出 JSON：{"name":"","sections":{"基本":"yaml","外貌":"yaml",...},"tag":"","emoji":"","tags":[],"scenario":"","greetings":[],"rules":"","status":{}}`;
@@ -11123,6 +11139,109 @@ npcs（${npcLine}）：每个：
 - sections：YAML 文本，栏目 基本（姓名、性别、年龄、身高、身份、家世）、外貌（脸、眼、发、身材、气质、常穿写牌子、味道；类型和主角、和其他 NPC 都不同）、财富（家境好才写，否则「无」）、性格、喜好、关系（对主角、对 ${u}）、说话（语气、口头禅、示例 2 句）
 userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title, text}，每个 40–80 字：身份、背景、和主角的初始关系，互相明显不同，和主角、NPC、世界自洽（用户的人设底子不要改写，只补身份和背景）。
 只输出 JSON：{"world":{"worldName":"","overview":"","places":[],"factions":[],"relations":""},"npcs":[{"name":"","gender":"","age":"","height":"","aliases":[],"relation":"","relToUser":"","aff":50,"sections":{}}],"userRoles":[{"title":"","text":""}]}`;
+  }
+  // ---- revisions: the reading is the direction; every later edit is local to what the note names ----
+  const wizReadHistory = [];
+  const wizFixHistory = [];
+  function wizReadFixPrompt(seeds, reading, note) {
+    const u = state.persona.name || "用户";
+    return [
+      `你是资深的角色扮演卡作者。下面是一份建卡用的解读和用户对它的修改意见。请按意见修改解读：只改意见提到的地方，没提到的每一行原样保留（连措辞都不要动），不换主题、不加意见之外的新设定。格式和原来完全一样（题材 / 基调 / 结构 / 你的位置 / 主角色 / 阵容 / 你的身份候选 / 备注）。用户扮演 ${u}。${WORLD_RULE}`,
+      seeds.premise ? `\n## 用户最初的一句话\n${seeds.premise}` : "",
+      `\n## 现在的解读\n${reading}`,
+      `\n## 修改意见\n${note}`,
+      `\n只输出 JSON：{"reading":"改后的解读全文，保持同样的行格式"}`,
+    ].filter(Boolean).join("\n");
+  }
+  function wizFixPrompt(note, scope) {
+    const r = wiz.result, seeds = wiz.seeds;
+    const u = state.persona.name || "用户";
+    const cur = {
+      char: { name: r.char.name, tag: r.char.tag, emoji: r.char.emoji, sections: r.char.sections, scenario: r.char.scenario, greetings: r.char.greetings, rules: r.char.rules, status: r.char.statusText != null ? r.char.statusText : r.char.status },
+      world: r.world,
+      npcs: r.npcs.map((n) => ({ name: n.name, gender: n.gender, age: n.age, height: n.height, aliases: n.aliases, relation: n.relation, relToUser: n.relToUser, sections: n.sections })),
+      userRoles: r.userRoles,
+    };
+    const scopeText = { auto: "按意见判断要改哪些部分", char: "只改主角（sections / tag / scenario / rules / status），其他部分不要出现在输出里", greetings: "只改开场白 greetings，其他部分不要出现在输出里", world: "只改世界书 world", npcs: "只改 NPC", userRoles: "只改 userRoles" }[scope] || "按意见判断";
+    return wizCommonHead(seeds) + `\n\n## 现在这张卡（JSON）\n${JSON.stringify(cur)}\n\n## 用户的修改意见\n${note}\n\n## 任务：按意见修改这张卡
+- 范围：${scopeText}。
+- 只改意见提到的部分；没提到的字段一个字都不要动，也不要出现在输出里。改一个字段就输出那个字段的完整新内容（sections 里的某一栏就输出那一栏的完整 YAML 文本）。
+- 大方向以上面「已确认的解读」为准；意见和解读矛盾时按意见来，并把 readingPatch 填成改后的解读全文（同样的行格式），否则省略 readingPatch。
+- NPC 按 name 对应：改现有 NPC 就用原来的 name，删掉用 {"name":"原名","delete":true}，新加就给完整字段。开场白 greetings 要给完整数组（没改的原样抄回来），每个 ${WIZ_GREET_LEN}。
+只输出 JSON：{"char":{"sections":{"栏名":"yaml"},"tag":"","scenario":"","greetings":[],"rules":"","status":{}},"world":{"worldName":"","overview":"","places":[],"factions":[],"relations":""},"npcs":[{"name":"","delete":false,"...":"改了的字段"}],"userRoles":[{"title":"","text":""}],"readingPatch":""}（只包含改了的键）`;
+  }
+  function wizGreetingPrompt(mode, idx, note) {
+    const r = wiz.result, seeds = wiz.seeds;
+    const u = state.persona.name || "用户";
+    const ch = r.char;
+    const brief = JSON.stringify({ name: ch.name, tag: ch.tag, 基本: ch.sections["基本"], 性格: ch.sections["性格"], 说话: ch.sections["说话"], 关系: ch.sections["关系"], 开场场景: ch.scenario, 状态: ch.statusText != null ? ch.statusText : ch.status, 世界: r.world.overview, NPC: r.npcs.map((n) => `${n.name}：${n.relation}`) });
+    const others = ch.greetings.filter((_, i) => i !== idx).map((g, i) => `（${i + 1}）${String(g).slice(0, 160)}…`).join("\n");
+    const task = mode === "reroll"
+      ? `## 任务：重写第 ${idx + 1} 条开场白\n写一个全新的开场白：相遇方式、地点、正在发生的事都和现有的不同，人设、场景设定、解读不变。`
+      : `## 任务：按意见修改第 ${idx + 1} 条开场白\n意见：${note}\n意见是小改（换个细节、改一句话、调语气）就只改提到的部分，其余段落原样保留；意见是大改（换相遇方式、换场景）就按意见重写，但人设、世界和解读不变。`;
+    return wizCommonHead(seeds) + `\n\n## 主角和世界（与之自洽）\n${brief}\n\n## 现有的开场白\n第 ${idx + 1} 条（要处理的）：\n${ch.greetings[idx] || "（空）"}\n${others ? `其他几条（别重复它们的相遇方式）：\n${others}` : ""}\n\n${task}\n要求：主角视角的第一条消息，叙述用正常文字、不加星号，对白用「」，有场景、有人、有一件正在发生的事，${WIZ_GREET_LEN}，结尾留给 ${u} 接话。\n只输出 JSON：{"greeting":"开场白全文"}`;
+  }
+  function wizSnapshot() { return JSON.parse(JSON.stringify({ result: wiz.result, reading: wiz.seeds.reading || "" })); }
+  function wizMergeFix(v) {
+    const r = wiz.result; let n = 0;
+    const str = (x) => (x == null ? "" : String(x));
+    if (v.char && typeof v.char === "object") {
+      const c = v.char;
+      if (c.sections && typeof c.sections === "object") for (const [k, val] of Object.entries(c.sections)) if (WIZ_SECTIONS.includes(k)) { r.char.sections[k] = yamlStr(val); n++; }
+      for (const k of ["tag", "scenario", "rules", "name", "emoji"]) if (c[k] != null) { r.char[k] = str(c[k]); n++; }
+      if (Array.isArray(c.greetings) && c.greetings.length) { r.char.greetings = c.greetings.map(String).filter(Boolean); r.greetingIdx = Math.min(r.greetingIdx || 0, r.char.greetings.length - 1); n++; }
+      if (c.status != null) { r.char.statusText = typeof c.status === "string" ? c.status : yamlStr(c.status); n++; }
+    }
+    if (v.world && typeof v.world === "object") {
+      for (const k of ["worldName", "overview", "relations"]) if (v.world[k] != null) { r.world[k] = k === "relations" ? yamlStr(v.world[k]) : str(v.world[k]); n++; }
+      for (const k of ["places", "factions"]) if (Array.isArray(v.world[k])) { r.world[k] = v.world[k].filter((x) => x && x.name).map((x) => ({ name: str(x.name), desc: str(x.desc) })); n++; }
+    }
+    if (Array.isArray(v.npcs)) for (const x of v.npcs) {
+      if (!x || !x.name) continue;
+      const i = r.npcs.findIndex((y) => y.name === x.name || (y.aliases || []).includes(x.name));
+      if (x.delete) { if (i >= 0) { r.npcs.splice(i, 1); n++; } continue; }
+      const base = i >= 0 ? r.npcs[i] : { name: str(x.name), gender: "", age: "", height: "", aliases: [], relation: "", relToUser: "", aff: 48, sections: Object.fromEntries(WIZ_NPC_SECTIONS.map((k) => [k, ""])) };
+      for (const k of ["name", "gender", "age", "height", "relation", "relToUser"]) if (x[k] != null) base[k] = str(x[k]);
+      if (Array.isArray(x.aliases)) base.aliases = x.aliases.map(String).filter(Boolean);
+      if (x.sections && typeof x.sections === "object") for (const [k, val] of Object.entries(x.sections)) if (WIZ_NPC_SECTIONS.includes(k)) base.sections[k] = yamlStr(val);
+      if (i < 0) r.npcs.push(base);
+      n++;
+    }
+    if (Array.isArray(v.userRoles) && v.userRoles.length) { r.userRoles = v.userRoles.filter((x) => x && (x.text || x.title)).map((x) => ({ title: str(x.title).slice(0, 30), text: str(x.text).trim() })).slice(0, 4); r.userRoleIdx = r.userRoles.length ? Math.min(Math.max(r.userRoleIdx, 0), r.userRoles.length - 1) : -1; n++; }
+    if (typeof v.readingPatch === "string" && v.readingPatch.trim()) { wiz.seeds.reading = v.readingPatch.trim(); $("wzReading").value = wiz.seeds.reading; $("wzReadBox").hidden = false; n++; }
+    return n;
+  }
+  async function wizFix() {
+    if (!wiz || !chatReady()) return;
+    const note = $("wzFixNote").value.trim(); if (!note) { toast("先写修改意见", true); $("wzFixNote").focus(); return; }
+    const b = $("wzFix"); b.disabled = true; b.textContent = "改着…"; $("wzFixStat").textContent = "";
+    try {
+      const v = await completeJson(wizFixPrompt(note, $("wzFixScope").value), { tier: state.settings.tier });
+      if (!v || typeof v !== "object") throw Object.assign(new Error("bad"), { code: "invalid_json" });
+      wizFixHistory.push(wizSnapshot());
+      const n = wizMergeFix(v);
+      $("wzFixUndo").disabled = !wizFixHistory.length;
+      renderWizResult();
+      $("wzFixStat").textContent = n ? `改了 ${n} 处` : "模型没有改动";
+      if (n) $("wzFixNote").value = "";
+    } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
+    finally { b.disabled = false; b.textContent = "按意见改"; }
+  }
+  async function wizGreetingOp(mode, idx, btn) {
+    if (!wiz || !chatReady()) return;
+    const note = $("wzGNote").value.trim();
+    if (mode === "fix" && !note) { toast("先在下面写开场白的修改意见", true); $("wzGNote").focus(); return; }
+    const keep = btn.textContent; btn.disabled = true; btn.textContent = "…";
+    try {
+      const v = await completeJson(wizGreetingPrompt(mode, idx, note), { tier: state.settings.tier });
+      const g = v && typeof v.greeting === "string" ? v.greeting.trim() : "";
+      if (!g) throw Object.assign(new Error("bad"), { code: "invalid_json" });
+      wizFixHistory.push(wizSnapshot()); $("wzFixUndo").disabled = false;
+      wiz.result.char.greetings[idx] = g;
+      if (mode === "fix") $("wzGNote").value = "";
+      renderWizResult();
+    } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
+    finally { btn.disabled = false; btn.textContent = keep; }
   }
   function wizRerollPrompt(kind, key, idx) {
     const r = wiz.result, seeds = wiz.seeds;
@@ -11172,7 +11291,8 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
       world.relations = yamlStr(world.relations);
       const npcs = ((wv && Array.isArray(wv.npcs)) ? wv.npcs : []).filter((n) => n && n.name).map((n) => ({ name: String(n.name), gender: String(n.gender || ""), age: String(n.age || ""), height: String(n.height || ""), aliases: Array.isArray(n.aliases) ? n.aliases.map(String).filter(Boolean) : [], relation: String(n.relation || ""), relToUser: String(n.relToUser || ""), aff: Math.max(0, Math.min(100, Number(n.aff) || 50)), sections: Object.fromEntries(WIZ_NPC_SECTIONS.map((k) => [k, yamlStr((n.sections || {})[k])])) }));
       const userRoles = ((wv && Array.isArray(wv.userRoles)) ? wv.userRoles : []).filter((r) => r && (r.text || r.title)).map((r) => ({ title: String(r.title || "").slice(0, 30), text: String(r.text || "").trim() })).slice(0, 4);
-      wiz = { seeds, result: { char: ch, world, npcs, greetingIdx: 0, userRoles, userRoleIdx: userRoles.length ? 0 : -1 } };
+      wiz = { seeds, result: { char: ch, world, npcs, greetingIdx: 0, userRoles, userRoleIdx: userRoles.length ? 0 : -1 }, gNote: "" };
+      wizFixHistory.length = 0; $("wzFixUndo").disabled = true; $("wzFixStat").textContent = ""; $("wzFixNote").value = "";
       renderWizResult();
       $("wzStep1").hidden = true; $("wzStep2").hidden = false;
     } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
@@ -11213,7 +11333,20 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     sc.appendChild(wizField("写这个角色的注意事项（会放进对话后指令）", r.char.rules, (v) => { r.char.rules = v; }, null));
     sc.appendChild(wizField("开场场景", r.char.scenario, (v) => { r.char.scenario = v; }, null));
     const gWrap = el("div", "wz-field"); gWrap.appendChild(el("div", "wz-field-h", "开场白（选一个当默认，其余存成备选）"));
-    r.char.greetings.forEach((g, i) => { const row = el("label", "rebuild-row"); row.style.alignItems = "flex-start"; const rb = document.createElement("input"); rb.type = "radio"; rb.name = "wzG"; rb.checked = i === r.greetingIdx; rb.onchange = () => { r.greetingIdx = i; }; const ta = document.createElement("textarea"); ta.value = g; ta.rows = 5; ta.style.flex = "1"; ta.oninput = () => { r.char.greetings[i] = ta.value; }; row.append(rb, ta); gWrap.appendChild(row); });
+    r.char.greetings.forEach((g, i) => {
+      const row = el("label", "rebuild-row"); row.style.alignItems = "flex-start";
+      const rb = document.createElement("input"); rb.type = "radio"; rb.name = "wzG"; rb.checked = i === r.greetingIdx; rb.onchange = () => { r.greetingIdx = i; };
+      const col = el("div"); col.style.cssText = "flex:1;display:flex;flex-direction:column;gap:4px;min-width:0";
+      const ta = document.createElement("textarea"); ta.value = g; ta.rows = 10; ta.style.width = "100%"; ta.oninput = () => { r.char.greetings[i] = ta.value; };
+      const ops = el("div"); ops.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+      const cnt = el("span", "stat", `${String(g).replace(/\s/g, "").length} 字`);
+      const rr = el("button", "btn ghost", "🔄 重刷这条"); rr.type = "button"; rr.style.cssText = "font-size:11px;padding:2px 7px"; rr.onclick = () => wizGreetingOp("reroll", i, rr);
+      const fx = el("button", "btn ghost", "✎ 按意见改这条"); fx.type = "button"; fx.style.cssText = "font-size:11px;padding:2px 7px"; fx.onclick = () => wizGreetingOp("fix", i, fx);
+      const dl = el("button", "btn ghost", "删掉"); dl.type = "button"; dl.style.cssText = "font-size:11px;padding:2px 7px;color:var(--danger)"; dl.disabled = r.char.greetings.length <= 1; dl.onclick = () => { r.char.greetings.splice(i, 1); r.greetingIdx = Math.min(r.greetingIdx, r.char.greetings.length - 1); renderWizResult(); };
+      ops.append(cnt, rr, fx, dl); col.append(ta, ops); row.append(rb, col); gWrap.appendChild(row);
+    });
+    { const gn = document.createElement("textarea"); gn.id = "wzGNote"; gn.rows = 2; gn.placeholder = "开场白的修改意见：小改（改一句话、换个细节）或大改（换相遇方式）都行，写完点上面某一条的「按意见改这条」"; gn.value = wiz.gNote || ""; gn.oninput = () => { wiz.gNote = gn.value; }; gWrap.appendChild(gn);
+      const addB = el("button", "btn ghost", "＋ 再来一条新的"); addB.type = "button"; addB.style.cssText = "font-size:12px;padding:3px 8px;align-self:flex-start"; addB.onclick = async () => { r.char.greetings.push(""); const idx = r.char.greetings.length - 1; renderWizResult(); const btns = $("wzResult").querySelectorAll(".rebuild-row button"); const b = btns[btns.length - 3] || addB; await wizGreetingOp("reroll", idx, b); if (!r.char.greetings[idx]) { r.char.greetings.splice(idx, 1); renderWizResult(); } }; gWrap.appendChild(addB); }
     sc.appendChild(gWrap);
     sc.appendChild(wizField("状态面板初值", yamlStr(r.char.status), (v) => { r.char.statusText = v; }, null, 3));
     {
@@ -11310,7 +11443,25 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); b.textContent = "先解读"; }
     finally { b.disabled = false; }
   };
-  $("wzPremise").addEventListener("input", () => { if (!$("wzReadBox").hidden) { $("wzReadBox").hidden = true; $("wzReading").value = ""; $("wzRead").textContent = "先解读"; } });
+  $("wzPremise").addEventListener("input", () => { if (!$("wzReadBox").hidden) { $("wzReadBox").hidden = true; $("wzReading").value = ""; $("wzRead").textContent = "先解读"; wizReadHistory.length = 0; $("wzReadUndo").disabled = true; } });
+  $("wzReadFix").onclick = async () => {
+    if (!chatReady()) { toast("接口未就绪", true); return; }
+    const note = $("wzReadNote").value.trim(); if (!note) { toast("先写修改意见", true); $("wzReadNote").focus(); return; }
+    const reading = $("wzReading").value.trim(); if (!reading) { toast("先解读一次", true); return; }
+    const b = $("wzReadFix"); b.disabled = true; b.textContent = "改着…";
+    try {
+      const v = await completeJson(wizReadFixPrompt(wizSeeds(false), reading, note), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier });
+      const t = v && typeof v.reading === "string" ? v.reading.trim() : "";
+      if (!t) throw Object.assign(new Error("bad"), { code: "invalid_json" });
+      wizReadHistory.push(reading); $("wzReadUndo").disabled = false;
+      $("wzReading").value = t; $("wzReadNote").value = "";
+      toast("解读已按意见改好");
+    } catch (e) { toast(isCustom() ? netErrorCopy(e) : copyFor(e && e.code), true); }
+    finally { b.disabled = false; b.textContent = "按意见改解读"; }
+  };
+  $("wzReadUndo").onclick = () => { const prev = wizReadHistory.pop(); if (prev != null) $("wzReading").value = prev; $("wzReadUndo").disabled = !wizReadHistory.length; };
+  $("wzFix").onclick = wizFix;
+  $("wzFixUndo").onclick = () => { const snap = wizFixHistory.pop(); if (!snap || !wiz) return; wiz.result = snap.result; wiz.seeds.reading = snap.reading; $("wzReading").value = snap.reading; renderWizResult(); $("wzFixUndo").disabled = !wizFixHistory.length; $("wzFixStat").textContent = "已撤回"; };
   $("wzRandom").onclick = () => wizGenerate(true);
   $("wzGo").onclick = () => wizGenerate(false);
   $("wzBackTo1").onclick = () => { $("wzStep1").hidden = false; $("wzStep2").hidden = true; };
