@@ -8,6 +8,23 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%231e1d25'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%23d9a066'/%3E%3C/svg%3E">
 <title>Side Story</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<div class="modal-back" id="cropBack" hidden style="z-index:75">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cropTitle" style="width:min(380px,100%)">
+    <div class="modal-head">
+      <span id="cropTitle">调整头像</span>
+      <button class="btn ghost icon" id="cropCancel" aria-label="取消">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;align-items:center;gap:10px">
+      <div id="cropFrame"><canvas id="cropCv" width="260" height="260"></canvas></div>
+      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" style="width:260px" aria-label="缩放">
+      <div class="help" style="text-align:center">拖动图片选要留的部分，滚轮或滑块缩放；圆圈里的就是头像。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="cropReset">重置</button>
+      <div class="right"><button class="btn ghost" id="cropCancel2">取消</button><button class="btn primary" id="cropOk">用这个</button></div>
+    </div>
+  </div>
+</div>
 <div class="zoom-back" id="zoomBack" hidden>
   <div class="zoom-head"><b id="zoomTitle">编辑</b><span class="help">改的内容会同步回原来的框</span><span class="spacer"></span><button class="btn primary" id="zoomDone" type="button">完成</button></div>
   <textarea id="zoomTa"></textarea>
@@ -953,6 +970,9 @@
     font-family: var(--font-display); font-weight: 700; font-size: 16px;
   }
   .modal-body { overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; min-height: 0; } /* min-height 0: the body must be the part that shrinks, or the footer gets clipped */
+  #cropFrame { width: 260px; height: 260px; border-radius: 50%; overflow: hidden; position: relative; background: #111; touch-action: none; cursor: grab; box-shadow: 0 0 0 1px var(--line-strong); }
+  #cropFrame.drag { cursor: grabbing; }
+  #cropFrame canvas { display: block; }
   .modal-foot {
     flex-shrink: 0;
     display: flex; justify-content: space-between; gap: 8px;
@@ -2825,7 +2845,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.77"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.78"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -8910,18 +8930,48 @@
     renderAll();
   }
 
-  function readImage(file) {
+  // ---- avatar cropper: pan by dragging, zoom by wheel or slider; the circle is what gets kept ----
+  const AV_OUT = 160, CROP_VIEW = 260;
+  const crop = { img: null, base: 1, zoom: 1, x: 0, y: 0, drag: null, resolve: null, reject: null };
+  function cropSize() { const sc = crop.base * crop.zoom; return { w: crop.img.width * sc, h: crop.img.height * sc }; }
+  function cropClamp() { const { w, h } = cropSize(); crop.x = Math.min(0, Math.max(CROP_VIEW - w, crop.x)); crop.y = Math.min(0, Math.max(CROP_VIEW - h, crop.y)); }
+  function cropDraw() { const cv = $("cropCv"); const ctx = cv.getContext("2d"); ctx.fillStyle = "#111"; ctx.fillRect(0, 0, CROP_VIEW, CROP_VIEW); const { w, h } = cropSize(); ctx.drawImage(crop.img, crop.x, crop.y, w, h); }
+  function cropSetZoom(z, cx, cy) {
+    z = Math.max(1, Math.min(4, z));
+    const before = cropSize(); const fx = (cx - crop.x) / before.w, fy = (cy - crop.y) / before.h; // keep the point under the cursor still
+    crop.zoom = z; const after = cropSize(); crop.x = cx - fx * after.w; crop.y = cy - fy * after.h;
+    cropClamp(); $("cropZoom").value = String(z); cropDraw();
+  }
+  function cropReset() { crop.zoom = 1; const { w, h } = cropSize(); crop.x = (CROP_VIEW - w) / 2; crop.y = (CROP_VIEW - h) / 2; $("cropZoom").value = "1"; cropDraw(); }
+  function openCropper(img) {
+    return new Promise((resolve, reject) => {
+      crop.img = img; crop.base = CROP_VIEW / Math.min(img.width, img.height); crop.resolve = resolve; crop.reject = reject; crop.drag = null;
+      cropReset(); $("cropBack").hidden = false;
+    });
+  }
+  function cropFinish(ok) {
+    $("cropBack").hidden = true;
+    const { resolve, reject } = crop; crop.resolve = crop.reject = null;
+    if (!ok) { if (reject) reject(Object.assign(new Error("cancelled"), { code: "cancelled" })); return; }
+    const cv = document.createElement("canvas"); cv.width = AV_OUT; cv.height = AV_OUT;
+    const ctx = cv.getContext("2d"); const k = AV_OUT / CROP_VIEW; const { w, h } = cropSize();
+    ctx.drawImage(crop.img, crop.x * k, crop.y * k, w * k, h * k);
+    if (resolve) resolve(cv.toDataURL("image/jpeg", 0.88));
+  }
+  // opts.crop === false → old behaviour (centre square), used when a card file brings its own portrait
+  function readImage(file, opts) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
-        const size = 160;
+        URL.revokeObjectURL(url);
+        if (!(opts && opts.crop === false)) { openCropper(img).then(resolve, reject); return; }
+        const size = AV_OUT;
         const cv = document.createElement("canvas");
         cv.width = size; cv.height = size;
         const ctx = cv.getContext("2d");
         const s = Math.min(img.width, img.height);
         ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-        URL.revokeObjectURL(url);
         resolve(cv.toDataURL("image/jpeg", 0.85));
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
@@ -9141,7 +9191,7 @@
         if (isPng(bytes)) {
           card = await readCardFromPng(bytes);
           if (!card) throw new Error("这张 PNG 里没有角色数据（缺少 chara / ccv3 块）");
-          image = await readImage(f).catch(() => "");
+          image = await readImage(f, { crop: false }).catch(() => "");
         } else {
           let text = utf8.dec.decode(bytes);
           if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
@@ -10021,7 +10071,7 @@
   $("edImage").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f || !editing) return;
-    try { editing.draft.image = await readImage(f); renderEditorAvatar(); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+    try { editing.draft.image = await readImage(f); renderEditorAvatar(); } catch (err) { if (!(err && err.code === "cancelled")) toast("这张图片读不出来，换一张试试。", true); }
     e.target.value = "";
   });
   $("edClearImage").onclick = () => { if (editing) { editing.draft.image = ""; renderEditorAvatar(); } };
@@ -10031,7 +10081,7 @@
   $("pImage").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    try { pEdit().image = await readImage(f); pAfter(); toast("头像已更新"); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+    try { pEdit().image = await readImage(f); pAfter(); toast("头像已更新"); } catch (err) { if (!(err && err.code === "cancelled")) toast("这张图片读不出来，换一张试试。", true); }
     e.target.value = "";
   });
   $("pClearImage").onclick = () => { pEdit().image = ""; pAfter(); };
@@ -10168,7 +10218,7 @@
   $("npcImage").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    try { npcImageDraft = await readImage(f); renderNpcAvatar(); } catch (err) { toast("这张图片读不出来，换一张试试。", true); }
+    try { npcImageDraft = await readImage(f); renderNpcAvatar(); } catch (err) { if (!(err && err.code === "cancelled")) toast("这张图片读不出来，换一张试试。", true); }
     e.target.value = "";
   });
   $("npcClearImage").onclick = () => { npcImageDraft = ""; renderNpcAvatar(); };
@@ -10227,6 +10277,19 @@
   $("phoneInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); phoneSend("go"); } });
   $("phoneInput").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; });
   $("phoneQuoteX").onclick = () => { phoneQuote = null; renderQuoteBar(); };
+  {
+    const fr = $("cropFrame");
+    fr.addEventListener("pointerdown", (e) => { if (!crop.img) return; crop.drag = { sx: e.clientX, sy: e.clientY, ox: crop.x, oy: crop.y }; fr.classList.add("drag"); fr.setPointerCapture(e.pointerId); e.preventDefault(); });
+    fr.addEventListener("pointermove", (e) => { if (!crop.drag) return; crop.x = crop.drag.ox + (e.clientX - crop.drag.sx); crop.y = crop.drag.oy + (e.clientY - crop.drag.sy); cropClamp(); cropDraw(); });
+    const end = () => { crop.drag = null; fr.classList.remove("drag"); };
+    fr.addEventListener("pointerup", end); fr.addEventListener("pointercancel", end);
+    fr.addEventListener("wheel", (e) => { if (!crop.img) return; e.preventDefault(); const r = fr.getBoundingClientRect(); cropSetZoom(crop.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    $("cropZoom").addEventListener("input", (e) => { if (crop.img) cropSetZoom(parseFloat(e.target.value) || 1, CROP_VIEW / 2, CROP_VIEW / 2); });
+    $("cropReset").onclick = () => { if (crop.img) cropReset(); };
+    $("cropOk").onclick = () => cropFinish(true);
+    $("cropCancel").onclick = () => cropFinish(false); $("cropCancel2").onclick = () => cropFinish(false);
+    $("cropBack").addEventListener("click", (e) => { if (e.target === $("cropBack")) cropFinish(false); });
+  }
   $("phoneNudge").onclick = () => phoneNudge("first");
   $("phoneSpeaker").addEventListener("change", () => renderPhone());
   $("phoneWait").onclick = () => phoneNudge("wait");
