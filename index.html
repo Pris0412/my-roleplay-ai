@@ -1337,116 +1337,15 @@
       </div>
 
       <div class="section">
-        <div class="section-title">你的人设 <span class="stat">可以建几套，每张卡在编辑里选用哪套</span></div>
-        <div class="wi-toolbar" style="margin-bottom:8px">
-          <select id="pPick" style="flex:1;min-width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"></select>
-          <button class="btn ghost" id="pNew">＋ 新建</button>
-          <button class="btn ghost" id="pCopy">复制</button>
-          <button class="btn ghost" id="pDefault">设为默认</button>
-          <button class="btn ghost" id="pDel">删除</button>
-        </div>
-        <div class="help" id="pPickHelp" style="margin-bottom:8px"></div>
-        <div class="avatar-row" style="margin-bottom:10px">
-          <div class="avatar lg" id="pAvatar"></div>
-          <div class="controls">
-            <div class="line">
-              <label class="btn" for="pImage">上传照片</label>
-              <input type="file" id="pImage" accept="image/*" hidden>
-              <button class="btn ghost" id="pClearImage">用首字</button>
-            </div>
-            <div class="help">你的头像，显示在对话、手机和朋友圈里。只存在这个浏览器。</div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="pName">你的名字（{{user}}）</label>
-          <input id="pName" placeholder="例如：旅人">
-        </div>
-        <div class="field">
-          <label for="pDesc">你的描述</label>
-          <textarea id="pDesc" placeholder="角色会知道关于你的这些信息，例如：二十出头，刚搬来这座城，性格随和。"></textarea>
-        </div>
+        <div class="section-title">人设 · 生成 <span class="stat">各自单开一个窗口，不挤在这里</span></div>
+        <button class="btn block" id="openPersona">👤 你的人设</button>
+        <div class="stat" id="openPersonaStat" style="margin:4px 0 10px"></div>
+        <button class="btn block" id="openGen">✍️ 生成 · 档位 / 长度 / 情感 / 尺度 / 文风 / 节奏</button>
+        <div class="stat" id="openGenStat" style="margin:4px 0 0"></div>
       </div>
 
       <div class="section">
-        <div class="section-title">生成</div>
-        <div class="field" id="tierField">
-          <label for="sTier">模型档位</label>
-          <select id="sTier">
-            <option value="quick">快速 · 回复立刻开始，适合闲聊</option>
-            <option value="default">均衡 · 会先思考几秒，更细腻</option>
-            <option value="complex">深度 · 最强但最慢</option>
-          </select>
-        </div>
-        <div class="row">
-          <div class="field">
-            <label for="sLen">回复长度</label>
-            <select id="sLen">
-              <option value="short">短 · 200–300 字</option>
-              <option value="medium">中 · 500–800 字</option>
-              <option value="mlong">中长 · 800–1200 字</option>
-              <option value="long">长 · 1200–2000 字</option>
-              <option value="custom">自定义…</option>
-              <option value="follow">跟随预设 / 不注入 · 不给字数要求</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="sLang">回复语言</label>
-            <select id="sLang">
-              <option value="auto">跟随我</option>
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-        </div>
-        <div class="row" id="sLenCustomRow" hidden>
-          <div class="field">
-            <label for="sLenMin">最少字数</label>
-            <input id="sLenMin" type="number" min="50" step="50" class="mono">
-          </div>
-          <div class="field">
-            <label for="sLenMax">最多字数</label>
-            <input id="sLenMax" type="number" min="100" step="50" class="mono">
-          </div>
-        </div>
-        <div class="row">
-          <div class="field">
-            <label for="sEmotion">情感浓度</label>
-            <select id="sEmotion">
-              <option value="auto">自动（默认）· 按人设和情境定，该浓就浓</option>
-              <option value="restrained">克制 · 有感情但不行动</option>
-              <option value="normal">正常 · 会表达，不主动改变局面</option>
-              <option value="mild">微浓烈 · 感情驱动行动，吃醋就介入</option>
-              <option value="intense">浓烈 · 全部放开</option>
-              <option value="follow">跟随预设 / 不注入 · 不给情感浓度要求</option>
-            </select>
-            <div class="help">管感情怎么驱动行动。每张卡可单独设；某一楼不满意，用回复下面的「换写法」。</div>
-          </div>
-          <div class="field">
-            <label for="sNsfw">尺度</label>
-            <select id="sNsfw">
-              <option value="none">无（默认）· 不进入性场面，到临界点切开</option>
-              <option value="subtle">含蓄 · 写氛围和感受，不写过程</option>
-              <option value="explicit">直白 · 写具体过程，按人设和关系来</option>
-              <option value="follow">跟随预设 / 不注入</option>
-            </select>
-            <div class="help">管亲密场面写多细，和情感浓度独立。成年人这条固定。能不能写出来还看模型和预设。每张卡可单独设。</div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="sStyle">文风规则</label>
-          <textarea id="sStyle" class="mono" rows="8" style="font-size:12px;min-height:150px" placeholder="留空就不注入文风规则。"></textarea>
-          <div class="help">每行一条，随每次回复一起发给模型。可以随便删改、加自己讨厌的八股词；留空就等于「跟随预设 / 不注入」。可用 {{user}} 代表你。情感浓度和尺度不在这里，它们单独发。 <button class="btn ghost" id="sStyleReset" type="button" style="font-size:12px;padding:2px 8px;vertical-align:baseline">恢复默认</button></div>
-        </div>
-        <div class="field">
-          <label for="sPace">感情节奏（全局）</label>
-          <select id="sPace"><option value="fast">快 · 每档至少 3 楼</option><option value="normal">正常 · 每档至少 8 楼</option><option value="slow">慢 · 拉扯 · 每档至少 8 楼，好感和暧昧要拖</option></select>
-          <div class="help">关系阶段（反感 → … → 在一起）升一档前至少要待够这么多楼，页面硬性卡住，模型提前升也不认。每张卡可以在「状态」里单独设。</div>
-        </div>
-        <div class="field">
-          <label for="sWealth">有钱人写法 <button class="btn ghost" id="sWealthReset" type="button" style="float:right;padding:2px 8px;font-size:11px">恢复默认</button></label>
-          <textarea id="sWealth" class="mono" rows="6" style="font-size:12px;min-height:110px" placeholder="留空就不发。"></textarea>
-          <div class="help">只在角色卡看起来有钱时才发（描述、标签里有「豪门 / 少爷 / 千金 / 总裁 / 老钱」这类词），普通卡不带。每张卡可以在编辑里强制开或关。治的是模型把有钱人写成普通人：自己熬粥、洗得发白的衬衫、穿 AJ。</div>
-        </div>
+        <div class="section-title">外观 · 上下文</div>
         <div class="field">
           <label for="sTheme">外观</label>
           <select id="sTheme">
@@ -1541,6 +1440,143 @@
   </aside>
 </div>
 
+<!-- ========== Persona dialog ========== -->
+<div class="modal-back" id="personaBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="personaTitle" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <span id="personaTitle">你的人设 <span class="stat">可以建几套，每张卡在编辑里选用哪套</span></span>
+      <button class="btn ghost icon" id="personaClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="wi-toolbar" style="margin-bottom:8px">
+        <select id="pPick" style="flex:1;min-width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--raised)"></select>
+        <button class="btn ghost" id="pNew">＋ 新建</button>
+        <button class="btn ghost" id="pCopy">复制</button>
+        <button class="btn ghost" id="pDefault">设为默认</button>
+        <button class="btn ghost" id="pDel">删除</button>
+      </div>
+      <div class="help" id="pPickHelp" style="margin-bottom:8px"></div>
+      <div class="avatar-row" style="margin-bottom:10px">
+        <div class="avatar lg" id="pAvatar"></div>
+        <div class="controls">
+          <div class="line">
+            <label class="btn" for="pImage">上传照片</label>
+            <input type="file" id="pImage" accept="image/*" hidden>
+            <button class="btn ghost" id="pClearImage">用首字</button>
+          </div>
+          <div class="help">你的头像，显示在对话、手机和朋友圈里。只存在这个浏览器。</div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="pName">你的名字（{{user}}）</label>
+        <input id="pName" placeholder="例如：旅人">
+      </div>
+      <div class="field">
+        <label for="pDesc">你的描述</label>
+        <textarea id="pDesc" placeholder="角色会知道关于你的这些信息，例如：二十出头，刚搬来这座城，性格随和。"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" style="flex:1;align-self:center">改动即时保存</span>
+      <button class="btn primary" id="personaDone">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Generation dialog ========== -->
+<div class="modal-back" id="genBack" hidden style="z-index:60">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="genTitle" style="width:min(680px,100%)">
+    <div class="modal-head">
+      <span id="genTitle">生成 <span class="stat">全局默认；每张卡可以在编辑 / 状态里单独改</span></span>
+      <button class="btn ghost icon" id="genClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" id="tierField">
+        <label for="sTier">模型档位</label>
+        <select id="sTier">
+          <option value="quick">快速 · 回复立刻开始，适合闲聊</option>
+          <option value="default">均衡 · 会先思考几秒，更细腻</option>
+          <option value="complex">深度 · 最强但最慢</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="sLen">回复长度</label>
+          <select id="sLen">
+            <option value="short">短 · 200–300 字</option>
+            <option value="medium">中 · 500–800 字</option>
+            <option value="mlong">中长 · 800–1200 字</option>
+            <option value="long">长 · 1200–2000 字</option>
+            <option value="custom">自定义…</option>
+            <option value="follow">跟随预设 / 不注入 · 不给字数要求</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="sLang">回复语言</label>
+          <select id="sLang">
+            <option value="auto">跟随我</option>
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" id="sLenCustomRow" hidden>
+        <div class="field">
+          <label for="sLenMin">最少字数</label>
+          <input id="sLenMin" type="number" min="50" step="50" class="mono">
+        </div>
+        <div class="field">
+          <label for="sLenMax">最多字数</label>
+          <input id="sLenMax" type="number" min="100" step="50" class="mono">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="sEmotion">情感浓度</label>
+          <select id="sEmotion">
+            <option value="auto">自动（默认）· 按人设和情境定，该浓就浓</option>
+            <option value="restrained">克制 · 有感情但不行动</option>
+            <option value="normal">正常 · 会表达，不主动改变局面</option>
+            <option value="mild">微浓烈 · 感情驱动行动，吃醋就介入</option>
+            <option value="intense">浓烈 · 全部放开</option>
+            <option value="follow">跟随预设 / 不注入 · 不给情感浓度要求</option>
+          </select>
+          <div class="help">管感情怎么驱动行动。每张卡可单独设；某一楼不满意，用回复下面的「换写法」。</div>
+        </div>
+        <div class="field">
+          <label for="sNsfw">尺度</label>
+          <select id="sNsfw">
+            <option value="none">无（默认）· 不进入性场面，到临界点切开</option>
+            <option value="subtle">含蓄 · 写氛围和感受，不写过程</option>
+            <option value="explicit">直白 · 写具体过程，按人设和关系来</option>
+            <option value="follow">跟随预设 / 不注入</option>
+          </select>
+          <div class="help">管亲密场面写多细，和情感浓度独立。成年人这条固定。能不能写出来还看模型和预设。每张卡可单独设。</div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="sStyle">文风规则</label>
+        <textarea id="sStyle" class="mono" rows="8" style="font-size:12px;min-height:150px" placeholder="留空就不注入文风规则。"></textarea>
+        <div class="help">每行一条，随每次回复一起发给模型。可以随便删改、加自己讨厌的八股词；留空就等于「跟随预设 / 不注入」。可用 {{user}} 代表你。情感浓度和尺度不在这里，它们单独发。 <button class="btn ghost" id="sStyleReset" type="button" style="font-size:12px;padding:2px 8px;vertical-align:baseline">恢复默认</button></div>
+      </div>
+      <div class="field">
+        <label for="sPace">感情节奏（全局）</label>
+        <select id="sPace"><option value="fast">快 · 每档至少 3 楼</option><option value="normal">正常 · 每档至少 8 楼</option><option value="slow">慢 · 拉扯 · 每档至少 8 楼，好感和暧昧要拖</option></select>
+        <div class="help">关系阶段（反感 → … → 在一起）升一档前至少要待够这么多楼，页面硬性卡住，模型提前升也不认。每张卡可以在「状态」里单独设。</div>
+      </div>
+      <div class="field">
+        <label for="sWealth">有钱人写法 <button class="btn ghost" id="sWealthReset" type="button" style="float:right;padding:2px 8px;font-size:11px">恢复默认</button></label>
+        <textarea id="sWealth" class="mono" rows="6" style="font-size:12px;min-height:110px" placeholder="留空就不发。"></textarea>
+        <div class="help">只在角色卡看起来有钱时才发（描述、标签里有「豪门 / 少爷 / 千金 / 总裁 / 老钱」这类词），普通卡不带。每张卡可以在编辑里强制开或关。治的是模型把有钱人写成普通人：自己熬粥、洗得发白的衬衫、穿 AJ。</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" style="flex:1;align-self:center">改动即时保存，下一次回复起生效</span>
+      <button class="btn primary" id="genDone">完成</button>
+    </div>
+  </div>
+</div>
+
 <!-- ========== Character editor ========== -->
 <div class="modal-back" id="editorBack" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
@@ -1586,12 +1622,12 @@
       <div class="field">
         <label for="edUserRole">你在这个故事里的身份（这张卡）</label>
         <textarea id="edUserRole" placeholder="身份、背景、和主角的初始关系。例如：靠奖学金进来的插班生，家里开小面馆，和他分在同一个宿舍。留空就只用设置里的全局人设。"></textarea>
-        <div class="help">人设是你的底子（名字、外貌、性格），在设置里建，可以有几套；这一栏跟卡走，发给模型时接在人设后面。</div>
+        <div class="help">人设是你的底子（名字、外貌、性格），在设置 →「你的人设」里建，可以有几套；这一栏跟卡走，发给模型时接在人设后面。</div>
       </div>
       <div class="field">
         <label for="edPersona">我的人设（这张卡）</label>
         <select id="edPersona"></select>
-        <div class="help">这张卡用设置里的哪一套人设。中途换的话，旧对话里已经叫过的名字不会自动改。</div>
+        <div class="help">这张卡用「你的人设」里的哪一套。中途换的话，旧对话里已经叫过的名字不会自动改。</div>
       </div>
       <div class="field">
         <label for="edFirst">开场白</label>
@@ -2845,7 +2881,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.78"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.79"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4546,6 +4582,19 @@
     $("sFeKeep").value = state.settings.feKeep == null ? "2" : String(state.settings.feKeep);
     $("sCss").value = state.settings.css || "";
     applyUserCss();
+    renderSettingsEntries();
+  }
+  const TIER_SHORT = { quick: "快速", default: "均衡", complex: "深度" };
+  function renderSettingsEntries() {
+    const pe = pEdit();
+    const n = Array.isArray(state.personas) ? state.personas.length : 1;
+    $("openPersonaStat").textContent = `当前：${pe.name || "未命名"}${n > 1 ? ` · 共 ${n} 套` : ""}${pe.desc ? "" : " · 还没写描述"}`;
+    const st = state.settings;
+    const len = st.len === "custom" ? `${st.lenMin || 600}–${st.lenMax || 1000} 字` : st.len === "follow" ? "长度跟随预设" : LEN_PRESETS[st.len] ? `${LEN_PRESETS[st.len][0]}–${LEN_PRESETS[st.len][1]} 字` : "500–800 字";
+    const parts = [];
+    if (!$("tierField").hidden) parts.push(TIER_SHORT[st.tier] || "均衡");
+    parts.push(len, `情感${EMOTION_LABELS[st.emotion] || "自动"}`, `尺度${NSFW_LABELS[st.nsfw] || "无"}`, `节奏${PACE_LABELS[st.pace] || "正常"}`);
+    $("openGenStat").textContent = `当前：${parts.join(" · ")}`;
   }
 
   function updateStats() {
@@ -10102,7 +10151,7 @@
     save(); syncPersona(); renderSettings(); renderMessages(); renderHead();
   };
   $("sTier").addEventListener("change", (e) => { state.settings.tier = e.target.value; save(); });
-  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); });
+  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); renderSettingsEntries(); });
   $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
   $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
@@ -10176,6 +10225,20 @@
     toast("设置已保存");
     if (window.matchMedia("(max-width: 1080px)").matches) closeOverlays();
   };
+  // persona / generation live in their own dialogs so the settings drawer stays short
+  function openSubSettings(id) { renderSettings(); $(id).hidden = false; }
+  function closeSubSettings() {
+    for (const id of ["pName", "pDesc", "sLenMin", "sLenMax"]) { const n = $(id); if (n && document.activeElement === n) n.dispatchEvent(new Event("change")); }
+    $("personaBack").hidden = true; $("genBack").hidden = true;
+    renderSettingsEntries();
+  }
+  $("openPersona").onclick = () => openSubSettings("personaBack");
+  $("openGen").onclick = () => openSubSettings("genBack");
+  $("personaClose").onclick = closeSubSettings; $("personaDone").onclick = closeSubSettings;
+  $("genClose").onclick = closeSubSettings; $("genDone").onclick = closeSubSettings;
+  $("personaBack").addEventListener("click", (e) => { if (e.target === $("personaBack")) closeSubSettings(); });
+  $("genBack").addEventListener("click", (e) => { if (e.target === $("genBack")) closeSubSettings(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !confirmResolve && $("cropBack").hidden && (!$("personaBack").hidden || !$("genBack").hidden)) { e.stopPropagation(); closeSubSettings(); } }, true);
   renderSnips();
   $("snipClose").onclick = () => { $("snipBack").hidden = true; };
   $("snipCancel").onclick = () => { $("snipBack").hidden = true; };
