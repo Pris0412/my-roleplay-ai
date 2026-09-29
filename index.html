@@ -1191,6 +1191,8 @@
         <button class="btn ghost" id="searchBtn" title="在这个角色的全部记录里找一句话">搜索</button>
         <button class="btn ghost" id="saveBtn" title="存档 / 读档：在这里存个档，之后随时回到这条线">存档</button>
         <button class="btn ghost" id="resetChat" title="清空并回到开场白">重开对话</button>
+        <button class="btn ghost" id="openPersona" title="你的人设：名字、头像、描述，可以建几套">人设</button>
+        <button class="btn ghost" id="openGen" title="生成：档位 / 回复长度 / 情感浓度 / 尺度 / 文风规则 / 感情节奏 / 有钱人写法">生成</button>
         <button class="btn ghost icon toggle-drawer" id="openDrawer" title="设置" aria-label="打开设置">⚙</button>
       </div>
     </header>
@@ -1337,15 +1339,7 @@
       </div>
 
       <div class="section">
-        <div class="section-title">人设 · 生成 <span class="stat">各自单开一个窗口，不挤在这里</span></div>
-        <button class="btn block" id="openPersona">👤 你的人设</button>
-        <div class="stat" id="openPersonaStat" style="margin:4px 0 10px"></div>
-        <button class="btn block" id="openGen">✍️ 生成 · 档位 / 长度 / 情感 / 尺度 / 文风 / 节奏</button>
-        <div class="stat" id="openGenStat" style="margin:4px 0 0"></div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">外观 · 上下文</div>
+        <div class="section-title">外观 · 上下文 <span class="stat">人设和生成在顶栏的「人设」「生成」按钮里</span></div>
         <div class="field">
           <label for="sTheme">外观</label>
           <select id="sTheme">
@@ -1621,13 +1615,13 @@
       </div>
       <div class="field">
         <label for="edUserRole">你在这个故事里的身份（这张卡）</label>
-        <textarea id="edUserRole" placeholder="身份、背景、和主角的初始关系。例如：靠奖学金进来的插班生，家里开小面馆，和他分在同一个宿舍。留空就只用设置里的全局人设。"></textarea>
-        <div class="help">人设是你的底子（名字、外貌、性格），在设置 →「你的人设」里建，可以有几套；这一栏跟卡走，发给模型时接在人设后面。</div>
+        <textarea id="edUserRole" placeholder="身份、背景、和主角的初始关系。例如：靠奖学金进来的插班生，家里开小面馆，和他分在同一个宿舍。留空就只用顶栏「人设」里的全局人设。"></textarea>
+        <div class="help">人设是你的底子（名字、外貌、性格），在顶栏「人设」里建，可以有几套；这一栏跟卡走，发给模型时接在人设后面。</div>
       </div>
       <div class="field">
         <label for="edPersona">我的人设（这张卡）</label>
         <select id="edPersona"></select>
-        <div class="help">这张卡用「你的人设」里的哪一套。中途换的话，旧对话里已经叫过的名字不会自动改。</div>
+        <div class="help">这张卡用顶栏「人设」里的哪一套。中途换的话，旧对话里已经叫过的名字不会自动改。</div>
       </div>
       <div class="field">
         <label for="edFirst">开场白</label>
@@ -2881,7 +2875,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.79"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.80"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4582,19 +4576,6 @@
     $("sFeKeep").value = state.settings.feKeep == null ? "2" : String(state.settings.feKeep);
     $("sCss").value = state.settings.css || "";
     applyUserCss();
-    renderSettingsEntries();
-  }
-  const TIER_SHORT = { quick: "快速", default: "均衡", complex: "深度" };
-  function renderSettingsEntries() {
-    const pe = pEdit();
-    const n = Array.isArray(state.personas) ? state.personas.length : 1;
-    $("openPersonaStat").textContent = `当前：${pe.name || "未命名"}${n > 1 ? ` · 共 ${n} 套` : ""}${pe.desc ? "" : " · 还没写描述"}`;
-    const st = state.settings;
-    const len = st.len === "custom" ? `${st.lenMin || 600}–${st.lenMax || 1000} 字` : st.len === "follow" ? "长度跟随预设" : LEN_PRESETS[st.len] ? `${LEN_PRESETS[st.len][0]}–${LEN_PRESETS[st.len][1]} 字` : "500–800 字";
-    const parts = [];
-    if (!$("tierField").hidden) parts.push(TIER_SHORT[st.tier] || "均衡");
-    parts.push(len, `情感${EMOTION_LABELS[st.emotion] || "自动"}`, `尺度${NSFW_LABELS[st.nsfw] || "无"}`, `节奏${PACE_LABELS[st.pace] || "正常"}`);
-    $("openGenStat").textContent = `当前：${parts.join(" · ")}`;
   }
 
   function updateStats() {
@@ -10151,7 +10132,7 @@
     save(); syncPersona(); renderSettings(); renderMessages(); renderHead();
   };
   $("sTier").addEventListener("change", (e) => { state.settings.tier = e.target.value; save(); });
-  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); renderSettingsEntries(); });
+  $("sLen").addEventListener("change", (e) => { state.settings.len = e.target.value; $("sLenCustomRow").hidden = e.target.value !== "custom"; save(); });
   $("sLenMin").addEventListener("change", (e) => { state.settings.lenMin = Math.max(50, parseInt(e.target.value, 10) || 50); if (state.settings.lenMax <= state.settings.lenMin) state.settings.lenMax = state.settings.lenMin + 200; renderSettings(); save(); });
   $("sLenMax").addEventListener("change", (e) => { state.settings.lenMax = Math.max((state.settings.lenMin || 50) + 50, parseInt(e.target.value, 10) || 100); renderSettings(); save(); });
   $("sLang").addEventListener("change", (e) => { state.settings.lang = e.target.value; save(); });
@@ -10225,12 +10206,11 @@
     toast("设置已保存");
     if (window.matchMedia("(max-width: 1080px)").matches) closeOverlays();
   };
-  // persona / generation live in their own dialogs so the settings drawer stays short
+  // persona / generation live in their own dialogs, opened from the header like 存档 / 重开对话
   function openSubSettings(id) { renderSettings(); $(id).hidden = false; }
   function closeSubSettings() {
     for (const id of ["pName", "pDesc", "sLenMin", "sLenMax"]) { const n = $(id); if (n && document.activeElement === n) n.dispatchEvent(new Event("change")); }
     $("personaBack").hidden = true; $("genBack").hidden = true;
-    renderSettingsEntries();
   }
   $("openPersona").onclick = () => openSubSettings("personaBack");
   $("openGen").onclick = () => openSubSettings("genBack");
@@ -11490,7 +11470,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
         row.append(rb, body); wrap.appendChild(row);
       }
       su.appendChild(wrap);
-      su.appendChild(el("div", "help", "设置里的人设是你的底子，换卡不变；这一栏跟这张卡走，建卡后在「编辑角色」里也能改。"));
+      su.appendChild(el("div", "help", "顶栏「人设」里的人设是你的底子，换卡不变；这一栏跟这张卡走，建卡后在「编辑角色」里也能改。"));
     }
     const sw = sec(`世界书 · ${r.world.worldName || ""}`);
     sw.appendChild(wizField("世界名字", r.world.worldName, (v) => { r.world.worldName = v; }, null, 1));
