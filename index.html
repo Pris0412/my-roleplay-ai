@@ -2878,7 +2878,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.82"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.83"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -6324,12 +6324,12 @@
     const t = document.createElement("input"); t.value = r.rel; t.placeholder = r.set ? "关系" : "未设定";
     // affection: − number + ; manual steps ignore the lock and the per-floor cap
     const aw = el("div", "aff-ctl");
-    const minus = el("button", "btn ghost", "−"); minus.type = "button"; minus.title = "好感 −5";
+    const minus = el("button", "btn ghost", "−"); minus.type = "button"; minus.title = "好感 −1";
     const numv = el("span", "mono num", r.set ? String(r.aff) : "—"); numv.title = "好感 0–100：这个人有多喜欢对方，和关系是什么是两回事";
-    const plus = el("button", "btn ghost", "＋"); plus.type = "button"; plus.title = "好感 +5";
+    const plus = el("button", "btn ghost", "＋"); plus.type = "button"; plus.title = "好感 +1";
     aw.append(minus, numv, plus);
     const step = (d) => { relSet(c, side, n.id, r.set ? undefined : t.value, (r.set ? r.aff : 48) + d, undefined, "手动调整"); save(); if (!$("phoneBack").hidden) renderPhone(); renderRelTable(c); };
-    minus.onclick = () => step(-5); plus.onclick = () => step(5);
+    minus.onclick = () => step(-1); plus.onclick = () => step(1);
     const lock = lockPill(r.lock, () => { relLockToggle(c, side, n.id); renderRelTable(c); }, "好感"); lock.disabled = !r.set;
     ln.append(t, aw, lock);
     const meta = el("div", "rel-meta");
