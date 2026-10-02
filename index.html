@@ -2875,7 +2875,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.80"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.81"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -11170,25 +11170,26 @@
     return s;
   }
   const WORLD_RULE = "世界必须是虚构的：城市、学校、公司、家族、机构一律自创名字，不用现实中存在的国家、城市、学校、公司、真实人物；时代和基调可以贴近现实。用户已经给出的名字（某家、某人）原样保留。";
+  // the wizard never sees the persona: the user is always "{{user}}" in the card, and the page fills in whoever plays it
+  const WIZ_USER = "{{user}}";
+  const WIZ_USER_RULE = "用户扮演的角色在卡里一律写成 {{user}}（原样保留两层花括号，玩的时候页面会换成用户自己的名字）。不要给 {{user}} 起名字，不要替 {{user}} 设定外貌、性格、家世，{{user}} 的人设由用户自己另写；提到用户的地方（主角和 {{user}} 的关系、开场白、NPC 和 {{user}} 的关系、userRoles）都写 {{user}}。";
   function wizCommonHead(seeds) {
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     const rating = "XP 一栏要写具体、要有个人特色，每个角色都不一样：恋爱风格、主动还是被动、占有欲和吃醋的样子、喜欢的相处方式、亲密时的样子（态度、习惯、会说什么）、偏好（列表，越具体越好）、雷点（列表）、隐藏的一面（表面 vs 私下）。用描述性的短语写清楚他是什么样的人，不写露骨过程；具体尺度由之后的剧情决定。";
     return [
-      `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。用户扮演 ${u}（${u} 的人设由用户自己写，你不要写）。${WORLD_RULE} 所有角色（主角和每一个 NPC）年龄不低于 18 岁；校园题材写成大学或刚成年，不写未成年人。`,
+      `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。${WIZ_USER_RULE}${WORLD_RULE} 所有角色（主角和每一个 NPC）年龄不低于 18 岁；校园题材写成大学或刚成年，不写未成年人。`,
       `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.xp ? `\n- XP / 偏好方向：${seeds.xp}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
       seeds.premise ? `\n## 用户的一句话（书名 + 标签按圈内的常见含义理解；一句话想法就照字面）\n${seeds.premise}` : "",
       seeds.reading ? `\n## 已确认的解读（用户看过并认可，必须照这个来：题材、你的位置、主角色、阵容、基调都以此为准）\n${seeds.reading}` : "",
-      state.persona.desc && state.persona.desc.trim() ? `\n## ${u} 的人设底子（用户自己写的，不要改写；身份和背景可以在 userRoles 里推荐）\n${state.persona.desc.trim().slice(0, 400)}` : "",
       `\n## 建卡偏好（必须遵守）\n${wizPrefs()}`,
       `\n## 顶奢与富人生活参考（家境好的角色从这里选牌子和生活方式，互不重复；家境普通的不用）\n${luxuryText()}`,
     ].filter(Boolean).join("\n");
   }
   function wizReadPrompt(seeds) {
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     return [
-      `你是资深的角色扮演卡作者，熟悉网文、漫画、乙游的题材和标签用法。用户给了一句输入（可能是小说简介式的书名 + #标签，也可能只是一句话想法），请把它读成一份建卡用的解读，先不写卡。用户扮演 ${u}。${WORLD_RULE}`,
+      `你是资深的角色扮演卡作者，熟悉网文、漫画、乙游的题材和标签用法。用户给了一句输入（可能是小说简介式的书名 + #标签，也可能只是一句话想法），请把它读成一份建卡用的解读，先不写卡。${WIZ_USER_RULE}${WORLD_RULE}`,
       `\n## 输入\n${seeds.premise}${seeds.genre && seeds.genre !== "随机" ? `\n题材倾向：${seeds.genre}` : ""}${seeds.line ? `\n补充想法：${seeds.line}` : ""}`,
-      state.persona.desc && state.persona.desc.trim() ? `\n## ${u} 的人设底子\n${state.persona.desc.trim().slice(0, 400)}` : "",
       `\n## 要求
 - 标签按圈内常见含义理解（如 万人迷 = 所有人都被 ${u} 吸引、群像多追求者；先婚后爱、穿书、重生、系统、无限流 等同理）。
 - yourPosition：${u} 在这个故事里的位置（书名里「当NPC」「炮灰」「路人」这类自嘲要读出来）。
@@ -11201,7 +11202,7 @@
     ].filter(Boolean).join("\n");
   }
   function wizCharPrompt(seeds) {
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     return wizCommonHead(seeds) + `\n\n## 任务：写主角卡
 用 YAML 写，每一栏是一段 YAML 文本（键值对 / 列表，短语为主，不写长句），全部中文。栏目：
 - 基本：姓名、别称（列表）、性别、年龄、生日、身高、体重、身份、家世一句话
@@ -11230,7 +11231,7 @@
 只输出 JSON：{"name":"","sections":{"基本":"yaml","外貌":"yaml",...},"tag":"","emoji":"","tags":[],"scenario":"","greetings":[],"rules":"","status":{}}`;
   }
   function wizWorldPrompt(seeds, ch) {
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     const npcLine = seeds.npcs && seeds.npcs.length ? seeds.npcs.map((n, i) => `${i + 1}. ${n.gender} · ${n.hint}`).join("\n") : "由你设计 2–3 个和主角关系密切、各有用处的人（朋友、对手、家人、暧昧对象等）";
     return wizCommonHead(seeds) + `\n\n## 已经写好的主角（请与之自洽）\n${JSON.stringify({ name: ch.name, tag: ch.tag, 基本: ch.sections["基本"], 关系: ch.sections["关系"], 财富: ch.sections["财富"] })}\n\n## 任务：写世界书和 NPC
 world：
@@ -11244,14 +11245,14 @@ npcs（${npcLine}）：每个：
 - relation：和主角的关系一句话
 - relToUser：和 ${u} 的初始关系（一个词）；aff：初始好感 0–100
 - sections：YAML 文本，栏目 基本（姓名、性别、年龄、身高、身份、家世）、外貌（脸、眼、发、身材、气质、常穿写牌子、味道；类型和主角、和其他 NPC 都不同）、财富（家境好才写，否则「无」）、性格、喜好、关系（对主角、对 ${u}）、说话（语气、口头禅、示例 2 句）
-userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title, text}，每个 40–80 字：身份、背景、和主角的初始关系，互相明显不同，和主角、NPC、世界自洽（用户的人设底子不要改写，只补身份和背景）。
+userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title, text}，每个 40–80 字：身份、背景、和主角的初始关系，互相明显不同，和主角、NPC、世界自洽（只写身份和背景，不写 {{user}} 的外貌和性格）。
 只输出 JSON：{"world":{"worldName":"","overview":"","places":[],"factions":[],"relations":""},"npcs":[{"name":"","gender":"","age":"","height":"","aliases":[],"relation":"","relToUser":"","aff":50,"sections":{}}],"userRoles":[{"title":"","text":""}]}`;
   }
   // ---- revisions: the reading is the direction; every later edit is local to what the note names ----
   const wizReadHistory = [];
   const wizFixHistory = [];
   function wizReadFixPrompt(seeds, reading, note) {
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     return [
       `你是资深的角色扮演卡作者。下面是一份建卡用的解读和用户对它的修改意见。请按意见修改解读：只改意见提到的地方，没提到的每一行原样保留（连措辞都不要动），不换主题、不加意见之外的新设定。格式和原来完全一样（题材 / 基调 / 结构 / 你的位置 / 主角色 / 阵容 / 你的身份候选 / 备注）。用户扮演 ${u}。${WORLD_RULE}`,
       seeds.premise ? `\n## 用户最初的一句话\n${seeds.premise}` : "",
@@ -11262,7 +11263,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
   }
   function wizFixPrompt(note, scope) {
     const r = wiz.result, seeds = wiz.seeds;
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     const cur = {
       char: { name: r.char.name, tag: r.char.tag, emoji: r.char.emoji, sections: r.char.sections, scenario: r.char.scenario, greetings: r.char.greetings, rules: r.char.rules, status: r.char.statusText != null ? r.char.statusText : r.char.status },
       world: r.world,
@@ -11279,7 +11280,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
   }
   function wizGreetingPrompt(mode, idx, note) {
     const r = wiz.result, seeds = wiz.seeds;
-    const u = state.persona.name || "用户";
+    const u = WIZ_USER;
     const ch = r.char;
     const brief = JSON.stringify({ name: ch.name, tag: ch.tag, 基本: ch.sections["基本"], 性格: ch.sections["性格"], 说话: ch.sections["说话"], 关系: ch.sections["关系"], 开场场景: ch.scenario, 状态: ch.statusText != null ? ch.statusText : ch.status, 世界: r.world.overview, NPC: r.npcs.map((n) => `${n.name}：${n.relation}`) });
     const others = ch.greetings.filter((_, i) => i !== idx).map((g, i) => `（${i + 1}）${String(g).slice(0, 160)}…`).join("\n");
@@ -11289,6 +11290,15 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     return wizCommonHead(seeds) + `\n\n## 主角和世界（与之自洽）\n${brief}\n\n## 现有的开场白\n第 ${idx + 1} 条（要处理的）：\n${ch.greetings[idx] || "（空）"}\n${others ? `其他几条（别重复它们的相遇方式）：\n${others}` : ""}\n\n${task}\n要求：主角视角的第一条消息，叙述用正常文字、不加星号，对白用「」，有场景、有人、有一件正在发生的事，${WIZ_GREET_LEN}，结尾留给 ${u} 接话。\n只输出 JSON：{"greeting":"开场白全文"}`;
   }
   function wizSnapshot() { return JSON.parse(JSON.stringify({ result: wiz.result, reading: wiz.seeds.reading || "" })); }
+  // safety net: should the model still write the current persona's name, it becomes {{user}} before anything is shown or saved
+  function wizScrub(v) {
+    const name = (state.persona && state.persona.name || "").trim();
+    if (!name || name.length < 2 || /^(你|用户|user)$/i.test(name)) return v;
+    const re = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
+    const walk = (x) => typeof x === "string" ? x.replace(re, "{{user}}") : Array.isArray(x) ? x.map(walk) : x && typeof x === "object" ? Object.fromEntries(Object.entries(x).map(([k, y]) => [k, walk(y)])) : x;
+    return walk(v);
+  }
+  const wizJson = async (prompt, opts) => wizScrub(await completeJson(prompt, opts));
   function wizMergeFix(v) {
     const r = wiz.result; let n = 0;
     const str = (x) => (x == null ? "" : String(x));
@@ -11323,7 +11333,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const note = $("wzFixNote").value.trim(); if (!note) { toast("先写修改意见", true); $("wzFixNote").focus(); return; }
     const b = $("wzFix"); b.disabled = true; b.textContent = "改着…"; $("wzFixStat").textContent = "";
     try {
-      const v = await completeJson(wizFixPrompt(note, $("wzFixScope").value), { tier: state.settings.tier, maxTokens: 12000 });
+      const v = await wizJson(wizFixPrompt(note, $("wzFixScope").value), { tier: state.settings.tier, maxTokens: 12000 });
       if (!v || typeof v !== "object") throw Object.assign(new Error("bad"), { code: "invalid_json" });
       wizFixHistory.push(wizSnapshot());
       const n = wizMergeFix(v);
@@ -11340,7 +11350,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     if (mode === "fix" && !note) { toast("先在下面写开场白的修改意见", true); $("wzGNote").focus(); return; }
     const keep = btn.textContent; btn.disabled = true; btn.textContent = "…";
     try {
-      const v = await completeJson(wizGreetingPrompt(mode, idx, note), { tier: state.settings.tier, maxTokens: 6000 });
+      const v = await wizJson(wizGreetingPrompt(mode, idx, note), { tier: state.settings.tier, maxTokens: 6000 });
       const g = v && typeof v.greeting === "string" ? v.greeting.trim() : "";
       if (!g) throw Object.assign(new Error("bad"), { code: "invalid_json" });
       wizFixHistory.push(wizSnapshot()); $("wzFixUndo").disabled = false;
@@ -11385,14 +11395,14 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const prog = $("wzProg"); prog.hidden = false;
     try {
       prog.textContent = "第 1 / 2 步：写主角卡…（可能要半分钟）";
-      const ch = await completeJson(wizCharPrompt(seeds), { tier: state.settings.tier, maxTokens: 16000 });
+      const ch = await wizJson(wizCharPrompt(seeds), { tier: state.settings.tier, maxTokens: 16000 });
       if (!ch || !ch.name || !ch.sections) throw Object.assign(new Error("bad"), { code: "invalid_json" });
       ch.sections = Object.fromEntries(WIZ_SECTIONS.map((k) => [k, yamlStr(ch.sections[k])]));
       ch.greetings = Array.isArray(ch.greetings) ? ch.greetings.map(String).filter(Boolean) : [String(ch.greetings || "")];
       ch.tags = Array.isArray(ch.tags) ? ch.tags.map(String) : [];
       ch.status = ch.status && typeof ch.status === "object" ? ch.status : {};
       prog.textContent = "第 2 / 2 步：写世界书和 NPC…";
-      const wv = await completeJson(wizWorldPrompt(seeds, ch), { tier: state.settings.tier, maxTokens: 12000 });
+      const wv = await wizJson(wizWorldPrompt(seeds, ch), { tier: state.settings.tier, maxTokens: 12000 });
       const world = Object.assign({ worldName: "", overview: "", places: [], factions: [], relations: "" }, (wv && wv.world) || {});
       for (const k of ["places", "factions"]) if (!Array.isArray(world[k])) world[k] = [];
       world.relations = yamlStr(world.relations);
@@ -11424,7 +11434,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     return box;
   }
   async function wizReroll(kind, key, idx) {
-    const v = await completeJson(wizRerollPrompt(kind, key, idx), { tier: state.settings.tier, maxTokens: 4000 });
+    const v = await wizJson(wizRerollPrompt(kind, key, idx), { tier: state.settings.tier, maxTokens: 4000 });
     if (!v || v.value == null) { toast("没刷出来，再试一次", true); return; }
     const val = yamlStr(v.value);
     const r = wiz.result;
@@ -11457,8 +11467,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     sc.appendChild(gWrap);
     sc.appendChild(wizField("状态面板初值", yamlStr(r.char.status), (v) => { r.char.statusText = v; }, null, 3));
     {
-      const u = state.persona.name || "你";
-      const su = sec(`${u} 在这个故事里的身份（选一个，可改；不要就选「不填」）`);
+      const su = sec("你在这个故事里的身份（选一个，可改；不要就选「不填」）");
       const wrap = el("div", "wz-field");
       const opts = [...r.userRoles.map((o, i) => [i, o]), [-1, { title: "不填", text: "" }]];
       for (const [i, o] of opts) {
@@ -11470,7 +11479,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
         row.append(rb, body); wrap.appendChild(row);
       }
       su.appendChild(wrap);
-      su.appendChild(el("div", "help", "顶栏「人设」里的人设是你的底子，换卡不变；这一栏跟这张卡走，建卡后在「编辑角色」里也能改。"));
+      su.appendChild(el("div", "help", "卡里提到你的地方都写成 {{user}}，玩的时候换成顶栏「人设」里的名字；人设是你的底子，换卡不变；这一栏跟这张卡走，建卡后在「编辑角色」里也能改。"));
     }
     const sw = sec(`世界书 · ${r.world.worldName || ""}`);
     sw.appendChild(wizField("世界名字", r.world.worldName, (v) => { r.world.worldName = v; }, null, 1));
@@ -11534,7 +11543,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     if (!seeds.premise) { toast("先在上面写一句：书名 + #标签", true); $("wzPremise").focus(); return; }
     const b = $("wzRead"); b.disabled = true; b.textContent = "解读中…";
     try {
-      const r = await completeJson(wizReadPrompt(seeds), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, maxTokens: 4000 });
+      const r = await wizJson(wizReadPrompt(seeds), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, maxTokens: 4000 });
       if (!r || typeof r !== "object") throw Object.assign(new Error("bad"), { code: "invalid_json" });
       const lines = [
         `题材: ${yamlStr(r.genre)}`, `基调: ${yamlStr(r.tone)}`, `结构: ${r.structure === "ensemble" ? "群像 · 多个追求者（挑一个当主角色，其余是 NPC）" : "单人对手戏"}`,
@@ -11557,7 +11566,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const reading = $("wzReading").value.trim(); if (!reading) { toast("先解读一次", true); return; }
     const b = $("wzReadFix"); b.disabled = true; b.textContent = "改着…";
     try {
-      const v = await completeJson(wizReadFixPrompt(wizSeeds(false), reading, note), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, maxTokens: 4000 });
+      const v = await wizJson(wizReadFixPrompt(wizSeeds(false), reading, note), { tier: state.settings.tier === "complex" ? "default" : state.settings.tier, maxTokens: 4000 });
       const t = v && typeof v.reading === "string" ? v.reading.trim() : "";
       if (!t) throw Object.assign(new Error("bad"), { code: "invalid_json" });
       wizReadHistory.push(reading); $("wzReadUndo").disabled = false;
