@@ -2936,7 +2936,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.88"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.89"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5725,6 +5725,12 @@
     recordUsage(inputAsText(input), res.text, t0);
     return { text: res.text, truncated: !!res.truncated, modelTierApplied: res.modelTierApplied };
   }
+  // a proxy sometimes answers 200 with its own error as the "reply" (expired login, bad key, quota); don't mistake that for content
+  function apiTextError(text) {
+    const t = String(text || "").trim();
+    if (!t || t.length > 400) return "";
+    return /failed to authenticate|oauth|unauthorized|unauthenticated|session expired|invalid (api[ _-]?key|token)|api key|authentication|quota|rate limit|insufficient_quota|not logged in|login (required|expired)|token expired|403|401/i.test(t) && !/[。！？，][\s\S]*[。！？，]/.test(t) ? t : "";
+  }
   // JSON the way models actually write it: raw line breaks inside strings, a reply cut off mid-way. Returns undefined when hopeless.
   function lenientJson(src) {
     let t = String(src || "");
@@ -5770,6 +5776,7 @@
     const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字；字符串里的换行写成 \\n。" }], { signal, maxTokens });
     recordUsage(prompt, text, t0);
     const body = stripReasoning(text);
+    { const err = apiTextError(body); if (err) throw Object.assign(new Error("接口回了一句报错，不是模型的回答：" + err), { code: "api_text", text }); }
     const tryParse = (t) => { try { return JSON.parse(t); } catch (e) { return undefined; } };
     let v = tryParse(body);
     if (v === undefined) { const m = body.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) v = tryParse(m[1]); }
@@ -9784,6 +9791,7 @@
       let out = stripReasoning(String(text || "")).trim();
       { const m = out.match(/^```[a-z]*\s*([\s\S]*?)\s*```$/); if (m) out = m[1].trim(); }
       if (!out) { $("fxStat").textContent = "模型什么都没回，再试一次"; return; }
+      { const err = apiTextError(out); if (err) { $("fxStat").textContent = "接口回了一句报错，不是模型的回答：" + err + (/authenticat|oauth|expired|login/i.test(err) ? "（接口那边的登录过期了，重新登录代理再试）" : ""); return; } }
       $("fxNew").value = out; $("fxResult").hidden = false; $("fxApply").disabled = false;
       $("fxStat").textContent = `改好了 · 约 ${out.length} 字（原来 ${current.length} 字）`;
       $("fxHint").textContent = out.length < current.length * 0.6 && current.length > 200 ? "新的比原来短了不少，看看是不是丢了内容" : "";
