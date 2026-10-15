@@ -862,7 +862,10 @@
   .zoom-wrap { position: relative; display: flex; flex-direction: column; }
   .zoom-wrap > textarea { width: 100%; }
   .zoom-btn { font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0.8; font-family: inherit; font-weight: normal; }
-  label > .zoom-btn { float: right; margin-top: -2px; }
+  label > .zoom-btn { float: right; margin-top: -2px; margin-left: 6px; }
+  .zoom-btn.fix-btn { color: var(--accent); }
+  .fx-ta { min-height: 220px; font-size: 13px; line-height: 1.55; }
+  #fxOld { color: var(--muted); }
   .zoom-wrap > .zoom-btn { position: absolute; top: 5px; right: 16px; }
   .zoom-btn:hover { opacity: 1; color: var(--text); border-color: var(--accent); }
   .zoom-back { position: fixed; inset: 0; z-index: 200; background: var(--surface); display: flex; flex-direction: column; height: var(--vvh, 100dvh); }
@@ -2886,6 +2889,34 @@
   </div>
 </div>
 
+<!-- ========== Per-field revision: one note, one field, plain text back ========== -->
+<div class="modal-back" id="fxBack" hidden style="z-index:68">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="fxTitle" style="width:min(760px,100%)">
+    <div class="modal-head">
+      <span id="fxTitle">按意见改</span>
+      <button class="btn ghost icon" id="fxClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="fxNote">意见</label>
+        <textarea id="fxNote" rows="2" placeholder="例如：再冷一点，说话带刺；删掉关于家世的那段；补一段他和母亲的关系"></textarea>
+        <div class="help">模型只改这一栏，其他栏只当参照；改完的新文字可以再手改，点「用这个」才写回去。</div>
+      </div>
+      <div class="ed-fix-row"><button class="btn primary" id="fxGo" type="button">改</button><span class="stat" id="fxStat"></span></div>
+      <div class="row" id="fxResult" hidden>
+        <div class="field"><label>现在</label><textarea id="fxOld" readonly rows="12" class="fx-ta"></textarea></div>
+        <div class="field"><label>改后（可以再手改）</label><textarea id="fxNew" rows="12" class="fx-ta"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="stat" id="fxHint" style="flex:1;align-self:center"></span>
+      <div class="right">
+        <button class="btn" id="fxCancel">不要</button>
+        <button class="btn primary" id="fxApply" disabled>用这个</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-back" id="confirmBack" hidden style="z-index:70">
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmText" style="width:min(420px,100%)">
     <div class="modal-body" id="confirmText" style="font-size:15px;line-height:1.6"></div>
@@ -2905,7 +2936,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.87"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.88"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -9180,7 +9211,10 @@
       edFixPending = changes; renderEdFixPreview(changes, v.summary);
       $("edFixStat").textContent = v && v.__truncated ? `回答被截断，只拿到前面 ${changes.length} 处（范围选小一点、或把设置里的 max_tokens 调大能拿全）` : `建议改 ${changes.length} 处，看看再决定`;
     } catch (e) {
-      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) $("edFixStat").textContent = e && e.code === "invalid_json" ? "失败：模型回的不是 JSON，再点一次试试；还不行就把范围选小一点" : "失败：" + (e && e.message ? e.message : e);
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) {
+        $("edFixStat").textContent = e && e.code === "invalid_json" ? "失败：模型回的不是能用的 JSON。改单独一栏的话，用每一栏旁边的「✨ 按意见改」更稳。" : "失败：" + (e && e.message ? e.message : e);
+        if (e && typeof e.text === "string" && e.text) { const raw = e.text; const b = el("button", "btn ghost", "看看模型回了什么"); b.type = "button"; b.style.cssText = "font-size:11px;padding:2px 8px;margin-left:6px"; b.onclick = () => { const ta = document.createElement("textarea"); ta.value = raw; openZoom(ta, "模型的原话（只读）"); }; $("edFixStat").appendChild(b); }
+      }
     } finally { edFixCtl = null; $("edFix").disabled = false; }
   }
   function edFixApply() {
@@ -9672,7 +9706,7 @@
     if (lab && lab.tagName === "LABEL") lab.appendChild(b); else wrap.appendChild(b);
     return ta;
   }
-  function zoomLabel(ta) { const f = ta.closest(".field"); const l = f && f.querySelector("label"); return l ? l.textContent.trim() : "编辑"; }
+  function zoomLabel(ta) { const f = ta.closest(".field"); const l = f && f.querySelector("label"); return l ? [...l.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim() || l.textContent.trim() : "编辑"; }
   function openZoom(ta, title) {
     zoomSrc = ta;
     const z = $("zoomTa");
@@ -9693,6 +9727,95 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && zoomSrc) { e.stopImmediatePropagation(); e.preventDefault(); closeZoom(); } }, true);
   for (const id of ["edDesc", "edPersonality", "edScenario", "edUserRole", "edFirst", "edExamples", "edAlt", "edNotes", "edSys", "edPost", "edCss", "memPrompt", "memResult", "ppContent", "npcPersonality", "npcDesc", "pDesc", "sStyle", "sWealth", "sCss", "stVoice", "stExtra"]) zoomable($(id));
 
+  // ---------- 按意见改（单栏）: a note about one textarea; the model returns that field's full new text, no JSON involved ----------
+  let fx = null, fxCtl = null;
+  function fixable(ta, opts) {
+    if (!ta || ta.dataset.fix) return ta;
+    ta.dataset.fix = "1";
+    const b = el("button", "zoom-btn fix-btn", "✨ 按意见改"); b.type = "button"; b.title = "写一句意见，让模型只改这一栏；改完先给你看，点「用这个」才写回";
+    b.onclick = () => openFieldFix(ta, opts || {});
+    const wrap = ta.closest(".zoom-wrap");
+    const lab = (wrap || ta).previousElementSibling;
+    if (lab && lab.tagName === "LABEL") lab.appendChild(b); else if (wrap) wrap.appendChild(b); else ta.parentNode.insertBefore(b, ta);
+    return ta;
+  }
+  function openFieldFix(ta, opts) {
+    if (!chatReady()) { toast("先在设置里接好模型", true); return; }
+    fx = { ta, opts, title: opts.title || zoomLabel(ta) };
+    $("fxTitle").textContent = `按意见改 · ${fx.title}`;
+    $("fxNote").value = ""; $("fxStat").textContent = ""; $("fxHint").textContent = "";
+    $("fxOld").value = ta.value; $("fxNew").value = ""; $("fxResult").hidden = true; $("fxApply").disabled = true; $("fxGo").disabled = false;
+    $("fxBack").hidden = false; $("fxNote").focus();
+  }
+  function closeFieldFix() { if (fxCtl) { fxCtl.abort(); fxCtl = null; } $("fxBack").hidden = true; fx = null; }
+  // a compact picture of the card for consistency; never more than a few hundred characters per part
+  function cardBrief(c, skipKey) {
+    if (!c) return "";
+    const cut = (t, n) => { t = String(t || "").trim(); return t.length > n ? t.slice(0, n) + "…" : t; };
+    const parts = [`名字：${c.name}${c.tag ? `（${c.tag}）` : ""}`];
+    for (const [k, lab] of [["description", "描述"], ["personality", "性格"], ["scenario", "场景"], ["userRole", "{{user}} 的身份"], ["postHistory", "规则"]]) if (k !== skipKey && c[k]) parts.push(`${lab}：${cut(c[k], 900)}`);
+    if (skipKey !== "firstMessage" && c.firstMessage) parts.push(`开场白（节选）：${cut(c.firstMessage, 400)}`);
+    if (c.npcs && c.npcs.length) parts.push(`NPC：${c.npcs.map((n) => `${n.name}${n.brief ? `（${n.brief}）` : ""}`).join("、")}`);
+    if (c.wizReading) parts.push(`建卡时的解读：${cut(c.wizReading, 600)}`);
+    return parts.join("\n");
+  }
+  function fieldFixPrompt(title, current, note, context, kind) {
+    const extra = kind === "greeting" ? `这是开场白：${WIZ_GREET_LEN}，用户一律写 {{user}}，要写满一个完整的场面。` : kind === "alt" ? "这一栏是多条备选开场白，条与条之间用单独一行 --- 分开，保留这个格式。" : kind === "entry" ? "这是世界书的一个条目，触发后原样带给模型，写设定不写剧情。" : "";
+    return [
+      `你是资深的角色扮演卡作者。下面是一张角色卡里的一栏，请按用户的意见改这一栏。${WIZ_USER_RULE} ${WORLD_RULE}`,
+      context ? `\n## 参照（整张卡的概要，只用来保持一致，不要改它）\n${context}` : "",
+      `\n## 要改的栏：${title}\n${current || "（现在是空的）"}`,
+      `\n## 用户的意见\n${note}`,
+      `\n## 要求\n- 只改意见提到的地方，其余原样保留，保持原来的格式、分段和写法；不要缩写、不要丢信息。${extra ? "\n- " + extra : ""}\n- 只输出这一栏改后的完整文字：不要标题、不要解释、不要代码块、不要「好的」。`,
+    ].filter(Boolean).join("\n");
+  }
+  async function fieldFixGo() {
+    if (!fx || fxCtl) return;
+    const note = $("fxNote").value.trim();
+    if (!note) { $("fxNote").focus(); return; }
+    const current = fx.ta.value;
+    const context = typeof fx.opts.context === "function" ? fx.opts.context() : "";
+    fxCtl = new AbortController(); $("fxGo").disabled = true; $("fxStat").textContent = "改稿中…"; $("fxApply").disabled = true;
+    const t0 = Date.now();
+    try {
+      const prompt = fieldFixPrompt(fx.title, current, note, context, fx.opts.kind);
+      const { text } = isCustom() ? await apiChat([{ role: "user", content: prompt }], { signal: fxCtl.signal, maxTokens: 8000 }) : await complete(prompt, { signal: fxCtl.signal, tier: state.settings.tier });
+      if (isCustom()) recordUsage(prompt, text, t0);
+      let out = stripReasoning(String(text || "")).trim();
+      { const m = out.match(/^```[a-z]*\s*([\s\S]*?)\s*```$/); if (m) out = m[1].trim(); }
+      if (!out) { $("fxStat").textContent = "模型什么都没回，再试一次"; return; }
+      $("fxNew").value = out; $("fxResult").hidden = false; $("fxApply").disabled = false;
+      $("fxStat").textContent = `改好了 · 约 ${out.length} 字（原来 ${current.length} 字）`;
+      $("fxHint").textContent = out.length < current.length * 0.6 && current.length > 200 ? "新的比原来短了不少，看看是不是丢了内容" : "";
+    } catch (e) {
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) $("fxStat").textContent = "失败：" + (isCustom() ? netErrorCopy(e) : (e && e.message ? e.message : e));
+    } finally { fxCtl = null; $("fxGo").disabled = false; }
+  }
+  function fieldFixApply() {
+    if (!fx) return;
+    const v = $("fxNew").value;
+    if (fx.opts.before) fx.opts.before();
+    fx.ta.value = v;
+    fx.ta.dispatchEvent(new Event("input", { bubbles: true })); fx.ta.dispatchEvent(new Event("change", { bubbles: true }));
+    if (fx.opts.after) fx.opts.after();
+    closeFieldFix();
+  }
+  $("fxGo").onclick = fieldFixGo; $("fxApply").onclick = fieldFixApply; $("fxClose").onclick = closeFieldFix; $("fxCancel").onclick = closeFieldFix;
+  $("fxBack").addEventListener("click", (e) => { if (e.target === $("fxBack")) closeFieldFix(); });
+  $("fxNote").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); fieldFixGo(); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && fx && !confirmResolve) { e.stopPropagation(); closeFieldFix(); } }, true);
+  // character editor fields: the whole-card undo also covers these
+  {
+    const edCtx = (skip) => () => { if (!editing) return ""; readEditorForm(editing.draft); return cardBrief(editing.draft, skip); };
+    const edBefore = () => { if (!editing) return; readEditorForm(editing.draft); edFixHistory.push(JSON.parse(JSON.stringify(editing.draft))); $("edFixUndo").disabled = false; $("edFixStat").textContent = "改了一栏，满意就点右下角「保存」"; };
+    for (const [id, skip, kind] of [["edDesc", "description"], ["edPersonality", "personality"], ["edScenario", "scenario"], ["edFirst", "firstMessage", "greeting"], ["edAlt", "altGreetings", "alt"], ["edExamples", "examples"], ["edUserRole", "userRole"], ["edPost", "postHistory"], ["edNotes", "creatorNotes"]]) fixable($(id), { context: edCtx(skip), kind, before: edBefore });
+  }
+  // NPC editor fields
+  {
+    const npcCtx = () => { const c = active(); const parts = [cardBrief(c)]; const n = { name: $("npcName").value, brief: $("npcBrief").value, personality: $("npcPersonality").value, speech: $("npcSpeech").value, desc: $("npcDesc").value }; parts.push(`\n## 这个 NPC\n名字：${n.name}\n身份：${n.brief}\n性格：${n.personality}\n说话：${n.speech}\n设定：${String(n.desc).slice(0, 900)}`); return parts.join("\n"); };
+    fixable($("npcPersonality"), { title: "NPC 性格", context: npcCtx });
+    fixable($("npcDesc"), { title: "NPC 设定", context: npcCtx });
+  }
   function field(labelText, input, help) {
     const f = el("div", "field");
     const l = el("label", null, labelText); f.appendChild(l); f.appendChild(input);
@@ -9735,6 +9858,7 @@
       : sel([["char", `只有 ${ac ? ac.name : "主角"} 知道`], ["public", "公开 · 主角和所有 NPC 都知道"], ...((ac ? ac.npcs : []).map((n) => ["npc:" + n.id, `只有 ${n.name} 知道`]))], entryScope(e));
     if (sScope) row4.append(field("谁知道", sScope, "决定这条记忆会带给谁"));
     form.append(row1, row2, field("内容", tContent), checks, row3, row4);
+    if (!isMem) fixable(tContent, { title: `世界书条目 · ${e.comment || "（无标题）"}`, kind: "entry", context: () => { const c = editing ? editing.draft : active(); const bk = wiEditing && wiEditing.book; const others = bk ? bk.entries.filter((x) => x !== e).map((x) => x.comment || (x.keys || []).join(", ")).filter(Boolean).join("、") : ""; return [cardBrief(c), bk ? `\n## 这本世界书：${bk.name}${others ? `\n其他条目：${others}` : ""}` : "", `这条的关键词：${iKeys.value}`].filter(Boolean).join("\n"); } });
 
     const sync = () => {
       e.comment = iTitle.value.trim();
