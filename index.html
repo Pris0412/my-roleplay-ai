@@ -936,6 +936,18 @@
   .wz-field { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .wz-field-h { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
   .wz-field textarea { width: 100%; resize: vertical; font-size: 13px; line-height: 1.5; }
+  .ed-fix { margin-top: 0; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: 10px; }
+  .ed-fix .wz-field-h { flex-wrap: wrap; gap: 6px; }
+  .ed-fix .wz-field-h > span:first-child { color: var(--text); font-weight: 600; }
+  .ed-fix-row { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+  .ed-fix-row select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--raised); }
+  #edFixPreview { margin-top: 8px; }
+  #edFixSummary { margin: 0 0 6px; }
+  .ed-diff { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; font-size: 12px; }
+  .ed-diff .d { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--raised); }
+  .ed-diff .d b { display: block; margin-bottom: 3px; }
+  .ed-diff .old { color: var(--muted); text-decoration: line-through; white-space: pre-wrap; word-break: break-word; }
+  .ed-diff .new { white-space: pre-wrap; word-break: break-word; }
   .opt-btn { display: block; width: 100%; height: auto; white-space: normal; text-align: left; padding: 10px 12px; line-height: 1.45; }
   .opt-btn b { display: block; font-size: 14px; }
   .opt-btn small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -1592,6 +1604,21 @@
             <button class="btn ghost" id="edClearImage">用表情</button>
           </div>
           <div class="swatches" id="edSwatches"></div>
+        </div>
+      </div>
+      <div class="wz-field ed-fix" id="edFixBox">
+        <div class="wz-field-h"><span>✨ 按意见改这张卡</span><span class="stat">模型改完先给你看改了哪些，点「用这个」才写进卡，最后记得「保存」</span></div>
+        <textarea id="edFixNote" rows="2" placeholder="例如：性格再冷一点，说话带刺；开场白换成在天台相遇；NPC 林姐删掉，加一个他表哥；状态面板的地点改成老宅"></textarea>
+        <div class="ed-fix-row">
+          <select id="edFixScope"><option value="auto">范围：按意见判断</option><option value="char">只改人设（描述 / 性格 / 场景 / 规则）</option><option value="greetings">只改开场白</option><option value="npcs">只改 NPC</option><option value="world">只改世界书</option><option value="status">只改状态面板</option></select>
+          <button class="btn" id="edFix" type="button">按意见改</button>
+          <button class="btn ghost" id="edFixUndo" type="button" disabled>撤回上一次</button>
+          <span class="stat" id="edFixStat"></span>
+        </div>
+        <div id="edFixPreview" hidden>
+          <div class="help" id="edFixSummary"></div>
+          <div class="ed-diff" id="edFixDiff"></div>
+          <div class="ed-fix-row"><button class="btn primary" id="edFixApply" type="button">用这个</button><button class="btn ghost" id="edFixDrop" type="button">不要</button></div>
         </div>
       </div>
       <div class="row">
@@ -2878,7 +2905,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.83"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.84"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -8902,14 +8929,8 @@
     normalizeChar(editing.draft);
     const d = editing.draft;
     $("editorTitle").textContent = c ? `编辑 · ${c.name}` : "新建角色";
-    { const sel = $("edPersona"); sel.innerHTML = ""; const dp = personaById(state.personaDefault) || state.personas[0]; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = `默认（${dp.name}）`; sel.appendChild(o0); for (const x of state.personas) { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; sel.appendChild(o); } sel.value = d.personaId && personaById(d.personaId) ? d.personaId : ""; }
-    $("edName").value = d.name; $("edTag").value = d.tag || ""; $("edEmoji").value = d.emoji || "";
-    $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || "";
-    $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
-    $("edAlt").value = (d.altGreetings || []).join("\n---\n");
-    $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edWealth").value = d.wealth === "on" || d.wealth === "off" ? d.wealth : "auto"; $("edUserRole").value = d.userRole || "";
-    renderEdBook();
+    edFixReset();
+    fillEditorForm(d);
     refreshCharRx();
     $("editorDelete").hidden = !c;
     $("exportJson").disabled = $("exportPng").disabled = !downloads;
@@ -8919,28 +8940,18 @@
     $("editorBack").hidden = false;
     $("edName").focus();
   }
-  function renderEditorAvatar() {
-    const d = editing.draft;
-    d.name = $("edName").value;
-    renderAvatar($("edAvatar"), d, "lg");
-    const sw = $("edSwatches");
-    sw.innerHTML = "";
-    for (const col of SWATCHES) {
-      const b = el("button", "swatch" + (d.color === col ? " on" : ""));
-      b.style.background = col;
-      b.title = col;
-      b.setAttribute("aria-label", "颜色 " + col);
-      b.onclick = () => { d.color = col; renderEditorAvatar(); };
-      sw.appendChild(b);
-    }
-    const chars = [d.description, d.personality, d.scenario, d.firstMessage, d.examples].join("").length;
-    $("edStat").textContent = `角色卡约 ${chars} 字`;
+  function fillEditorForm(d) {
+    { const sel = $("edPersona"); sel.innerHTML = ""; const dp = personaById(state.personaDefault) || state.personas[0]; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = `默认（${dp.name}）`; sel.appendChild(o0); for (const x of state.personas) { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; sel.appendChild(o); } sel.value = d.personaId && personaById(d.personaId) ? d.personaId : ""; }
+    $("edName").value = d.name; $("edTag").value = d.tag || ""; $("edEmoji").value = d.emoji || "";
+    $("edDesc").value = d.description || ""; $("edPersonality").value = d.personality || "";
+    $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
+    $("edAlt").value = (d.altGreetings || []).join("\n---\n");
+    $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edWealth").value = d.wealth === "on" || d.wealth === "off" ? d.wealth : "auto"; $("edUserRole").value = d.userRole || "";
+    renderEdBook();
   }
-  function closeEditor() { $("editorBack").hidden = true; editing = null; }
-  function saveEditor() {
-    const d = editing.draft;
+  function readEditorForm(d) {
     d.name = $("edName").value.trim();
-    if (!d.name) { $("edName").focus(); $("edName").style.borderColor = "var(--danger)"; return; }
     d.tag = $("edTag").value.trim();
     d.emoji = $("edEmoji").value.trim() || d.name.slice(0, 1);
     d.description = $("edDesc").value.trim();
@@ -8962,6 +8973,29 @@
     d.style = $("edStyle").value === "off" ? "off" : "";
     d.wealth = $("edWealth").value === "auto" ? "" : $("edWealth").value;
     d.worldName = $("edWorld").value;
+  }
+  function renderEditorAvatar() {
+    const d = editing.draft;
+    d.name = $("edName").value;
+    renderAvatar($("edAvatar"), d, "lg");
+    const sw = $("edSwatches");
+    sw.innerHTML = "";
+    for (const col of SWATCHES) {
+      const b = el("button", "swatch" + (d.color === col ? " on" : ""));
+      b.style.background = col;
+      b.title = col;
+      b.setAttribute("aria-label", "颜色 " + col);
+      b.onclick = () => { d.color = col; renderEditorAvatar(); };
+      sw.appendChild(b);
+    }
+    const chars = [d.description, d.personality, d.scenario, d.firstMessage, d.examples].join("").length;
+    $("edStat").textContent = `角色卡约 ${chars} 字`;
+  }
+  function closeEditor() { $("editorBack").hidden = true; editing = null; edFixReset(); }
+  function saveEditor() {
+    const d = editing.draft;
+    readEditorForm(d);
+    if (!d.name) { $("edName").focus(); $("edName").style.borderColor = "var(--danger)"; return; }
     if (editing.id) {
       const idx = state.characters.findIndex((c) => c.id === editing.id);
       const prev = state.characters[idx];
@@ -8982,6 +9016,149 @@
     renderAll();
   }
 
+  // ---- "按意见改": the model revises the card as it is on screen; nothing lands until 用这个, and 撤回 undoes it ----
+  let edFixCtl = null, edFixPending = null; const edFixHistory = [];
+  const ED_FIX_LABELS = { name: "名字", tag: "一句话标签", description: "描述", personality: "性格", scenario: "场景", firstMessage: "开场白", examples: "对话示例", userRole: "你在故事里的身份", rules: "规则（历史后提示）", creatorNotes: "作者注" };
+  const ED_FIX_KEY = { rules: "postHistory" };
+  function edFixReset() {
+    if (edFixCtl) { edFixCtl.abort(); edFixCtl = null; }
+    edFixPending = null; edFixHistory.length = 0;
+    $("edFixNote").value = ""; $("edFixStat").textContent = ""; $("edFixPreview").hidden = true; $("edFixDiff").innerHTML = ""; $("edFixUndo").disabled = true; $("edFix").disabled = false;
+  }
+  function edFixCard(d) { // what the model sees: the card as it is now
+    const st = d.status && Array.isArray(d.status.fields) ? Object.fromEntries(d.status.fields.filter((f) => f && f.key).map((f) => [f.key, f.value == null ? "" : String(f.value)])) : {};
+    return {
+      name: d.name, tag: d.tag || "", description: d.description || "", personality: d.personality || "", scenario: d.scenario || "",
+      firstMessage: d.firstMessage || "", altGreetings: d.altGreetings || [], examples: d.examples || "", userRole: d.userRole || "", rules: d.postHistory || "", creatorNotes: d.creatorNotes || "",
+      status: st,
+      npcs: (d.npcs || []).map((n) => ({ name: n.name, aliases: n.aliases || [], age: n.age || null, brief: n.brief || "", desc: n.desc || "", personality: n.personality || "", speech: n.speech || "", others: n.others || "" })),
+      world: (d.books || []).filter((b) => !b.memory).flatMap((b) => b.entries.map((e) => ({ title: e.comment || "", keys: (e.keys || []).join(", "), content: e.content || "" }))),
+    };
+  }
+  function edFixPrompt(d, note, scope) {
+    const scopeText = { auto: "按意见判断要改哪些部分", char: "只改主角本身（name / tag / description / personality / scenario / rules / examples），其他键不要出现", greetings: "只改开场白（firstMessage / altGreetings），其他键不要出现", npcs: "只改 npcs，其他键不要出现", world: "只改 world，其他键不要出现", status: "只改 status，其他键不要出现" }[scope] || "按意见判断要改哪些部分";
+    return [
+      `你是资深的角色扮演卡作者。下面是一张已经在用的角色卡（JSON）和用户的修改意见，请按意见修改这张卡。${WIZ_USER_RULE} ${WORLD_RULE}`,
+      d.wizReading ? `\n## 建卡时确认的解读（大方向；意见没提到的地方照它来）\n${d.wizReading}` : "",
+      `\n## 现在这张卡\n${JSON.stringify(edFixCard(d))}`,
+      `\n## 用户的修改意见\n${note}`,
+      `\n## 要求
+- 范围：${scopeText}。
+- 只改意见提到的部分；没提到的字段一个字都不要动，也不要出现在输出里。改一个字段就输出那个字段的完整新内容（整段，不是只给改动的句子）。
+- description / personality / scenario 是整段卡文，改的时候保持原来的格式和分段，只换要改的内容，不要缩写、不要丢信息。
+- 开场白改了就给完整的一条，${WIZ_GREET_LEN}；altGreetings 要给完整数组（没改的原样抄回来）。
+- npcs 按 name 对应：改现有的就用原名并只给改了的字段；删掉用 {"name":"原名","delete":true}；新加的给完整字段 {name, aliases, age, brief, desc, personality, speech, others}（brief 是一句话身份，desc 是外貌和背景，personality 30–60 字，speech 是说话方式，others 是和其他人的关系）。
+- world 按 title 对应：改条目给 {"title":"原标题","content":"完整新内容"}；删掉给 {"title":"原标题","delete":true}；新加给 {"title":"新标题","keys":"触发词, 逗号分隔","content":"内容"}。
+- status 只给改了的字段：{"字段名":"新值"}。
+- summary 用一句话写改了什么。
+只输出 JSON：{"name":"","tag":"","description":"","personality":"","scenario":"","firstMessage":"","altGreetings":[],"examples":"","userRole":"","rules":"","creatorNotes":"","status":{},"npcs":[],"world":[],"summary":""}（只包含改了的键）`,
+    ].filter(Boolean).join("\n");
+  }
+  // turn the model's answer into a list of concrete changes, each with an apply() against the draft
+  function edFixDiff(d, v) {
+    const out = [];
+    const str = (x) => (x == null ? "" : String(x)).trim();
+    for (const k of Object.keys(ED_FIX_LABELS)) {
+      if (v[k] == null || typeof v[k] !== "string") continue;
+      const key = ED_FIX_KEY[k] || k; const nv = str(v[k]); const ov = str(d[key]);
+      if (!nv || nv === ov) continue;
+      out.push({ label: ED_FIX_LABELS[k], old: ov, new: nv, apply: (dd) => { dd[key] = nv; } });
+    }
+    if (Array.isArray(v.altGreetings)) {
+      const nv = v.altGreetings.map(str).filter(Boolean); const ov = d.altGreetings || [];
+      if (nv.join("\n---\n") !== ov.join("\n---\n")) out.push({ label: `备选开场白（${nv.length} 条）`, old: ov.join("\n---\n"), new: nv.join("\n---\n"), apply: (dd) => { dd.altGreetings = nv; } });
+    }
+    if (v.status && typeof v.status === "object") for (const [k, val] of Object.entries(v.status)) {
+      const key = str(k); if (!key || typeof val !== "string" && typeof val !== "number") continue;
+      const nv = str(val); const f = d.status && Array.isArray(d.status.fields) ? d.status.fields.find((x) => x.key === key) : null; const ov = f ? str(f.value) : "";
+      if (nv === ov) continue;
+      out.push({ label: `状态 · ${key}`, old: ov, new: nv, apply: (dd) => { if (!dd.status) dd.status = normalizeStatus({}); let ff = dd.status.fields.find((x) => x.key === key); if (!ff) { ff = { key, type: "text", value: "" }; dd.status.fields.push(ff); } ff.value = nv; } });
+    }
+    if (Array.isArray(v.npcs)) for (const x of v.npcs) {
+      if (!x || !x.name) continue;
+      const name = str(x.name);
+      const cur = (d.npcs || []).find((n) => n.name === name || (n.aliases || []).includes(name));
+      if (x.delete) {
+        if (!cur) continue;
+        const talked = (d.chat || []).some((m) => msgHasNpc(m, cur.id));
+        if (talked) { out.push({ label: `NPC · ${cur.name}`, old: "", new: "（意见要删掉，但已经有聊天记录，所以保留不删；要删请到状态面板的关系图里手动删）", apply: () => {} }); continue; }
+        out.push({ label: `NPC · ${cur.name}`, old: `${cur.brief || ""} ${cur.personality || ""}`.trim(), new: "（删除）", apply: (dd) => { dd.npcs = dd.npcs.filter((n) => n.id !== cur.id); } });
+        continue;
+      }
+      const fields = ["name", "brief", "desc", "personality", "speech", "others"];
+      if (cur) {
+        const ch = []; for (const k of fields) if (x[k] != null && typeof x[k] === "string" && str(x[k]) !== str(cur[k])) ch.push([k, str(x[k])]);
+        if (Array.isArray(x.aliases)) { const na = x.aliases.map(str).filter(Boolean); if (na.join("/") !== (cur.aliases || []).join("/")) ch.push(["aliases", na]); }
+        if (x.age != null && ageNum(x.age) !== cur.age) ch.push(["age", ageNum(x.age)]);
+        if (!ch.length) continue;
+        const NL = { name: "名字", brief: "身份", desc: "外貌 / 背景", personality: "性格", speech: "说话", others: "人物关系", aliases: "别名", age: "年龄" };
+        out.push({ label: `NPC · ${cur.name}`, old: ch.map(([k]) => `${NL[k]}：${Array.isArray(cur[k]) ? cur[k].join("/") : cur[k] == null ? "" : cur[k]}`).join("\n"), new: ch.map(([k, val]) => `${NL[k]}：${Array.isArray(val) ? val.join("/") : val}`).join("\n"), apply: (dd) => { const n = dd.npcs.find((y) => y.id === cur.id); if (n) for (const [k, val] of ch) n[k] = val; } });
+      } else {
+        const n = normalizeNpc({ name, aliases: x.aliases, age: x.age, brief: x.brief, desc: x.desc, personality: x.personality, speech: x.speech, others: x.others });
+        if (!n) continue;
+        out.push({ label: `新 NPC · ${n.name}`, old: "", new: [n.brief, n.desc, n.personality ? `性格：${n.personality}` : "", n.speech ? `说话：${n.speech}` : ""].filter(Boolean).join("\n"), apply: (dd) => { dd.npcs.push(n); } });
+      }
+    }
+    if (Array.isArray(v.world)) for (const x of v.world) {
+      if (!x || !x.title) continue;
+      const title = str(x.title);
+      let hit = null; for (const b of (d.books || [])) { if (b.memory) continue; const e = b.entries.find((e) => (e.comment || "") === title); if (e) { hit = { b, e }; break; } }
+      if (x.delete) { if (hit) out.push({ label: `世界书 · ${title}`, old: str(hit.e.content), new: "（删除）", apply: (dd) => { for (const b of dd.books) { if (b.memory) continue; b.entries = b.entries.filter((e) => (e.comment || "") !== title); } } }); continue; }
+      const nv = str(x.content); if (!nv) continue;
+      if (hit) { if (nv === str(hit.e.content)) continue; out.push({ label: `世界书 · ${title}`, old: str(hit.e.content), new: nv, apply: (dd) => { for (const b of dd.books) { if (b.memory) continue; const e = b.entries.find((e) => (e.comment || "") === title); if (e) e.content = nv; } } }); }
+      else {
+        const keys = str(x.keys).split(/[,，]/).map((k) => k.trim()).filter(Boolean);
+        out.push({ label: `新世界书条目 · ${title}`, old: "", new: `${keys.length ? `触发词：${keys.join(", ")}\n` : ""}${nv}`, apply: (dd) => { let b = dd.books.find((b) => !b.memory); if (!b) { b = newBook(dd.worldName || `${dd.name} 的世界`); dd.books.push(b); } const e = newEntry(b); e.comment = title; e.keys = keys; e.content = nv; e.constant = !keys.length; b.entries.push(e); } });
+      }
+    }
+    return out;
+  }
+  function renderEdFixPreview(changes, summary) {
+    $("edFixSummary").textContent = summary ? String(summary) : "";
+    const box = $("edFixDiff"); box.innerHTML = "";
+    const cut = (t, n) => (t.length > n ? t.slice(0, n) + "…" : t);
+    for (const ch of changes) {
+      const dv = el("div", "d"); dv.appendChild(el("b", null, ch.label));
+      if (ch.old) dv.appendChild(el("div", "old", cut(ch.old, 300)));
+      dv.appendChild(el("div", "new", cut(ch.new, 700)));
+      box.appendChild(dv);
+    }
+    $("edFixPreview").hidden = false;
+  }
+  async function edFix() {
+    if (!editing || edFixCtl) return;
+    if (!chatReady()) { toast("先在设置里接好模型", true); return; }
+    const note = $("edFixNote").value.trim();
+    if (!note) { toast("先写意见", true); $("edFixNote").focus(); return; }
+    const d = editing.draft; readEditorForm(d);
+    edFixCtl = new AbortController(); edFixPending = null;
+    $("edFix").disabled = true; $("edFixStat").textContent = "改稿中…"; $("edFixPreview").hidden = true;
+    try {
+      const v = await completeJson(edFixPrompt(d, note, $("edFixScope").value), { signal: edFixCtl.signal, tier: state.settings.tier, maxTokens: 12000 });
+      const changes = edFixDiff(d, v && typeof v === "object" ? v : {});
+      if (!changes.length) { $("edFixStat").textContent = "模型没有改任何地方，换个说法再试"; return; }
+      edFixPending = changes; renderEdFixPreview(changes, v.summary);
+      $("edFixStat").textContent = `建议改 ${changes.length} 处，看看再决定`;
+    } catch (e) {
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) $("edFixStat").textContent = "失败：" + (e && e.message ? e.message : e);
+    } finally { edFixCtl = null; $("edFix").disabled = false; }
+  }
+  function edFixApply() {
+    if (!editing || !edFixPending) return;
+    const d = editing.draft; readEditorForm(d);
+    edFixHistory.push(JSON.parse(JSON.stringify(d)));
+    let n = 0; for (const ch of edFixPending) { ch.apply(d); n++; }
+    normalizeChar(d);
+    fillEditorForm(d); renderEditorAvatar();
+    edFixPending = null; $("edFixPreview").hidden = true; $("edFixDiff").innerHTML = "";
+    $("edFixUndo").disabled = false; $("edFixStat").textContent = `已改 ${n} 处，满意就点右下角「保存」`;
+  }
+  function edFixUndo() {
+    if (!editing || !edFixHistory.length) return;
+    editing.draft = edFixHistory.pop();
+    fillEditorForm(editing.draft); renderEditorAvatar();
+    $("edFixUndo").disabled = !edFixHistory.length; $("edFixStat").textContent = "已撤回"; $("edFixPreview").hidden = true; edFixPending = null;
+  }
   // ---- avatar cropper: pan by dragging, zoom by wheel or slider; the circle is what gets kept ----
   const AV_OUT = 512, CROP_VIEW = 260; // 512: enough for the card PNG export and retina avatars; stored as JPEG
   const crop = { img: null, base: 1, zoom: 1, x: 0, y: 0, drag: null, resolve: null, reject: null };
@@ -10114,6 +10291,9 @@
   $("editorClose").onclick = closeEditor;
   $("editorCancel").onclick = closeEditor;
   $("editorSave").onclick = saveEditor;
+  $("edFix").onclick = edFix; $("edFixApply").onclick = edFixApply; $("edFixUndo").onclick = edFixUndo;
+  $("edFixDrop").onclick = () => { edFixPending = null; $("edFixPreview").hidden = true; $("edFixDiff").innerHTML = ""; $("edFixStat").textContent = ""; };
+  $("edFixNote").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); edFix(); } });
   $("editorBack").addEventListener("click", (e) => { if (e.target === $("editorBack")) closeEditor(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && editing && !rxEditing && !wiEditing) closeEditor(); });
   for (const id of ["edName", "edDesc", "edPersonality", "edScenario", "edFirst", "edExamples"]) {
@@ -11529,6 +11709,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
       postHistory: ch.rules ? String(ch.rules).trim() : "", tags: ch.tags || [], chat: [], createdAt: Date.now(), worldName: r.world.worldName || "",
     };
     normalizeChar(c);
+    c.wizReading = String(wiz.seeds.reading || "").trim();
     if (r.userRoleIdx >= 0 && r.userRoles[r.userRoleIdx]) c.userRole = String(r.userRoles[r.userRoleIdx].text || "").trim();
     // status panel: relation + affinity from the card, opening state
     const rel = {}; for (const line of (ch.sections["关系"] || "").split("\n")) { const m = line.match(/^\s*(初始关系|初始好感)\s*[:：]\s*(.+)$/); if (m) rel[m[1]] = m[2].trim(); }
