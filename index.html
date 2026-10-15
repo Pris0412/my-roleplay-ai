@@ -866,6 +866,15 @@
   .zoom-btn.fix-btn { color: var(--accent); }
   .fx-ta { min-height: 220px; font-size: 13px; line-height: 1.55; }
   #fxOld { color: var(--muted); }
+  .fx-views .btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .fx-diff { font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--raised); }
+  .fx-diff .eq { color: var(--muted); }
+  .fx-diff .rm { background: rgba(232, 69, 60, 0.12); color: var(--muted); text-decoration: line-through; }
+  .fx-diff .ad { background: rgba(60, 160, 80, 0.14); }
+  .fx-diff .fold { color: var(--muted); font-size: 12px; cursor: pointer; padding: 2px 0; }
+  .fx-diff .fold:hover { color: var(--text); }
+  .fx-diff del { background: rgba(232, 69, 60, 0.35); text-decoration: line-through; color: var(--text); }
+  .fx-diff ins { background: rgba(60, 160, 80, 0.4); text-decoration: none; }
   .zoom-wrap > .zoom-btn { position: absolute; top: 5px; right: 16px; }
   .zoom-btn:hover { opacity: 1; color: var(--text); border-color: var(--accent); }
   .zoom-back { position: fixed; inset: 0; z-index: 200; background: var(--surface); display: flex; flex-direction: column; height: var(--vvh, 100dvh); }
@@ -2903,10 +2912,16 @@
         <div class="help">模型只改这一栏，其他栏只当参照；改完的新文字可以再手改，点「用这个」才写回去。</div>
       </div>
       <div class="ed-fix-row"><button class="btn primary" id="fxGo" type="button">改</button><button class="btn ghost" id="fxBackOne" type="button" hidden>退回上一轮</button><span class="stat" id="fxStat"></span></div>
+      <div class="ed-fix-row fx-views" id="fxViews" hidden>
+        <button class="btn ghost on" id="fxViewSide" type="button">对照</button>
+        <button class="btn ghost" id="fxViewDiff" type="button">改动标注</button>
+        <span class="stat" id="fxDiffStat"></span>
+      </div>
       <div class="row" id="fxResult" hidden>
         <div class="field"><label id="fxOldLabel">现在</label><textarea id="fxOld" readonly rows="12" class="fx-ta"></textarea></div>
         <div class="field"><label id="fxNewLabel">改后（可以再手改）</label><textarea id="fxNew" rows="12" class="fx-ta"></textarea></div>
       </div>
+      <div class="fx-diff" id="fxDiff" hidden></div>
     </div>
     <div class="modal-foot">
       <span class="stat" id="fxHint" style="flex:1;align-self:center"></span>
@@ -2936,7 +2951,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.92"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.93"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -9720,7 +9735,7 @@
   function openZoom(ta, title) {
     zoomSrc = ta;
     const z = $("zoomTa");
-    z.value = ta.value; z.className = ta.classList.contains("mono") ? "mono" : ""; z.placeholder = ta.placeholder || "";
+    z.value = ta.value; z.className = ta.classList.contains("mono") ? "mono" : ""; z.placeholder = ta.placeholder || ""; z.readOnly = !!ta.readOnly;
     $("zoomTitle").textContent = title || "编辑";
     $("zoomBack").hidden = false;
     z.focus(); z.setSelectionRange(0, 0); z.scrollTop = 0;
@@ -9755,16 +9770,70 @@
     $("fxTitle").textContent = `按意见改 · ${fx.title}`;
     $("fxNote").value = ""; $("fxNote").placeholder = "例如：再冷一点，说话带刺；删掉关于家世的那段；补一段他和母亲的关系"; $("fxStat").textContent = ""; $("fxHint").textContent = "";
     $("fxOld").value = ta.value; $("fxNew").value = ""; $("fxResult").hidden = true; $("fxApply").disabled = true; $("fxGo").disabled = false; $("fxGo").textContent = "改"; $("fxBackOne").hidden = true;
-    $("fxOldLabel").textContent = "现在"; $("fxNewLabel").textContent = "改后（可以再手改）";
+    labelText($("fxOldLabel"), "现在"); labelText($("fxNewLabel"), "改后（可以再手改）");
+    $("fxViews").hidden = true; $("fxDiff").hidden = true; $("fxDiffStat").textContent = "";
     $("fxBack").hidden = false; $("fxNote").focus();
   }
+  // ---- what changed: line diff (LCS), with in-line marks when a line was reworded ----
+  function lineDiff(a, b) {
+    const A = a.split("\n"), B = b.split("\n"), n = A.length, m = B.length;
+    if (n * m > 1500000) return [{ t: "-", s: a }, { t: "+", s: b }];
+    const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const out = []; let i = 0, j = 0;
+    while (i < n && j < m) { if (A[i] === B[j]) { out.push({ t: "=", s: A[i] }); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ t: "-", s: A[i] }); i++; } else { out.push({ t: "+", s: B[j] }); j++; } }
+    while (i < n) out.push({ t: "-", s: A[i++] }); while (j < m) out.push({ t: "+", s: B[j++] });
+    return out;
+  }
+  function inlineMarks(x, y) {
+    let p = 0; while (p < x.length && p < y.length && x[p] === y[p]) p++;
+    let q = 0; while (q < x.length - p && q < y.length - p && x[x.length - 1 - q] === y[y.length - 1 - q]) q++;
+    const head = esc(x.slice(0, p)), tail = esc(x.slice(x.length - q));
+    return { old: head + (x.length - p - q ? `<del>${esc(x.slice(p, x.length - q))}</del>` : "") + tail, new: head + (y.length - p - q ? `<ins>${esc(y.slice(p, y.length - q))}</ins>` : "") + tail };
+  }
+  function renderFxDiff() {
+    const box = $("fxDiff"); box.innerHTML = "";
+    const d = lineDiff($("fxOld").value, $("fxNew").value);
+    let changes = 0, k = 0;
+    const flush = (eq) => {
+      if (!eq.length) return;
+      if (eq.length > 8) {
+        eq.slice(0, 3).forEach((s) => box.appendChild(el("div", "eq", s)));
+        const hidden = eq.slice(3, -3); const f = el("div", "fold", `…（${hidden.length} 行没变，点开看）`);
+        f.onclick = () => { const frag = document.createDocumentFragment(); hidden.forEach((s) => frag.appendChild(el("div", "eq", s))); f.replaceWith(frag); };
+        box.appendChild(f);
+        eq.slice(-3).forEach((s) => box.appendChild(el("div", "eq", s)));
+      } else eq.forEach((s) => box.appendChild(el("div", "eq", s)));
+    };
+    let eq = [];
+    while (k < d.length) {
+      if (d[k].t === "=") { eq.push(d[k].s); k++; continue; }
+      flush(eq); eq = [];
+      const rm = [], ad = [];
+      while (k < d.length && d[k].t !== "=") { (d[k].t === "-" ? rm : ad).push(d[k].s); k++; }
+      changes++;
+      if (rm.length === ad.length) for (let x = 0; x < rm.length; x++) { const mk = inlineMarks(rm[x], ad[x]); const o = el("div", "rm"); o.innerHTML = mk.old; const nw = el("div", "ad"); nw.innerHTML = mk.new; box.append(o, nw); }
+      else { rm.forEach((s) => box.appendChild(el("div", "rm", s))); ad.forEach((s) => box.appendChild(el("div", "ad", s))); }
+    }
+    flush(eq);
+    $("fxDiffStat").textContent = changes ? `改了 ${changes} 处` : "两版一样";
+  }
+  function fxSetView(v) {
+    const diff = v === "diff";
+    $("fxViewSide").classList.toggle("on", !diff); $("fxViewDiff").classList.toggle("on", diff);
+    $("fxResult").hidden = diff; $("fxDiff").hidden = !diff;
+    if (diff) renderFxDiff();
+  }
+  const labelText = (lab, text) => { const t = [...lab.childNodes].find((x) => x.nodeType === 3); if (t) t.textContent = text; else lab.insertBefore(document.createTextNode(text), lab.firstChild); }; // keep the buttons that live in the label
   function fieldFixShowRound() {
     const n = fx.rounds.length;
-    if (!n) { $("fxNew").value = ""; $("fxOld").value = fx.ta.value; $("fxResult").hidden = true; $("fxApply").disabled = true; $("fxGo").textContent = "改"; $("fxBackOne").hidden = true; $("fxOldLabel").textContent = "现在"; $("fxNewLabel").textContent = "改后（可以再手改）"; $("fxNote").placeholder = "例如：再冷一点，说话带刺；删掉关于家世的那段；补一段他和母亲的关系"; return; }
+    $("fxViews").hidden = !n; $("fxDiff").hidden = true; $("fxViewSide").classList.add("on"); $("fxViewDiff").classList.remove("on"); $("fxDiffStat").textContent = "";
+    if (!n) { $("fxNew").value = ""; $("fxOld").value = fx.ta.value; $("fxResult").hidden = true; $("fxApply").disabled = true; $("fxGo").textContent = "改"; $("fxBackOne").hidden = true; labelText($("fxOldLabel"), "现在"); labelText($("fxNewLabel"), "改后（可以再手改）"); $("fxNote").placeholder = "例如：再冷一点，说话带刺；删掉关于家世的那段；补一段他和母亲的关系"; return; }
     const r = fx.rounds[n - 1];
     $("fxOld").value = r.base; $("fxNew").value = r.out; $("fxResult").hidden = false; $("fxApply").disabled = false;
+    { const dd = lineDiff(r.base, r.out); let c = 0; for (let i = 0; i < dd.length; i++) if (dd[i].t !== "=" && (i === 0 || dd[i - 1].t === "=")) c++; $("fxDiffStat").textContent = c ? `改了 ${c} 处` : "两版一样"; }
     $("fxGo").textContent = "继续改"; $("fxBackOne").hidden = n < 1; $("fxBackOne").textContent = n > 1 ? `退回上一轮（第 ${n - 1} 轮）` : "退回原文";
-    $("fxOldLabel").textContent = n > 1 ? `第 ${n - 1} 轮` : "原来"; $("fxNewLabel").textContent = `第 ${n} 轮（可以再手改）`;
+    labelText($("fxOldLabel"), n > 1 ? `第 ${n - 1} 轮` : "原来"); labelText($("fxNewLabel"), `第 ${n} 轮（可以再手改）`);
     $("fxNote").placeholder = "还有哪里不满意？接着写，会在上面这版的基础上继续改";
   }
   function closeFieldFix() { if (fxCtl) { fxCtl.abort(); fxCtl = null; } $("fxBack").hidden = true; fx = null; }
@@ -9826,6 +9895,9 @@
     closeFieldFix();
   }
   $("fxGo").onclick = fieldFixGo; $("fxApply").onclick = fieldFixApply;
+  $("fxViewSide").onclick = () => fxSetView("side"); $("fxViewDiff").onclick = () => fxSetView("diff");
+  $("fxNew").addEventListener("change", () => { if (!$("fxDiff").hidden) renderFxDiff(); });
+  zoomable($("fxOld"), "现在"); zoomable($("fxNew"), "改后");
   $("fxBackOne").onclick = () => { if (!fx || !fx.rounds.length) return; const r = fx.rounds.pop(); fieldFixShowRound(); $("fxNote").value = r.note; $("fxStat").textContent = fx.rounds.length ? `退回到第 ${fx.rounds.length} 轮` : "退回到原文"; $("fxHint").textContent = ""; }; $("fxClose").onclick = closeFieldFix; $("fxCancel").onclick = closeFieldFix;
   $("fxBack").addEventListener("click", (e) => { if (e.target === $("fxBack")) closeFieldFix(); });
   $("fxNote").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); fieldFixGo(); } });
