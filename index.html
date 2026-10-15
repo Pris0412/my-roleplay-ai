@@ -2905,7 +2905,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.86"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.87"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -5694,10 +5694,49 @@
     recordUsage(inputAsText(input), res.text, t0);
     return { text: res.text, truncated: !!res.truncated, modelTierApplied: res.modelTierApplied };
   }
+  // JSON the way models actually write it: raw line breaks inside strings, a reply cut off mid-way. Returns undefined when hopeless.
+  function lenientJson(src) {
+    let t = String(src || "");
+    const starts = [t.indexOf("{"), t.indexOf("[")].filter((i) => i >= 0);
+    if (!starts.length) return undefined;
+    t = t.slice(Math.min(...starts));
+    // 1. escape control characters that sit inside string literals
+    let out = "", inStr = false, esc = false;
+    for (const ch of t) {
+      if (inStr) {
+        if (esc) { out += ch; esc = false; continue; }
+        if (ch === "\\") { out += ch; esc = true; continue; }
+        if (ch === '"') { inStr = false; out += ch; continue; }
+        if (ch === "\n") { out += "\\n"; continue; }
+        if (ch === "\r") continue;
+        if (ch === "\t") { out += "\\t"; continue; }
+        if (ch < " ") continue;
+        out += ch; continue;
+      }
+      if (ch === '"') inStr = true;
+      out += ch;
+    }
+    const tryParse = (x) => { try { return JSON.parse(x); } catch (e) { return undefined; } };
+    let v = tryParse(out);
+    if (v !== undefined) return v;
+    { const b = Math.max(out.lastIndexOf("}"), out.lastIndexOf("]")); if (b > 0) { v = tryParse(out.slice(0, b + 1)); if (v !== undefined) return v; } }
+    // 2. the reply was cut off: drop the unfinished pair / element, then close every open bracket
+    const scan = (s) => { let inS = false, e = false, lastSep = -1; const stack = []; for (let i = 0; i < s.length; i++) { const ch = s[i]; if (inS) { if (e) e = false; else if (ch === "\\") e = true; else if (ch === '"') inS = false; continue; } if (ch === '"') inS = true; else if (ch === "{" || ch === "[") { stack.push(ch); lastSep = i; } else if (ch === "}" || ch === "]") stack.pop(); else if (ch === ",") lastSep = i; } return { inS, lastSep, stack }; };
+    const close = (s, stack) => { let r = s.replace(/,\s*$/, ""); for (let i = stack.length - 1; i >= 0; i--) r += stack[i] === "{" ? "}" : "]"; return r; };
+    let s = out;
+    for (let i = 0; i < 6; i++) {
+      const info = scan(s);
+      if (!info.inS && !/[:,]\s*$/.test(s)) { v = tryParse(close(s, info.stack)); if (v !== undefined) break; }
+      if (info.lastSep < 0) break;
+      s = s.slice(0, info.lastSep + (s[info.lastSep] === "," ? 0 : 1)).replace(/,?\s*[\[{]\s*$/, "");
+    }
+    if (v !== undefined && v && typeof v === "object") Object.defineProperty(v, "__truncated", { value: true, enumerable: false });
+    return v;
+  }
   async function completeJson(prompt, { signal, tier, maxTokens } = {}) {
     const t0 = Date.now();
     if (!isCustom()) { const v = await sample.json(prompt, { cache: false, modelTier: tier || state.settings.tier, signal }); recordUsage(prompt, JSON.stringify(v), t0); return v; }
-    const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字。" }], { signal, maxTokens });
+    const { text } = await apiChat([{ role: "user", content: prompt + "\n\n只输出 JSON，不要用 Markdown 代码块包起来，不要任何别的文字；字符串里的换行写成 \\n。" }], { signal, maxTokens });
     recordUsage(prompt, text, t0);
     const body = stripReasoning(text);
     const tryParse = (t) => { try { return JSON.parse(t); } catch (e) { return undefined; } };
@@ -5705,6 +5744,7 @@
     if (v === undefined) { const m = body.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) v = tryParse(m[1]); }
     if (v === undefined) { const a = body.indexOf("["), b = body.lastIndexOf("]"); if (a >= 0 && b > a) v = tryParse(body.slice(a, b + 1)); }
     if (v === undefined) { const a = body.indexOf("{"), b = body.lastIndexOf("}"); if (a >= 0 && b > a) v = tryParse(body.slice(a, b + 1)); }
+    if (v === undefined) v = lenientJson(body); // raw line breaks inside strings, or a reply cut off by max_tokens
     if (v === undefined) throw Object.assign(new Error("invalid_json"), { code: "invalid_json", text });
     return v;
   }
@@ -9134,13 +9174,13 @@
     edFixCtl = new AbortController(); edFixPending = null;
     $("edFix").disabled = true; $("edFixStat").textContent = "改稿中…"; $("edFixPreview").hidden = true;
     try {
-      const v = await completeJson(edFixPrompt(d, note, $("edFixScope").value), { signal: edFixCtl.signal, tier: state.settings.tier, maxTokens: 12000 });
+      const v = await completeJson(edFixPrompt(d, note, $("edFixScope").value), { signal: edFixCtl.signal, tier: state.settings.tier, maxTokens: 16000 });
       const changes = edFixDiff(d, v && typeof v === "object" ? v : {});
-      if (!changes.length) { $("edFixStat").textContent = "模型没有改任何地方，换个说法再试"; return; }
+      if (!changes.length) { $("edFixStat").textContent = v && v.__truncated ? "模型的回答被截断了，能用的部分里没有改动；把范围选小一点再试" : "模型没有改任何地方，换个说法再试"; return; }
       edFixPending = changes; renderEdFixPreview(changes, v.summary);
-      $("edFixStat").textContent = `建议改 ${changes.length} 处，看看再决定`;
+      $("edFixStat").textContent = v && v.__truncated ? `回答被截断，只拿到前面 ${changes.length} 处（范围选小一点、或把设置里的 max_tokens 调大能拿全）` : `建议改 ${changes.length} 处，看看再决定`;
     } catch (e) {
-      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) $("edFixStat").textContent = "失败：" + (e && e.message ? e.message : e);
+      if (!(e && (e.name === "AbortError" || e.code === "cancelled"))) $("edFixStat").textContent = e && e.code === "invalid_json" ? "失败：模型回的不是 JSON，再点一次试试；还不行就把范围选小一点" : "失败：" + (e && e.message ? e.message : e);
     } finally { edFixCtl = null; $("edFix").disabled = false; }
   }
   function edFixApply() {
