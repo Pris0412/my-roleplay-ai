@@ -464,8 +464,8 @@
   .composer.reading:not(.open) { padding: 8px 20px 10px; }
   .composer.reading:not(.open) .composer-bar, .composer.reading:not(.open) .snips, .composer.reading:not(.open) .ideas, .composer.reading:not(.open) .hint { display: none; }
   .composer.reading .read-pill { display: inline-flex; }
-  .read-pill { display: none; align-self: flex-end; padding: 6px 8px; font-size: 14px; line-height: 1; opacity: 0.7; }
-  .read-pill:hover { opacity: 1; }
+  .read-pill { display: none; padding: 4px 8px; font-size: 11px; line-height: 1.2; white-space: nowrap; color: var(--muted); }
+  .read-pill:hover { color: var(--text); border-color: var(--accent); }
   .composer-bar #readToggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
   .composer-inner {
     max-width: var(--read-w, 860px); margin: 0 auto;
@@ -1265,10 +1265,10 @@
           <div class="plus-menu" id="plusMenu" hidden></div>
         </div>
         <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
-        <button class="btn ghost read-pill" id="readOff" type="button" title="退出阅读模式" hidden>📖</button>
         <div class="send-col">
           <button class="btn primary" id="send">发送</button>
           <button class="btn danger" id="stop" hidden>停止</button>
+          <button class="btn ghost read-pill" id="readOff" type="button" title="阅读模式开着：点一下退出，工具条和快捷符号回来" hidden>📖 退出</button>
         </div>
       </div>
       <div class="hint">
