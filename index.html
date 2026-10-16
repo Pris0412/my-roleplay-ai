@@ -460,12 +460,13 @@
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     backdrop-filter: blur(10px);
   }
-  .composer-open { display: none; max-width: var(--read-w, 860px); margin: 0 auto; }
-  .composer-open .btn { width: 100%; padding: 8px; font-size: 14px; background: var(--accent-soft); color: var(--text); border-color: var(--line-strong); }
-  .composer-open .btn:hover { border-color: var(--accent); }
-  .composer.collapsed { padding: 6px 20px 8px; }
-  .composer.collapsed > *:not(.composer-open) { display: none; }
-  .composer.collapsed .composer-open { display: block; }
+  /* reading mode: only the input row stays; the tool rows come back while the box is focused or has text */
+  .composer.reading:not(.open) { padding: 8px 20px 10px; }
+  .composer.reading:not(.open) .composer-bar, .composer.reading:not(.open) .snips, .composer.reading:not(.open) .ideas, .composer.reading:not(.open) .hint { display: none; }
+  .composer.reading .read-pill { display: inline-flex; }
+  .read-pill { display: none; align-self: flex-end; padding: 6px 8px; font-size: 14px; line-height: 1; opacity: 0.7; }
+  .read-pill:hover { opacity: 1; }
+  .composer-bar #readToggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
   .composer-inner {
     max-width: var(--read-w, 860px); margin: 0 auto;
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: end;
@@ -1247,7 +1248,7 @@
         <span class="spacer"></span>
         <button class="btn" id="ctxBtn" title="上下文用量 / 隐藏楼层 / 记忆索引">🧠 上下文 —</button>
         <button class="btn" id="inspire" title="按你的人设和当前剧情，替你起草几条回复">✨ 灵感</button>
-        <button class="btn ghost" id="composerHide" title="暂时收起回复栏，多留一点地方看正文">⌄ 收起</button>
+        <button class="btn ghost" id="readToggle" title="阅读模式：收起工具条和快捷符号，只留一行输入框；点进输入框时自动展开，发完又收回去">📖 阅读模式</button>
       </div>
       <div class="ideas" id="ideas" hidden></div>
       <div class="snips" id="snips"></div>
@@ -1264,6 +1265,7 @@
           <div class="plus-menu" id="plusMenu" hidden></div>
         </div>
         <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
+        <button class="btn ghost read-pill" id="readOff" type="button" title="退出阅读模式" hidden>📖</button>
         <div class="send-col">
           <button class="btn primary" id="send">发送</button>
           <button class="btn danger" id="stop" hidden>停止</button>
@@ -1272,9 +1274,6 @@
       <div class="hint">
         <span id="hintLeft"></span>
         <span id="hintRight"></span>
-      </div>
-      <div class="composer-open">
-        <button class="btn" id="composerShow">✏️ 打开回复栏</button>
       </div>
     </div>
   </main>
@@ -2951,7 +2950,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.94"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.95"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -10316,9 +10315,28 @@
     ta.style.height = "auto";
     ta.style.height = Math.min(200, ta.scrollHeight) + "px";
   }
-  // collapse the whole reply area; the way back is a full-width button that cannot be missed
-  $("composerHide").onclick = () => { $("composer").classList.add("collapsed"); };
-  $("composerShow").onclick = () => { $("composer").classList.remove("collapsed"); autosize($("input")); $("input").focus(); };
+  // reading mode: the tool rows fold away so the story gets the room; they unfold while you are typing
+  function applyReadMode() {
+    const on = !!state.settings.readMode;
+    $("composer").classList.toggle("reading", on);
+    $("readToggle").classList.toggle("on", on); $("readToggle").textContent = on ? "📖 阅读模式 · 开" : "📖 阅读模式";
+    $("readOff").hidden = !on;
+    if (!on) $("composer").classList.remove("open");
+    composerOpenCheck();
+  }
+  function composerOpenCheck() {
+    if (!state.settings.readMode) return;
+    const ta = $("input");
+    const open = document.activeElement === ta || !!ta.value.trim() || (document.activeElement && $("composer").contains(document.activeElement) && document.activeElement !== $("readOff"));
+    $("composer").classList.toggle("open", open);
+    if (open) autosize(ta);
+  }
+  $("readToggle").onclick = () => { state.settings.readMode = !state.settings.readMode; save(); $("readToggle").blur(); applyReadMode(); };
+  $("readOff").onclick = () => { state.settings.readMode = false; save(); applyReadMode(); };
+  $("input").addEventListener("focus", composerOpenCheck);
+  $("composer").addEventListener("focusout", () => { setTimeout(composerOpenCheck, 120); });
+  $("input").addEventListener("input", () => { if (state.settings.readMode && !$("composer").classList.contains("open")) composerOpenCheck(); });
+  applyReadMode();
   let scrim = null;
   function openOverlay(node) {
     node.classList.add("open");
