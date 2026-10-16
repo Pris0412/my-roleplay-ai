@@ -2951,7 +2951,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.96"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.97"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4779,7 +4779,7 @@
     const w = wealthOn(c) && wealthText().trim() ? [wealthText().split("\n").map((x) => x.trim()).filter(Boolean).join(" ")] : [];
     return [...base, ...w].map((x) => x.replace(/\{\{user\}\}/gi, u));
   }
-  const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白用 **……** 包起来（页面显示成粗体），不要写「内心OS：」这类标签。";
+  const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。";
   function styleRules(c, u) {
     return [FORMAT_RULE, ...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
   }
@@ -9850,7 +9850,7 @@
     return parts.join("\n");
   }
   function fieldFixPrompt(title, current, note, context, kind, earlier) {
-    const extra = kind === "greeting" ? `这是开场白：${WIZ_GREET_LEN}，用户一律写 {{user}}，要写满一个完整的场面；叙述用正常文字、不加星号，对白用「」，主角心里想的、没说出口的内心 OS 用 **……** 包起来。` : kind === "alt" ? "这一栏是多条备选开场白，条与条之间用单独一行 --- 分开，保留这个格式。" : kind === "entry" ? "这是世界书的一个条目，触发后原样带给模型，写设定不写剧情。" : "";
+    const extra = kind === "greeting" ? `这是开场白：${WIZ_GREET_LEN}，用户一律写 {{user}}，要写满一个完整的场面；叙述用正常文字、不加星号，对白用「」，主角心里想的、没说出口的内心 OS 整段用星号包起来，写成 *内心OS：……* 这样。` : kind === "alt" ? "这一栏是多条备选开场白，条与条之间用单独一行 --- 分开，保留这个格式。" : kind === "entry" ? "这是世界书的一个条目，触发后原样带给模型，写设定不写剧情。" : "";
     return [
       `你是资深的角色扮演卡作者。下面是一张角色卡里的一栏，请按用户的意见改这一栏。${WIZ_USER_RULE} ${WORLD_RULE}`,
       context ? `\n## 参照（整张卡的概要，只用来保持一致，不要改它）\n${context}` : "",
@@ -11699,7 +11699,7 @@
 - emoji：一个代表他的 emoji
 - tags：题材 / 类型标签列表（3–5 个）
 - scenario：开场场景（${u} 和主角此刻在哪、为什么碰上，40–80 字）
-- greetings：2 个不同的开场白（主角视角第一条消息，叙述用正常文字、不加星号，对白用「」，主角心里想的、没说出口的内心 OS 用 **……** 包起来，${WIZ_GREET_LEN}，有场景、有人、有一件正在发生的事，结尾留给 ${u} 接话，两个相遇方式要不同）
+- greetings：2 个不同的开场白（主角视角第一条消息，叙述用正常文字、不加星号，对白用「」，主角心里想的、没说出口的内心 OS 整段用星号包起来，写成 *内心OS：……* 这样，${WIZ_GREET_LEN}，有场景、有人、有一件正在发生的事，结尾留给 ${u} 接话，两个相遇方式要不同）
 - rules：写这个角色时的 3–6 条注意事项（怎么写他才像他；家境好的一定包含富人写法）
 - status：{地点, 时间, 心情, 穿着}（开场那一刻的）
 只输出 JSON：{"name":"","sections":{"基本":"yaml","外貌":"yaml",...},"tag":"","emoji":"","tags":[],"scenario":"","greetings":[],"rules":"","status":{}}`;
@@ -11761,7 +11761,7 @@ userRoles：给 ${u} 的 2–3 个「在这个故事里的身份」选项 {title
     const task = mode === "reroll"
       ? `## 任务：重写第 ${idx + 1} 条开场白\n写一个全新的开场白：相遇方式、地点、正在发生的事都和现有的不同，人设、场景设定、解读不变。`
       : `## 任务：按意见修改第 ${idx + 1} 条开场白\n意见：${note}\n意见是小改（换个细节、改一句话、调语气）就只改提到的部分，其余段落原样保留；意见是大改（换相遇方式、换场景）就按意见重写，但人设、世界和解读不变。`;
-    return wizCommonHead(seeds) + `\n\n## 主角和世界（与之自洽）\n${brief}\n\n## 现有的开场白\n第 ${idx + 1} 条（要处理的）：\n${ch.greetings[idx] || "（空）"}\n${others ? `其他几条（别重复它们的相遇方式）：\n${others}` : ""}\n\n${task}\n要求：主角视角的第一条消息，叙述用正常文字、不加星号，对白用「」，主角心里想的、没说出口的内心 OS 用 **……** 包起来，有场景、有人、有一件正在发生的事，${WIZ_GREET_LEN}，结尾留给 ${u} 接话。\n只输出 JSON：{"greeting":"开场白全文"}`;
+    return wizCommonHead(seeds) + `\n\n## 主角和世界（与之自洽）\n${brief}\n\n## 现有的开场白\n第 ${idx + 1} 条（要处理的）：\n${ch.greetings[idx] || "（空）"}\n${others ? `其他几条（别重复它们的相遇方式）：\n${others}` : ""}\n\n${task}\n要求：主角视角的第一条消息，叙述用正常文字、不加星号，对白用「」，主角心里想的、没说出口的内心 OS 整段用星号包起来，写成 *内心OS：……* 这样，有场景、有人、有一件正在发生的事，${WIZ_GREET_LEN}，结尾留给 ${u} 接话。\n只输出 JSON：{"greeting":"开场白全文"}`;
   }
   function wizSnapshot() { return JSON.parse(JSON.stringify({ result: wiz.result, reading: wiz.seeds.reading || "" })); }
   // safety net: should the model still write the current persona's name, it becomes {{user}} before anything is shown or saved
