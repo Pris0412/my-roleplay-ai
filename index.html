@@ -460,12 +460,13 @@
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     backdrop-filter: blur(10px);
   }
-  /* reading mode: only the input row stays; the tool rows come back while the box is focused or has text */
-  .composer.reading:not(.open) { padding: 8px 20px 10px; }
-  .composer.reading:not(.open) .composer-bar, .composer.reading:not(.open) .snips, .composer.reading:not(.open) .ideas, .composer.reading:not(.open) .hint { display: none; }
-  .composer.reading .read-pill { display: inline-flex; }
-  .read-pill { display: none; padding: 4px 8px; font-size: 11px; line-height: 1.2; white-space: nowrap; color: var(--muted); }
-  .read-pill:hover { color: var(--text); border-color: var(--accent); }
+  /* reading mode: only the input row stays; 📖 next to ＋ switches it, nothing pops up while typing */
+  .composer.reading { padding: 8px 20px 10px; }
+  .composer.reading .composer-bar, .composer.reading .snips, .composer.reading .ideas, .composer.reading .hint { display: none; }
+  .plus-wrap { display: flex; gap: 6px; }
+  .read-btn { font-size: 18px; opacity: 0.75; }
+  .read-btn:hover { opacity: 1; }
+  .read-btn.on { background: var(--accent-soft); border-color: var(--accent); opacity: 1; }
   .composer-bar #readToggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
   .composer-inner {
     max-width: var(--read-w, 860px); margin: 0 auto;
@@ -1263,12 +1264,12 @@
         <div class="plus-wrap">
           <button class="btn plus-btn" id="plusBtn" title="更多玩法" aria-label="更多玩法">＋</button>
           <div class="plus-menu" id="plusMenu" hidden></div>
+          <button class="btn plus-btn read-btn" id="readBtn" type="button" title="阅读模式：收起工具条和快捷符号，只留输入框；再点一下恢复" aria-label="阅读模式">📖</button>
         </div>
         <textarea id="input" rows="1" placeholder="说点什么… （Enter 发送，Shift+Enter 换行）"></textarea>
         <div class="send-col">
           <button class="btn primary" id="send">发送</button>
           <button class="btn danger" id="stop" hidden>停止</button>
-          <button class="btn ghost read-pill" id="readOff" type="button" title="阅读模式开着：点一下退出，工具条和快捷符号回来" hidden>📖 退出</button>
         </div>
       </div>
       <div class="hint">
@@ -2950,7 +2951,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.95"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v21.96"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4778,8 +4779,9 @@
     const w = wealthOn(c) && wealthText().trim() ? [wealthText().split("\n").map((x) => x.trim()).filter(Boolean).join(" ")] : [];
     return [...base, ...w].map((x) => x.replace(/\{\{user\}\}/gi, u));
   }
+  const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白用 **……** 包起来（页面显示成粗体），不要写「内心OS：」这类标签。";
   function styleRules(c, u) {
-    return [...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
+    return [FORMAT_RULE, ...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
   }
   const PHONE_STYLE_RULE = "不用破折号「——」，不用「一丝 / 一抹 / 几分」这类模糊量词。";
   function phoneStyleRule(c) { return styleOff(c) ? "" : PHONE_STYLE_RULE; }
@@ -10320,22 +10322,12 @@
     const on = !!state.settings.readMode;
     $("composer").classList.toggle("reading", on);
     $("readToggle").classList.toggle("on", on); $("readToggle").textContent = on ? "📖 阅读模式 · 开" : "📖 阅读模式";
-    $("readOff").hidden = !on;
-    if (!on) $("composer").classList.remove("open");
-    composerOpenCheck();
+    $("readBtn").classList.toggle("on", on); $("readBtn").title = on ? "阅读模式开着：点一下恢复工具条和快捷符号" : "阅读模式：收起工具条和快捷符号，只留输入框；再点一下恢复";
+    autosize($("input"));
   }
-  function composerOpenCheck() {
-    if (!state.settings.readMode) return;
-    const ta = $("input");
-    const open = document.activeElement === ta || !!ta.value.trim() || (document.activeElement && $("composer").contains(document.activeElement) && document.activeElement !== $("readOff"));
-    $("composer").classList.toggle("open", open);
-    if (open) autosize(ta);
-  }
-  $("readToggle").onclick = () => { state.settings.readMode = !state.settings.readMode; save(); $("readToggle").blur(); applyReadMode(); };
-  $("readOff").onclick = () => { state.settings.readMode = false; save(); applyReadMode(); };
-  $("input").addEventListener("focus", composerOpenCheck);
-  $("composer").addEventListener("focusout", () => { setTimeout(composerOpenCheck, 120); });
-  $("input").addEventListener("input", () => { if (state.settings.readMode && !$("composer").classList.contains("open")) composerOpenCheck(); });
+  const toggleReadMode = () => { state.settings.readMode = !state.settings.readMode; save(); applyReadMode(); };
+  $("readToggle").onclick = () => { $("readToggle").blur(); toggleReadMode(); };
+  $("readBtn").onclick = () => { $("readBtn").blur(); toggleReadMode(); };
   applyReadMode();
   let scrim = null;
   function openOverlay(node) {
