@@ -2951,7 +2951,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v21.99"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.0"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4715,10 +4715,10 @@
 
   function voiceRule(c, u) {
     switch (state.settings.voice) {
-      case "describe": return `回复里要从 ${c.name} 的视角观察并写出 ${u} 此刻的表情、动作和神态（每次至少带一两处），作为 ${c.name} 反应的依据；但绝不替 ${u} 说新的话、做决定或推进 ${u} 没提到的行动。`;
-      case "restate": return `回复开头先引用或复述一遍 ${u} 刚才说的话（可以用 ${c.name} 的口吻转述），再接着回应；只复述 ${u} 说过的原话，绝不替 ${u} 说没说过的话或做决定，也不描写 ${u} 的动作和表情。`;
-      case "expand": return `每次回复开头，先用一两句话从 ${c.name} 的视角把 ${u} 刚才说的话和做的事重新描一遍，并补上合理的表情、动作和语气细节（不改变原意），然后才轮到 ${c.name} 回应；不要替 ${u} 说新的话、做重大决定或推进 ${u} 没提到的行动。`;
-      case "steal": return `可以替 ${u} 说话和行动：在回复里按 ${u} 的人设和当前情境，替 ${u} 补一两句合理的对白或小动作，让剧情往前走，${c.name} 也可以直接接着这些话反应；但改变剧情走向的大事（答应或拒绝关键请求、表白、离开、动手等）留给 ${u} 自己决定，不要替 ${u} 做。`;
+      case "describe": return `回复里要从 ${c.name} 的视角观察并写出 ${u} 此刻的表情、动作和神态（每次至少带一两处），作为 ${c.name} 反应的依据；写到 ${u} 一律用第二人称「你」（「你仰起脸看他」），不用名字也不用「她 / 他」；但绝不替 ${u} 说新的话、做决定或推进 ${u} 没提到的行动。`;
+      case "restate": return `回复开头先引用或复述一遍 ${u} 刚才说的话（可以用 ${c.name} 的口吻转述），再接着回应；写到 ${u} 一律用第二人称「你」（「你说……」），不用名字也不用「她 / 他」；只复述 ${u} 说过的原话，绝不替 ${u} 说没说过的话或做决定，也不描写 ${u} 的动作和表情。`;
+      case "expand": return `每次回复开头，先用一两句话从 ${c.name} 的视角把 ${u} 刚才说的话和做的事重新描一遍，并补上合理的表情、动作和语气细节（不改变原意），然后才轮到 ${c.name} 回应；写到 ${u} 一律用第二人称「你」（「你仰起脸看他，手指勾着餐巾」），不用名字也不用「她 / 他」；不要替 ${u} 说新的话、做重大决定或推进 ${u} 没提到的行动。`;
+      case "steal": return `可以替 ${u} 说话和行动：在回复里按 ${u} 的人设和当前情境，替 ${u} 补一两句合理的对白或小动作，让剧情往前走，${c.name} 也可以直接接着这些话反应；写到 ${u} 一律用第二人称「你」，不用名字也不用「她 / 他」；但改变剧情走向的大事（答应或拒绝关键请求、表白、离开、动手等）留给 ${u} 自己决定，不要替 ${u} 做。`;
       case "none": return "";
       default: return `描写 ${c.name} 的言行、周围环境，以及在场其他人（NPC、路人）的言行；绝不替 ${u} 说话、做决定，也不描写 ${u} 的动作、表情或内心。`;
     }
@@ -4779,7 +4779,7 @@
     const w = wealthOn(c) && wealthText().trim() ? [wealthText().split("\n").map((x) => x.trim()).filter(Boolean).join(" ")] : [];
     return [...base, ...w].map((x) => x.replace(/\{\{user\}\}/gi, u));
   }
-  const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。";
+  const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。叙述里写到 {{user}} 一律用第二人称「你」，不用名字也不用「她 / 他」；角色和其他人照旧用名字和第三人称。";
   const CAST_RULE = "在场的人，不管是通讯录里的还是路人，都要有自己的动作和整段对白，可以主动挑事、推动情节，不只是接主角的话；路人也可以有名字、有自己的事，不是背景板。";
   function styleRules(c, u) {
     return [FORMAT_RULE, CAST_RULE, ...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
