@@ -2951,7 +2951,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.0"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.1"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4361,9 +4361,15 @@
     $("headScene").textContent = sub(c.scenario || c.tag || "", c);
   }
 
+  // a re-render only jumps to the bottom when there is something new at the bottom (or you were already there); hiding / deleting / editing a floor keeps your place
+  let lastTail = "";
   function renderMessages() {
     const c = active();
     const box = $("messages");
+    const tail = c ? `${c.id}:${c.chat.length ? c.chat[c.chat.length - 1].id : ""}` : ""; // the last floor's id: a new floor changes it, hiding or deleting one in the middle does not
+    const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    const prevTop = box.scrollTop;
+    const stick = tail !== lastTail || wasAtBottom; lastTail = tail;
     box.innerHTML = "";
     if (!c) return;
     let run = null, runKey = null;
@@ -4380,8 +4386,8 @@
       box.appendChild(messageNode(m, c, i));
     });
     flush();
-    box.scrollTo({ top: box.scrollHeight, behavior: "instant" });
-    stickUntil = Date.now() + 2500;
+    if (stick) { box.scrollTo({ top: box.scrollHeight, behavior: "instant" }); stickUntil = Date.now() + 2500; }
+    else box.scrollTop = prevTop;
     const scl = sceneNpcs(c);
     const sc = scl[0] || null;
     $("modeBanner").hidden = !(c.phone && c.phone.open) && !sc;
