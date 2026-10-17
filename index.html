@@ -4387,7 +4387,7 @@
     });
     flush();
     if (stick) { box.scrollTo({ top: box.scrollHeight, behavior: "instant" }); stickUntil = Date.now() + 2500; }
-    else box.scrollTop = prevTop;
+    else box.scrollTo({ top: prevTop, behavior: "instant" }); // instant: the list scrolls smoothly by default and an animated restore drifts
     const scl = sceneNpcs(c);
     const sc = scl[0] || null;
     $("modeBanner").hidden = !(c.phone && c.phone.open) && !sc;
