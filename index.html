@@ -2951,7 +2951,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.1"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.2"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4786,7 +4786,7 @@
     return [...base, ...w].map((x) => x.replace(/\{\{user\}\}/gi, u));
   }
   const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。叙述里写到 {{user}} 一律用第二人称「你」，不用名字也不用「她 / 他」；角色和其他人照旧用名字和第三人称。";
-  const CAST_RULE = "在场的人，不管是通讯录里的还是路人，都要有自己的动作和整段对白，可以主动挑事、推动情节，不只是接主角的话；路人也可以有名字、有自己的事，不是背景板。";
+  const CAST_RULE = "在场的人，不管是通讯录里的还是路人，都要有自己的动作和整段对白，可以主动挑事、推动情节，不只是接主角的话；路人也可以有名字、有自己的事，不是背景板。这只管已经在场的人：场景里没有别人就不用硬加，两个人独处就写独处，不要为了热闹安排路人进来。";
   function styleRules(c, u) {
     return [FORMAT_RULE, CAST_RULE, ...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
   }
