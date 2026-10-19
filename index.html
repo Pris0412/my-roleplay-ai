@@ -707,6 +707,8 @@
   .pf-card .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(0,0,0,0.08); overflow: hidden; margin: 0 8px; }
   .pf-card .bar span { display: block; height: 100%; background: #34c759; }
   .pf-away { display: flex; flex-direction: column; gap: 6px; padding: 0 14px 12px; }
+  .pf-away .line { display: flex; gap: 6px; align-items: center; }
+  .pf-away .line input { flex: 1; min-width: 0; }
   .pf-away .sb { font-size: 12px; color: var(--muted); }
   .pf-away button { align-self: flex-start; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--raised); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
   .pf-away button.hot { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -2961,7 +2963,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.4"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.5"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -6517,9 +6519,10 @@
       hd.appendChild(el("span", "tg", npcAppeared(c, n) ? "已出场" : "未出场"));
       if (n.away) { const aw = el("span", "tg", `暂离${n.awayNote ? ` · ${n.awayNote}` : ""}`); aw.style.color = "var(--accent)"; aw.style.borderColor = "var(--accent)"; hd.appendChild(aw); }
       const ops = el("div", "ops");
+      const awb = el("button", "btn ghost", n.away ? "🏠 回来了" : "🚪 暂不出场"); awb.title = n.away ? "让 TA 回来" : "在过自己的生活，剧情里不会自己冒出来；要填原因去手机个人页或编辑"; awb.onclick = () => { setAway(c, n, !n.away, ""); renderRelTable(c); };
       const ed = el("button", "btn ghost", "编辑"); ed.onclick = () => openNpcEditor(n);
       const del = el("button", "btn ghost danger", "删除"); del.onclick = async () => { npcEditing = n; await deleteNpc(); renderRelTable(c); };
-      ops.append(ed, del); hd.appendChild(ops);
+      ops.append(awb, ed, del); hd.appendChild(ops);
       card.appendChild(hd);
       if (n.personality || n.speech) { const pl = el("div", "help", [n.personality ? `性格：${n.personality}` : "", n.speech ? `说话：${n.speech}` : ""].filter(Boolean).join("　")); pl.style.margin = "0"; card.appendChild(pl); }
       if (n.voice) { const ml = el("div", "help", `💭 ${n.voice}`); ml.style.margin = "0"; ml.style.color = "var(--text)"; card.appendChild(ml); }
@@ -6805,10 +6808,11 @@
       const right = el("div"); right.style.cssText = "display:flex;align-items:center;gap:4px";
       if (n.away) { const aw = el("span", "tg away", "暂离"); aw.title = n.awayNote ? `暂不出场：${n.awayNote}` : "暂不出场"; right.appendChild(aw); }
       right.appendChild(el("span", "tg" + (npcAppeared(c, n) ? " on" : ""), npcAppeared(c, n) ? "已出场" : "未出场"));
+      const awb = el("button", "ed" + (n.away ? " on" : ""), n.away ? "🏠 回来" : "🚪 暂离"); awb.title = n.away ? `${n.name} 暂不出场${n.awayNote ? `（${n.awayNote}）` : ""}：点一下让 TA 回来` : `让 ${n.name} 暂不出场：在过自己的生活，剧情里不会自己冒出来；你提到 TA 就自动回来。要填原因去个人页`; awb.onclick = (e) => { e.stopPropagation(); setAway(c, n, !n.away, ""); renderPhone(); };
       const meet = el("button", "ed", "当面"); meet.title = `和 ${n.name} 单独走一段当面剧情，${c.name} 不在场（可以再多选几个人）`; meet.onclick = (e) => { e.stopPropagation(); openSceneChooser([n.id]); };
       const ed = el("button", "ed", "✎"); ed.title = "编辑"; ed.onclick = (e) => { e.stopPropagation(); openNpcEditor(n); };
       const pk = el("button", "ed", "📱"); pk.title = `翻 ${n.name} 的手机`; pk.onclick = (e) => { e.stopPropagation(); openPeek(n.id); };
-      right.append(meet, ed, pk);
+      right.append(awb, meet, ed, pk);
       row.append(a, t, right);
       row.onclick = () => selectContact(n.id);
       list.appendChild(row);
@@ -6879,28 +6883,27 @@
     mk("💬 私聊", () => { if (o.isChar) selectContact(null); else openPhoneWith(o.id); });
     if (o.isChar) mk("✎ 编辑角色", () => openEditor(c)); else mk("🚶 当面", () => openSceneChooser([o.id]));
     if (!o.isChar) mk("✎ 编辑", () => openNpcEditor(o));
-    mk(`📱 翻 ${o.name} 的手机`, () => openPeek(o.id), true);
-    wrap.appendChild(acts);
+    const aw = el("div", "pf-away");
     if (!o.isChar) {
-      const aw = el("div", "pf-away");
       if (o.away) {
-        aw.appendChild(el("div", "sb", `🚪 暂不出场${o.awayNote ? ` · ${o.awayNote}` : ""} · 剧情里不会自己冒出来，你叫 TA 就回来`));
-        const back = el("button", null, "🏠 回来了"); back.type = "button"; back.onclick = () => { setAway(c, o, false); renderPhone(); };
-        aw.appendChild(back);
+        mk("🏠 回来了", () => { setAway(c, o, false); renderPhone(); });
+        aw.appendChild(el("div", "sb", `🚪 现在暂不出场${o.awayNote ? ` · ${o.awayNote}` : "（在过自己的生活）"} · 剧情里不会自己冒出来，你提到 TA 或叫 TA 就回来`));
       } else {
-        const go = el("button", null, "🚪 暂不出场"); go.type = "button";
-        go.onclick = () => {
+        mk("🚪 暂不出场", () => {
           aw.innerHTML = "";
-          const inp = document.createElement("input"); inp.placeholder = "原因，可不填：在自己家 / 去伦敦了 / 住院"; inp.maxLength = 60;
+          aw.appendChild(el("div", "sb", "原因可不填：在自己家 / 去伦敦了 / 住院。标了之后剧情里 TA 不会自己冒出来，你提到 TA 就自动回来。"));
+          const line = el("div", "line");
+          const inp = document.createElement("input"); inp.placeholder = "原因（可不填）"; inp.maxLength = 60;
           const ok = el("button", "hot", "确定"); ok.type = "button"; ok.onclick = () => { setAway(c, o, true, inp.value); renderPhone(); };
           const no = el("button", null, "取消"); no.type = "button"; no.onclick = () => renderPhone();
           inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ok.click(); } if (e.key === "Escape") { e.stopPropagation(); renderPhone(); } });
-          aw.append(inp, ok, no); inp.focus();
-        };
-        aw.appendChild(go);
+          line.append(inp, ok, no); aw.appendChild(line); inp.focus();
+        });
       }
-      wrap.appendChild(aw);
     }
+    mk(`📱 翻 ${o.name} 的手机`, () => openPeek(o.id), true);
+    wrap.appendChild(acts);
+    if (aw.childNodes.length) wrap.appendChild(aw);
     body.appendChild(wrap);
   }
   // ----- peeking at someone's phone: god's-eye view, generated app by app, never enters the story -----
