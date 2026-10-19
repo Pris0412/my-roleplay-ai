@@ -706,7 +706,8 @@
   .pf-card .r .k { color: #8e8e93; flex: 0 0 auto; }
   .pf-card .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(0,0,0,0.08); overflow: hidden; margin: 0 8px; }
   .pf-card .bar span { display: block; height: 100%; background: #34c759; }
-  .pf-away { display: flex; flex-direction: column; gap: 6px; padding: 0 14px 12px; }
+  .pf-away { display: flex; flex-direction: column; gap: 6px; padding: 0 14px; }
+  .pf-away:not(:empty) { padding-bottom: 12px; }
   .pf-away .line { display: flex; gap: 6px; align-items: center; }
   .pf-away .line input { flex: 1; min-width: 0; }
   .pf-away .sb { font-size: 12px; color: var(--muted); }
@@ -6903,7 +6904,7 @@
     }
     mk(`📱 翻 ${o.name} 的手机`, () => openPeek(o.id), true);
     wrap.appendChild(acts);
-    if (aw.childNodes.length) wrap.appendChild(aw);
+    if (!o.isChar) wrap.appendChild(aw); // stays attached (empty until the button fills it)
     body.appendChild(wrap);
   }
   // ----- peeking at someone's phone: god's-eye view, generated app by app, never enters the story -----
