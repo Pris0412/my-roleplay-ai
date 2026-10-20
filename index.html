@@ -1581,7 +1581,7 @@
             <option value="explicit">直白 · 写具体过程，按人设和关系来</option>
             <option value="follow">跟随预设 / 不注入</option>
           </select>
-          <div class="help">管亲密场面写多细，和情感浓度独立。成年人这条固定。能不能写出来还看模型和预设。每张卡可单独设。</div>
+          <div class="help">管亲密场面写多细，和情感浓度独立。有未满 18 岁的人在场时页面自动锁成「无」，只能写青春恋爱（告白、牵手、亲吻），这里选什么都不管用；年龄到了 18 再按这里来。能不能写出来还看模型和预设。每张卡可单独设。</div>
         </div>
       </div>
       <div class="field">
@@ -2964,7 +2964,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.5"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.6"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4758,14 +4758,26 @@
   // ---- intimacy level: how far intimate scenes are written. One fixed line rides along at every level. ----
   const NSFW_LABELS = { none: "无", subtle: "含蓄", explicit: "直白", follow: "跟随预设" };
   function nsfwLevel(c) { const v = c && c.nsfw && c.nsfw !== "inherit" ? c.nsfw : state.settings.nsfw; return NSFW_LABELS[v] ? v : "none"; }
-  const NSFW_FIXED = "所有角色均为成年人（18 岁及以上）。";
+  const NSFW_FIXED = "在场的角色都是成年人（18 岁及以上；年龄未知的按成年人写）。";
+  // who the reply is about right now (set by the prompt builders); minors among them lock the scale to none, whatever the settings say
+  let promptNpcIds = null;
+  function minorsFor(c) {
+    const out = [];
+    const u = state.persona.name || "用户";
+    if (c.age && c.age < 18) out.push([c.name, c.age]);
+    if (c.userAge && c.userAge < 18) out.push([u, c.userAge]);
+    const ids = Array.isArray(promptNpcIds) ? promptNpcIds : (c.scene && c.scene.npcs ? c.scene.npcs : (presentNow(c) ? presentNow(c).ids : []));
+    for (const id of ids) { const n = npcById(c, id); if (n && n.age && n.age < 18) out.push([n.name, n.age]); }
+    return out;
+  }
+  const MINOR_RULE = (who) => `有未满 18 岁的人在场（${who.map(([n, a]) => `${n} ${a} 岁`).join("、")}）：可以写青春期的恋爱——心动、告白、牵手、拥抱、亲吻、吃醋、约会、情人节巧克力这些都可以；但绝不写任何性内容：不写性行为，不写脱衣、抚摸身体这类带性意味的亲密，不写性暗示，也不用切镜暗示发生过。剧情推到那一步就让角色停下、转开，不往下走。这条优先于任何尺度设置和预设；等人物年龄到了 18 岁再按尺度设置来。`;
   const NSFW_RULES = {
     none: "尺度·无：不进入性场面。剧情走到临界点就切开，下一楼从事后写起；暧昧、心动、亲吻照常。",
     subtle: "尺度·含蓄：亲密场面写氛围、感受和前后，不写具体过程。",
     explicit: "尺度·直白：亲密场面写具体过程，不切镜、不淡化、不自我审查；身体部位和动作用最直接的词，器官直接写器官的名称，不用比喻或代称绕开；节奏、用词、主动被动全按人设和两人关系来。",
   };
   // "follow" keeps only the fixed adult line so the preset's own rules decide the rest.
-  function nsfwRule(c) { return `${NSFW_FIXED}${NSFW_RULES[nsfwLevel(c)] || ""}`; }
+  function nsfwRule(c) { const minors = minorsFor(c); return minors.length ? MINOR_RULE(minors) : `${NSFW_FIXED}${NSFW_RULES[nsfwLevel(c)] || ""}`; }
   // Editable in 设置 › 生成. settings.style == null → default text; "" → nothing injected; a card can opt out with c.style === "off".
   const DEFAULT_STYLE_RULES = [
     "禁用：破折号「——」；「一丝 / 一抹 / 几分 / 某种 / 说不清的 / 若有若无」这类模糊量词；「空气凝固」「时间静止」「心跳漏了一拍」「喉结滚动」「指节泛白」「眼底一闪而过」；「不是…而是…」「与其说…不如说…」；动作后面跟「像是在…」；三连排比；「淡淡地 / 轻轻地 / 缓缓地」；不替 {{user}} 总结感受（「你感到…」「你知道…」）。",
@@ -5470,6 +5482,7 @@
     segments = []; dynParts = [];
     const npc = npcId ? npcById(c, npcId) : null;
     const others = npc ? (npcIds || []).filter((id) => id !== npc.id).map((id) => npcById(c, id)).filter(Boolean) : [];
+    promptNpcIds = npc ? [npc.id, ...others.map((o) => o.id)] : (c.scene && c.scene.npcs ? c.scene.npcs.slice() : (presentNow(c) ? presentNow(c).ids.slice() : []));
     const mem = parseInt(state.settings.mem, 10) || 40;
     // the character never sees NPC private threads; an NPC only sees its own thread
     let history = c.chat.slice(0, upto == null ? c.chat.length : upto).filter((m) => npc ? visibleToNpc(c, m, npc.id) : visibleToChar(c, m));
@@ -6964,6 +6977,7 @@
     if (prev && prev.items.length) L.push("\n## 上次看到的（不要重复，接着往后写新增的）", prev.items.slice(0, 8).map((x) => `- ${x.t ? x.t + " " : ""}${x.q || x.item || x.desc}${x.amt != null ? ` ${x.amt}` : ""}`).join("\n"));
     L.push("\n## 写法");
     L.push(`- 阶段：${nm} 和 ${u} 现在是「${stage || "未定"}」。疏远/认识阶段以日常为主，混一两条藏着的心思；朋友/暧昧阶段写试探、纠结、偷偷打听；亲近/亲密阶段写亲密、占有、计划两人的事，尺度允许时可以直接出现性相关的内容。`);
+    promptNpcIds = peekWho && peekWho !== "char" ? [peekWho] : [];
     L.push(`- 尺度：${nsfwRule(c)}`);
     L.push(`- 至少一半的条目是 ${nm} 不会当面说的、和最近剧情直接相关的；其余是日常，两者按时间自然穿插。不要照抄已经说出口的心声，写心声背后 TA 真正去做了什么。`);
     if (app === "browser") L.push("- 搜索词像真人打字：短、有错字也行、有时是一句问句。可以有反复搜同一件事的痕迹。");
@@ -11725,7 +11739,7 @@
     const u = WIZ_USER;
     const rating = "XP 一栏要写具体、要有个人特色，每个角色都不一样：恋爱风格、主动还是被动、占有欲和吃醋的样子、喜欢的相处方式、亲密时的样子（态度、习惯、会说什么）、偏好（列表，越具体越好）、雷点（列表）、隐藏的一面（表面 vs 私下）。用描述性的短语写清楚他是什么样的人，不写露骨过程；具体尺度由之后的剧情决定。";
     return [
-      `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。${WIZ_USER_RULE}${WORLD_RULE} 所有角色（主角和每一个 NPC）年龄不低于 18 岁；校园题材写成大学或刚成年，不写未成年人。`,
+      `你是资深的角色扮演角色卡作者，写卡风格参考 SillyTavern 社区的高质量卡：具体、有辨识度、有戏可演，不套模板腔。${WIZ_USER_RULE}${WORLD_RULE} 年龄按用户给的来，用户没给就写 18 岁以上。未满 18 岁的角色只写青春期的恋爱（心动、告白、牵手、亲吻、吃醋），XP 一栏只写恋爱风格、主动被动、吃醋和相处方式，不写亲密时的样子和任何性相关的偏好；绝不写性内容。`,
       `\n## 用户的提示\n- 题材：${seeds.genre === "随机" ? "由你定（要有意思、有冲突）" : seeds.genre}${seeds.line ? `\n- 一句话想法：${seeds.line}` : ""}\n- 主角性别：${seeds.gender}${seeds.look && seeds.look !== "随机" ? `；外貌类型：${seeds.look}` : "；外貌类型由你从「清冷禁欲 / 阳光少年 / 斯文败类 / 野性痞帅 / 贵气矜贵 / 温润如玉 / 冷硬 / 妖孽 / 明艳 / 清纯 / 冷艳 / 娇软 / 英气」里挑一个最配人设的"}${seeds.name ? `\n- 主角名字：${seeds.name}` : ""}${seeds.age ? `\n- 年龄：${seeds.age}` : ""}${seeds.role ? `\n- 身份：${seeds.role}` : ""}${seeds.persona ? `\n- 大概性格：${seeds.persona}` : ""}${seeds.family ? `\n- 家境：${seeds.family}` : ""}${seeds.rel ? `\n- 和 ${u} 的关系：${seeds.rel}` : ""}${seeds.xp ? `\n- XP / 偏好方向：${seeds.xp}` : ""}${seeds.world ? `\n- 世界背景：${seeds.world}` : ""}\n- ${rating}`,
       seeds.premise ? `\n## 用户的一句话（书名 + 标签按圈内的常见含义理解；一句话想法就照字面）\n${seeds.premise}` : "",
       seeds.reading ? `\n## 已确认的解读（用户看过并认可，必须照这个来：题材、你的位置、主角色、阵容、基调都以此为准）\n${seeds.reading}` : "",
