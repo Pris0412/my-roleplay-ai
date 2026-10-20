@@ -428,6 +428,9 @@
   .swipe .btn { padding: 2px 7px; font-size: 13px; line-height: 1; }
   .swipe .count { min-width: 34px; text-align: center; }
   .msg .actions.always { opacity: 1; }
+  .rw-note { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 10px; max-width: var(--read-w, 860px); }
+  .rw-note textarea { width: 100%; font-size: 13px; line-height: 1.5; resize: vertical; min-height: 54px; }
+  .rw-note .line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .msg.user .bubble { background: color-mix(in srgb, var(--user-bubble) var(--bubble-alpha), transparent); }
   .bubble em { color: var(--muted); font-style: italic; }
   .bubble strong { font-weight: 600; }
@@ -2964,7 +2967,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.6"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.7"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4523,6 +4526,25 @@
         for (const [v, t] of opts) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); }
         sel.onchange = () => { const v = sel.value; sel.value = ""; if (v) rewriteLast(v); };
         actions.appendChild(sel);
+        // 按意见改: your own note, small fix or full rewrite, the model sees the previous version
+        const bNote = el("button", "btn ghost", "✎ 按意见改");
+        bNote.title = "写一句意见，让模型按意见改这一楼：小改只动提到的部分，大改就按意见重写（会生成一个新版本，旧版本还在 ‹ › 里）";
+        bNote.onclick = () => {
+          if (busy) return;
+          const old = actions.parentNode && actions.parentNode.querySelector(".rw-note"); if (old) { old.remove(); return; }
+          const box = el("div", "rw-note");
+          const ta = document.createElement("textarea"); ta.rows = 2; ta.placeholder = "例如：他不该这么快答应；把最后一句去掉；加一段他接电话；整段换成在车上发生";
+          const row = el("div", "line");
+          const go = el("button", "btn primary", "改"); go.type = "button";
+          const no = el("button", "btn ghost", "取消"); no.type = "button"; no.onclick = () => box.remove();
+          go.onclick = () => { const note = ta.value.trim(); if (!note) { ta.focus(); return; } box.remove(); rewriteByNote(m, note); };
+          ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); go.click(); } if (e.key === "Escape") { e.stopPropagation(); box.remove(); } });
+          row.append(go, no, el("span", "stat", "Ctrl+Enter 也行 · 小改只动提到的，大改按意见重写"));
+          box.append(ta, row);
+          actions.insertAdjacentElement("afterend", box);
+          ta.focus();
+        };
+        actions.appendChild(bNote);
       }
     }
     const lastMsg = [...c.chat].reverse().find((x) => x.kind !== "divider");
@@ -9058,6 +9080,13 @@
     action: "（这一楼重写：把心理描写全部换成可见的动作、姿势、距离和呼吸，不解释他在想什么。其他要求不变。）",
     fresh: "（这一楼重写：换一个完全不同的开头和结构，不要以环境描写起笔，不要以留白句或问题收尾。其他要求不变。）",
   };
+  function rewriteByNote(msg, note) {
+    const c = active();
+    if (!c || busy || !msg || msg.role !== "assistant" || msg.greeting) return;
+    const prev = stripStatus(stripReasoning(String(msg.content || ""))).trim();
+    const nudge = `（按意见改这一楼。意见是小改（换个细节、改一句话、调语气、加一句或删一句）就只改提到的部分，其余原样保留；意见是大改（换走向、换场景、换反应）就按意见重写，但要接得上前文，人设、格式和其他要求不变。只输出改后的这一楼全文，不要解释。\n意见：${note}\n上一版全文：\n${prev}）`;
+    generate(c, msg, { nudge });
+  }
   function rewriteLast(kind) {
     const c = active();
     if (!c || busy) return;
