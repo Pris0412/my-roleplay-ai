@@ -4527,7 +4527,7 @@
         sel.onchange = () => { const v = sel.value; sel.value = ""; if (v) rewriteLast(v); };
         actions.appendChild(sel);
         // 按意见改: your own note, small fix or full rewrite, the model sees the previous version
-        const bNote = el("button", "btn ghost", "✎ 按意见改");
+        const bNote = el("button", "btn ghost", "✎ 按意见改"); bNote.style.whiteSpace = "nowrap";
         bNote.title = "写一句意见，让模型按意见改这一楼：小改只动提到的部分，大改就按意见重写（会生成一个新版本，旧版本还在 ‹ › 里）";
         bNote.onclick = () => {
           if (busy) return;
@@ -4542,6 +4542,7 @@
           row.append(go, no, el("span", "stat", "Ctrl+Enter 也行 · 小改只动提到的，大改按意见重写"));
           box.append(ta, row);
           actions.insertAdjacentElement("afterend", box);
+          box.scrollIntoView({ block: "nearest", behavior: "instant" });
           ta.focus();
         };
         actions.appendChild(bNote);
