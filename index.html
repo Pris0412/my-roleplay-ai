@@ -2967,7 +2967,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.7"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.8"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4834,11 +4834,16 @@
     const w = wealthOn(c) && wealthText().trim() ? [wealthText().split("\n").map((x) => x.trim()).filter(Boolean).join(" ")] : [];
     return [...base, ...w].map((x) => x.replace(/\{\{user\}\}/gi, u));
   }
-  const FORMAT_RULE = "格式：叙述用正常文字、不加星号；对白用「」；角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。叙述里写到 {{user}} 一律用第二人称「你」，不用名字也不用「她 / 他」；角色和其他人照旧用名字和第三人称。";
+  // the greeting sets the house style: a card whose opening has *内心OS* keeps writing them; one without keeps the prose clean (the status block's 心声 still carries the inner voice)
+  const greetingHasOS = (c) => { const g = c && c.chat && c.chat[0] && c.chat[0].greeting ? c.chat[0].content : (c && c.firstMessage) || ""; return /内心\s*OS|\*[^*\n]{4,}\*/.test(String(g || "")); };
+  const FORMAT_BASE = "格式：叙述用正常文字、不加星号；对白用「」。叙述里写到 {{user}} 一律用第二人称「你」，不用名字也不用「她 / 他」；角色和其他人照旧用名字和第三人称。";
+  const FORMAT_OS_ON = "角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。";
+  const FORMAT_OS_OFF = "正文里不写内心OS 段落：心里的话放进状态块的心声，正文只写看得见、听得见的；不用星号。";
+  const formatRule = (c) => `${FORMAT_BASE}${greetingHasOS(c) ? FORMAT_OS_ON : FORMAT_OS_OFF}`;
   const CAST_RULE = "在场的人，不管是通讯录里的还是路人，都要有自己的动作和整段对白，可以主动挑事、推动情节，不只是接主角的话；路人也可以有名字、有自己的事，不是背景板。这只管已经在场的人：场景里没有别人就不用硬加，两个人独处就写独处，不要为了热闹安排路人进来。";
   const KNOW_RULE = "知情范围：每个人只知道自己在场时亲眼见到、亲耳听到的，别人明确告诉过他的，以及公开发生的事。{{user}} 和主角独处时说的话、做的决定、约好的事，其他人一概不知道，除非后来有人当面告诉他们，或者事情当着他们的面发生了。记录里的「👥 某某 来了 / 走了」就是在场记录，写 NPC 和路人时按这个来：不知道的事不能提、不能暗示、也不能「恰好猜到」；想让他们知道，就得在剧情里写出告诉的过程。";
   function styleRules(c, u) {
-    return [FORMAT_RULE, CAST_RULE, KNOW_RULE, ...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
+    return [formatRule(c), CAST_RULE, KNOW_RULE, ...styleLines(c, u), emotionRule(c) || null, nsfwRule(c)].filter(Boolean);
   }
   const PHONE_STYLE_RULE = "不用破折号「——」，不用「一丝 / 一抹 / 几分」这类模糊量词。";
   function phoneStyleRule(c) { return styleOff(c) ? "" : PHONE_STYLE_RULE; }
