@@ -1598,6 +1598,11 @@
         <div class="help">关系阶段（反感 → … → 在一起）升一档前至少要待够这么多楼，页面硬性卡住，模型提前升也不认。每张卡可以在「状态」里单独设。</div>
       </div>
       <div class="field">
+        <label for="sOs">正文里的内心OS（全局）</label>
+        <select id="sOs"><option value="auto">自动 · 开场白里有就写，没有就不写</option><option value="on">写 · *内心OS：……*</option><option value="off">不写 · 心里话只走状态栏的心声</option></select>
+        <div class="help">正文里要不要写「*内心OS：……*」这种心里话段落。每张卡可以在编辑里单独设，卡上选「自动」就跟这里。状态栏的心声不受影响，每楼照旧。</div>
+      </div>
+      <div class="field">
         <label for="sWealth">有钱人写法 <button class="btn ghost" id="sWealthReset" type="button" style="float:right;padding:2px 8px;font-size:11px">恢复默认</button></label>
         <textarea id="sWealth" class="mono" rows="6" style="font-size:12px;min-height:110px" placeholder="留空就不发。"></textarea>
         <div class="help">只在角色卡看起来有钱时才发（描述、标签里有「豪门 / 少爷 / 千金 / 总裁 / 老钱」这类词），普通卡不带。每张卡可以在编辑里强制开或关。治的是模型把有钱人写成普通人：自己熬粥、洗得发白的衬衫、穿 AJ。</div>
@@ -1713,6 +1718,52 @@
         </div>
         <div class="help">导入角色卡时自带的正则会出现在这里，可以逐条开关、改、删；也能从文件导入或新建。全局正则在「全局库 › 正则」。</div>
       </div>
+      <div class="section-title" style="margin-top:4px">这张卡的写法 <span class="stat">不选就跟「生成」里的全局设置走</span></div>
+        <div class="field">
+          <label for="edEmotion">情感浓度（这张卡）</label>
+          <select id="edEmotion">
+            <option value="inherit">跟随全局设置</option>
+            <option value="auto">自动 · 按人设和情境定</option>
+            <option value="restrained">克制 · 有感情但不行动</option>
+            <option value="normal">正常 · 会表达，不主动改变局面</option>
+            <option value="mild">微浓烈 · 感情驱动行动</option>
+            <option value="intense">浓烈 · 全部放开</option>
+            <option value="follow">跟随预设 / 不注入</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="edNsfw">尺度（这张卡）</label>
+          <select id="edNsfw">
+            <option value="inherit">跟随全局设置</option>
+            <option value="none">无 · 不进入性场面</option>
+            <option value="subtle">含蓄 · 写氛围不写过程</option>
+            <option value="explicit">直白 · 写具体过程</option>
+            <option value="follow">跟随预设 / 不注入</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="edStyle">文风规则（这张卡）</label>
+          <select id="edStyle">
+            <option value="inherit">跟随全局设置</option>
+            <option value="off">不注入 · 这张卡不发文风规则</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="edWealth">有钱人写法（这张卡）</label>
+          <select id="edWealth">
+            <option value="auto">自动 · 描述里像有钱人就发</option>
+            <option value="on">开 · 一直发</option>
+            <option value="off">关 · 不发</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="edOs">正文里的内心OS（这张卡）</label>
+          <select id="edOs">
+            <option value="auto">自动 · 跟「生成」里的全局设置</option>
+            <option value="on">写 · *内心OS：……*</option>
+            <option value="off">不写 · 心里话只走状态栏的心声</option>
+          </select>
+        </div>
       <details class="adv">
         <summary>高级 · SillyTavern 兼容字段</summary>
         <div class="inner">
@@ -1733,51 +1784,6 @@
           <div class="field">
             <label for="edSys">系统提示词（system_prompt）</label>
             <textarea id="edSys" placeholder="留空则用本页默认的扮演规则。写了就会替换默认规则；可以用 {{original}} 把默认规则插回来。"></textarea>
-          </div>
-          <div class="field">
-            <label for="edEmotion">情感浓度（这张卡）</label>
-            <select id="edEmotion">
-              <option value="inherit">跟随全局设置</option>
-              <option value="auto">自动 · 按人设和情境定</option>
-              <option value="restrained">克制 · 有感情但不行动</option>
-              <option value="normal">正常 · 会表达，不主动改变局面</option>
-              <option value="mild">微浓烈 · 感情驱动行动</option>
-              <option value="intense">浓烈 · 全部放开</option>
-              <option value="follow">跟随预设 / 不注入</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="edNsfw">尺度（这张卡）</label>
-            <select id="edNsfw">
-              <option value="inherit">跟随全局设置</option>
-              <option value="none">无 · 不进入性场面</option>
-              <option value="subtle">含蓄 · 写氛围不写过程</option>
-              <option value="explicit">直白 · 写具体过程</option>
-              <option value="follow">跟随预设 / 不注入</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="edStyle">文风规则（这张卡）</label>
-            <select id="edStyle">
-              <option value="inherit">跟随全局设置</option>
-              <option value="off">不注入 · 这张卡不发文风规则</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="edWealth">有钱人写法（这张卡）</label>
-            <select id="edWealth">
-              <option value="auto">自动 · 描述里像有钱人就发</option>
-              <option value="on">开 · 一直发</option>
-              <option value="off">关 · 不发</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="edOs">正文里的内心OS（这张卡）</label>
-            <select id="edOs">
-              <option value="auto">自动 · 开场白里有就写，没有就不写</option>
-              <option value="on">写 · *内心OS：……*</option>
-              <option value="off">不写 · 心里话只走状态栏的心声</option>
-            </select>
           </div>
           <div class="field">
             <label for="edCss">自定义 CSS（这张卡）</label>
@@ -2975,7 +2981,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.9"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.11"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4683,7 +4689,7 @@
     renderAvatar($("pAvatar"), { image: pe.image || "", name: pe.name || "你", color: "var(--accent-soft)" }, "lg");
     $("sTier").value = state.settings.tier;
     $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" || state.settings.len === "follow" ? state.settings.len : "medium";
-    $("sStyle").value = styleText(); $("sWealth").value = wealthText(); $("sPace").value = PACE_FLOORS[state.settings.pace] ? state.settings.pace : "normal";
+    $("sStyle").value = styleText(); $("sWealth").value = wealthText(); $("sPace").value = PACE_FLOORS[state.settings.pace] ? state.settings.pace : "normal"; $("sOs").value = state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto";
     $("sLenMin").value = state.settings.lenMin || 600;
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
@@ -4847,7 +4853,8 @@
   const FORMAT_BASE = "格式：叙述用正常文字、不加星号；对白用「」。叙述里写到 {{user}} 一律用第二人称「你」，不用名字也不用「她 / 他」；角色和其他人照旧用名字和第三人称。";
   const FORMAT_OS_ON = "角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。";
   const FORMAT_OS_OFF = "正文里不写内心OS 段落：心里的话放进状态块的心声，正文只写看得见、听得见的；不用星号。";
-  const formatRule = (c) => `${FORMAT_BASE}${(c && c.os === "on") || (c && c.os !== "off" && greetingHasOS(c)) ? FORMAT_OS_ON : FORMAT_OS_OFF}`;
+  function osOn(c) { const v = c && (c.os === "on" || c.os === "off") ? c.os : (state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto"); return v === "on" ? true : v === "off" ? false : greetingHasOS(c); }
+  const formatRule = (c) => `${FORMAT_BASE}${osOn(c) ? FORMAT_OS_ON : FORMAT_OS_OFF}`;
   const CAST_RULE = "在场的人，不管是通讯录里的还是路人，都要有自己的动作和整段对白，可以主动挑事、推动情节，不只是接主角的话；路人也可以有名字、有自己的事，不是背景板。这只管已经在场的人：场景里没有别人就不用硬加，两个人独处就写独处，不要为了热闹安排路人进来。";
   const KNOW_RULE = "知情范围：每个人只知道自己在场时亲眼见到、亲耳听到的，别人明确告诉过他的，以及公开发生的事。{{user}} 和主角独处时说的话、做的决定、约好的事，其他人一概不知道，除非后来有人当面告诉他们，或者事情当着他们的面发生了。记录里的「👥 某某 来了 / 走了」就是在场记录，写 NPC 和路人时按这个来：不知道的事不能提、不能暗示、也不能「恰好猜到」；想让他们知道，就得在剧情里写出告诉的过程。";
   function styleRules(c, u) {
@@ -10745,6 +10752,7 @@
   $("sStyle").addEventListener("input", (e) => { state.settings.style = e.target.value === DEFAULT_STYLE_RULES ? null : e.target.value; save(); refreshContextMeter(); });
   $("sStyleReset").onclick = () => { state.settings.style = null; $("sStyle").value = DEFAULT_STYLE_RULES; save(); refreshContextMeter(); toast("已恢复默认文风规则"); };
   $("sPace").addEventListener("change", (e) => { state.settings.pace = e.target.value; save(); });
+  $("sOs").addEventListener("change", (e) => { state.settings.os = e.target.value === "auto" ? "" : e.target.value; save(); });
   $("sWealth").addEventListener("input", (e) => { state.settings.wealthRule = e.target.value === DEFAULT_WEALTH_RULE ? null : e.target.value; save(); refreshContextMeter(); });
   $("sWealthReset").onclick = () => { state.settings.wealthRule = null; $("sWealth").value = DEFAULT_WEALTH_RULE; save(); refreshContextMeter(); toast("已恢复默认有钱人写法"); };
   $("inspire").onclick = inspire;
