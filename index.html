@@ -709,6 +709,7 @@
   .pf-card .r .k { color: #8e8e93; flex: 0 0 auto; }
   .pf-card .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(0,0,0,0.08); overflow: hidden; margin: 0 8px; }
   .pf-card .bar span { display: block; height: 100%; background: #34c759; }
+  .pk-day { font-size: 12px; font-weight: 600; color: var(--muted); padding: 10px 4px 2px; }
   .pf-away { display: flex; flex-direction: column; gap: 6px; padding: 0 14px; }
   .pf-away:not(:empty) { padding-bottom: 12px; }
   .pf-away .line { display: flex; gap: 6px; align-items: center; }
@@ -2981,7 +2982,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.11"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.12"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -6965,7 +6966,7 @@
   }
   // ----- peeking at someone's phone: god's-eye view, generated app by app, never enters the story -----
   let peekWho = null, peekApp = null, peekBusy = null;
-  const PEEK_APPS = [["browser", "🌐", "浏览器"], ["bills", "🧾", "账单"], ["album", "🖼", "相册"]];
+  const PEEK_APPS = [["browser", "🌐", "浏览器"], ["bills", "🧾", "账单"], ["album", "🖼", "相册"], ["calendar", "📅", "日程"]];
   const PEEK_TIERS = ["自动", "拮据", "普通", "宽裕", "富裕", "豪门", "顶级豪门"];
   const TIER_GUIDE = {
     "拮据": "拮据：几块几十块的消费为主，食堂、便利店、公交、拼单，偶尔一笔咬牙的大开销。",
@@ -7014,10 +7015,10 @@
     const ctx = peekContext(c, who); const { nm, u, stage } = ctx;
     const d = peekData(c, who);
     const L = [];
-    const label = app === "browser" ? "浏览器的搜索记录" : app === "bills" ? "账单（最近的花销和进账）" : "相册里最近的照片";
+    const label = app === "browser" ? "浏览器的搜索记录" : app === "bills" ? "账单（最近的花销和进账）" : app === "calendar" ? "日历（接下来的安排）" : "相册里最近的照片";
     L.push(`这是一场角色扮演的资料。用户「${u}」正在用上帝视角偷看「${nm}」的手机里${label}（${nm} 本人不知道，这件事不进剧情）。请根据资料写出${prev ? "从上次偷看到现在**新增**的" : "到目前为止的"}内容。`, "");
     L.push(ctx.text);
-    if (prev && prev.items.length) L.push("\n## 上次看到的（不要重复，接着往后写新增的）", prev.items.slice(0, 8).map((x) => `- ${x.t ? x.t + " " : ""}${x.q || x.item || x.desc}${x.amt != null ? ` ${x.amt}` : ""}`).join("\n"));
+    if (prev && prev.items.length) L.push("\n## 上次看到的（不要重复，接着往后写新增的）", prev.items.slice(0, 8).map((x) => `- ${x.d ? x.d + " " : ""}${x.t ? x.t + " " : ""}${x.q || x.item || x.desc || x.title}${x.amt != null ? ` ${x.amt}` : ""}`).join("\n"));
     L.push("\n## 写法");
     L.push(`- 阶段：${nm} 和 ${u} 现在是「${stage || "未定"}」。疏远/认识阶段以日常为主，混一两条藏着的心思；朋友/暧昧阶段写试探、纠结、偷偷打听；亲近/亲密阶段写亲密、占有、计划两人的事，尺度允许时可以直接出现性相关的内容。`);
     promptNpcIds = peekWho && peekWho !== "char" ? [peekWho] : [];
@@ -7030,11 +7031,13 @@
       L.push(`- 正文里 ${nm} 买过、付过的东西必须出现在账单里。商家、项目写具体，金额用数字，支出为负、收入为正。可以有给别人的转账和收款，写清对方。`);
     }
     if (app === "album") L.push(`- 每张照片一句描述：拍了什么、谁在里面、什么场合、构图或细节。可以有偷拍 ${u} 的、和别人的合照、截图、删了又恢复的、深夜自拍。`);
-    L.push(`- 时间用剧情里的时间写法（如「周三 23:10」「昨天 08:15」），按时间倒序，最新的在前。语言：${langHint()}`);
+    if (app === "calendar") L.push(`- 写 ${nm} 从剧情里现在的时间起、往后一到两周的安排，这是 ${nm} 自己的生活：固定的（课、训练、工作、家里的饭局、复诊）、临时的（约人、要办的事、要交的东西）、和 ${u} 有关的（约好的事照写；没约的也可以有一条偷偷给 ${u} 留的空档，或一个只标了「？」的日子）、再有一两条 ${nm} 不想让人知道的（见某个人、一个没写清楚的地点、一个只有缩写的提醒）。标题像真人记的那样短，备注可以有地点、和谁、一句提醒。`);
+    L.push(app === "calendar" ? `- 日期用剧情里的写法（如「11月16日 周六」），时间写「15:00」这样；按日期正序，最近的在前。语言：${langHint()}` : `- 时间用剧情里的时间写法（如「周三 23:10」「昨天 08:15」），按时间倒序，最新的在前。语言：${langHint()}`);
     L.push(prev ? "- 数量：3 到 6 条，不重复上次的。" : app === "bills" ? "- 数量：6 到 10 条。" : "- 数量：8 到 12 条。");
     L.push("\n只输出 JSON：");
     if (app === "browser") L.push('{"items":[{"t":"时间","q":"搜索词"}]}');
     else if (app === "bills") L.push('{"tier":"档位","items":[{"t":"时间","item":"商家或项目","amt":-金额或+金额,"to":"对方，没有就空字符串"}]}');
+    else if (app === "calendar") L.push('{"items":[{"d":"日期","t":"时间","title":"事项","who":"和谁，没有就空字符串","note":"备注，没有就空字符串"}]}');
     else L.push('{"items":[{"t":"时间","desc":"照片描述"}]}');
     return L.join("\n");
   }
@@ -7055,6 +7058,7 @@
       let items;
       if (app === "browser") items = raw.map((x) => ({ t: str(x && x.t, 30), q: str(x && x.q, 80), rev })).filter((x) => x.q);
       else if (app === "bills") items = raw.map((x) => ({ t: str(x && x.t, 30), item: str(x && x.item, 60), amt: num(x && x.amt), to: str(x && x.to, 30), rev })).filter((x) => x.item);
+      else if (app === "calendar") items = raw.map((x) => ({ d: str(x && x.d, 24), t: str(x && x.t, 16), title: str(x && x.title, 60), who: str(x && x.who, 30), note: str(x && x.note, 120), rev })).filter((x) => x.title);
       else items = raw.map((x) => ({ t: str(x && x.t, 30), desc: str(x && x.desc, 160), rev })).filter((x) => x.desc);
       const slot = d.apps[app] || { items: [] };
       slot.items = items.concat(slot.items || []).slice(0, 60);
@@ -7120,6 +7124,17 @@
     } else if (peekApp === "bills") {
       const list = el("div", "pk-list");
       for (const x of slot.items) { const r = el("div", "pk-row"); r.appendChild(el("span", "ic", x.amt >= 0 ? "💰" : "🛍")); const tx = el("div", "tx"); tx.appendChild(document.createTextNode(x.item)); const nt = newTag(x); if (nt) tx.appendChild(nt); tx.appendChild(el("div", "t", [x.to, x.t].filter(Boolean).join(" · "))); r.appendChild(tx); r.appendChild(el("span", "amt" + (x.amt >= 0 ? " in" : ""), `${x.amt >= 0 ? "+" : "-"}${Math.abs(x.amt).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)); r.appendChild(delBtn(x)); list.appendChild(r); }
+      wrap.appendChild(list);
+    } else if (peekApp === "calendar") {
+      const list = el("div", "pk-list");
+      let lastDay = null;
+      for (const x of slot.items) {
+        if (x.d && x.d !== lastDay) { list.appendChild(el("div", "pk-day", x.d)); lastDay = x.d; }
+        const r = el("div", "pk-row"); r.appendChild(el("span", "ic", "📅"));
+        const tx = el("div", "tx"); tx.appendChild(document.createTextNode(x.title)); const nt = newTag(x); if (nt) tx.appendChild(nt);
+        tx.appendChild(el("div", "t", [x.t, x.who, x.note].filter(Boolean).join(" · ")));
+        r.appendChild(tx); r.appendChild(delBtn(x)); list.appendChild(r);
+      }
       wrap.appendChild(list);
     } else {
       const grid = el("div", "pk-photos");
