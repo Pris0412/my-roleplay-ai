@@ -2982,7 +2982,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.12"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.13"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -3239,6 +3239,14 @@
   const PHONE_OPEN_RE = /<phone>[\s\S]*$/i;
   const MVU_RE = /<UpdateVariable>\s*([\s\S]*?)\s*<\/UpdateVariable>/gi;
   const MVU_OPEN_RE = /<UpdateVariable>[\s\S]*$/i;
+  // cards that ship their own status bar make the model append <xxx_status> / <UpdateVariable> blocks, [Key|value] lines or code fences; none of that belongs in a phone bubble
+  function stripCardBlocks(t) {
+    return String(t || "")
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/<([A-Za-z_][\w-]*)>[\s\S]*?<\/\1>/g, "")
+      .split("\n").filter((ln) => { const x = ln.trim(); if (Object.values(RICH_RE).some((re) => re.test(x))) return true; return !(/^<\/?[A-Za-z_][\w-]*\s*\/?>$/.test(x) || /^(\[[^\[\]\n]*\|[^\[\]\n]*\]\s*)+$/.test(x)); }).join("\n");
+  }
+  const phoneText = (m, c) => stripCardBlocks(stripStatus(stripReasoning(sub(m.content, c))));
   function stripStatus(t) { return String(t || "").replace(STATUS_RE, "").replace(STATUS_OPEN_RE, "").replace(CAST_RE, "").replace(CAST_OPEN_RE, "").replace(AGES_RE, "").replace(AGES_OPEN_RE, "").replace(REL_RE, "").replace(REL_OPEN_RE, "").replace(PHONE_RE, "").replace(PHONE_OPEN_RE, "").replace(MVU_RE, "").replace(MVU_OPEN_RE, "").trim(); }
   // how the 时间 field should be written: a full in-story date, never the real calendar
   const TIME_RULE = "「时间」写成完整的日期加时段，例如「3021年4月12日 周三 傍晚 18:40」：年份用 30XX 这种架空年份，不用现实的年份（角色卡或世界书明确了年代的就按那个来，古风可以写「XX年三月初七 酉时」）；日期跟着剧情走，过了一夜就翻到下一天，星期要和日期对得上；写法前后保持一致。当前值里还没有日期的，这次更新时按剧情合理补上。";
@@ -4449,7 +4457,7 @@
     const pc = el("div", "pc" + (npcId ? " npc" : ""));
     const last = run[run.length - 1].m;
     const who = last.role === "user" ? (state.persona.name || "你") : (npc ? npc.name : npcId ? "某人" : c.name);
-    const preview = last.pending ? "正在输入…" : `${who}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
+    const preview = last.pending ? "正在输入…" : `${who}：${phoneText(last, c).split("\n").map((x) => x.trim()).filter(Boolean)[0] || ""}`.slice(0, 64);
     const title = el("div", "t", npcId ? `和 ${npc ? npc.name : "某人"} 的私聊 · ${run.length} 条` : `手机聊天 · ${run.length} 条`);
     if (npcId) title.appendChild(el("small", null, `${c.name} 不知道`));
     pc.append(el("span", "ic", npcId ? "🔒" : "📱"), (() => { const d = el("div"); d.appendChild(title); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${floorOf(c, run[0].i)}–#${floorOf(c, run[run.length - 1].i)}`));
@@ -4464,7 +4472,7 @@
     const av = el("div", "avatar", "群");
     const pc = el("div", "pc npc");
     const last = run[run.length - 1].m;
-    const preview = `${groupSpeakerName(c, last)}：${sub(last.content, c).split("\n")[0].slice(0, 60)}`;
+    const preview = `${groupSpeakerName(c, last)}：${phoneText(last, c).split("\n").map((x) => x.trim()).filter(Boolean)[0] || ""}`.slice(0, 64);
     const title = el("div", "t", `群聊 · ${g ? g.name : "已解散的群"} · ${run.length} 条`);
     title.appendChild(el("small", null, g && g.members.includes("char") ? `${c.name} 在群里` : `${c.name} 不在群里`));
     pc.append(el("span", "ic", "👥"), (() => { const d = el("div"); d.appendChild(title); d.appendChild(el("div", "pv", preview)); return d; })(), el("span", "n", `#${floorOf(c, run[0].i)}–#${floorOf(c, run[run.length - 1].i)}`));
@@ -5048,6 +5056,7 @@
       together ? `- 如果 ${c.name} 有值得注意的现场小动作（抬头看你一眼、把手机扣在桌上、憋笑），可以单独一行用全角括号写，整段最多一条，例如：（抬头朝你这边瞥了一眼）` : "",
       `- 不要替 ${u} 发消息或猜 ${u} 的回复。`,
       `- 如果 ${c.name} 此刻不想回、没空或故意晾着对方，只输出一行 [不回复]。`,
+      "- 手机消息里不输出任何状态栏、变量块或代码块（<xxx_status>、<UpdateVariable>、[Key|值] 这类），哪怕角色卡或世界书要求每次回复都带：那些只在正文里写，手机里一律省略。",
       "- 语气跟着角色此刻的心情、和对方的关系、以及刚才正文里发生的事走；可以用表情符号但别滥用。",
       PHONE_RICH_RULE,
     ].filter(Boolean).join("\n");
@@ -6862,7 +6871,7 @@
       const t = el("div"); t.appendChild(el("div", "nm", n.name));
       const last = npcThreadLast(c, n.id);
       const ru = relGet(c, "u", n.id);
-      t.appendChild(el("div", "sb", `${ru.set ? `${ru.rel || "关系未定"} · 好感 ${ru.aff}` : "关系未设定"}${last ? ` · ${last.role === "user" ? u : n.name}：${sub(last.content, c).split("\n")[0].slice(0, 30)}` : n.brief ? ` · ${n.brief}` : ""}`));
+      t.appendChild(el("div", "sb", `${ru.set ? `${ru.rel || "关系未定"} · 好感 ${ru.aff}` : "关系未设定"}${last ? ` · ${last.role === "user" ? u : n.name}：${(phoneText(last, c).split("\n").map((x) => x.trim()).filter(Boolean)[0] || "").slice(0, 30)}` : n.brief ? ` · ${n.brief}` : ""}`));
       const right = el("div"); right.style.cssText = "display:flex;align-items:center;gap:4px";
       if (n.away) { const aw = el("span", "tg away", "暂离"); aw.title = n.awayNote ? `暂不出场：${n.awayNote}` : "暂不出场"; right.appendChild(aw); }
       right.appendChild(el("span", "tg" + (npcAppeared(c, n) ? " on" : ""), npcAppeared(c, n) ? "已出场" : "未出场"));
@@ -8127,7 +8136,7 @@
     const lastMsg = grp || npc ? (thread.length ? thread[thread.length - 1].m : null) : c.chat[c.chat.length - 1];
     for (const { m, i } of thread) {
       if (m.kind === "divider") { body.appendChild(el("div", "pm sys", sub(m.content, c).replace(/^📱\s*/, ""))); continue; }
-      const txt = stripStatus(stripReasoning(sub(m.content, c)));
+      const txt = phoneText(m, c);
       if (m.pending && !txt.trim()) { body.appendChild(el("div", "pm typing", "•••")); continue; }
       const mine = m.role === "user";
       const g = el("div", "pmg " + (mine ? "me" : "them") + (phoneSel === m.id ? " sel" : "") + (m.hidden ? " hid" : ""));
@@ -8170,7 +8179,7 @@
   let phoneQuote = null; // { key, who, text } while a quote is attached to the composer
   function phoneThreadKey() { return `${phoneGroup || ""}|${phoneWith || ""}`; }
   function quoteSnippet(c, m) {
-    const first = stripStatus(stripReasoning(sub(m.content, c))).split(/\n+/).map((x) => x.trim()).filter((x) => x && !RICH_RE.quote.test(x))[0] || "";
+    const first = phoneText(m, c).split(/\n+/).map((x) => x.trim()).filter((x) => x && !RICH_RE.quote.test(x))[0] || "";
     let mt;
     if ((mt = first.match(RICH_RE.img))) return "[图片]";
     if ((mt = first.match(RICH_RE.pay))) return `[${mt[1]} ¥${mt[2]}]`;
