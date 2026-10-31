@@ -1604,6 +1604,11 @@
         <div class="help">正文里要不要写「*内心OS：……*」这种心里话段落。每张卡可以在编辑里单独设，卡上选「自动」就跟这里。状态栏的心声不受影响，每楼照旧。</div>
       </div>
       <div class="field">
+        <label for="sSms">手机消息量（全局）</label>
+        <select id="sSms"><option value="few">少 · 一次 1 到 3 条</option><option value="normal">正常 · 平时一两条，有事才连发</option><option value="many">多 · 不限，想发几条发几条</option></select>
+        <div class="help">手机私聊 / 独处时 TA 一次回几条。真人大多一两条，连发十几条就不像短信了。</div>
+      </div>
+      <div class="field">
         <label for="sWealth">有钱人写法 <button class="btn ghost" id="sWealthReset" type="button" style="float:right;padding:2px 8px;font-size:11px">恢复默认</button></label>
         <textarea id="sWealth" class="mono" rows="6" style="font-size:12px;min-height:110px" placeholder="留空就不发。"></textarea>
         <div class="help">只在角色卡看起来有钱时才发（描述、标签里有「豪门 / 少爷 / 千金 / 总裁 / 老钱」这类词），普通卡不带。每张卡可以在编辑里强制开或关。治的是模型把有钱人写成普通人：自己熬粥、洗得发白的衬衫、穿 AJ。</div>
@@ -2982,7 +2987,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.13"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.14"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4698,7 +4703,7 @@
     renderAvatar($("pAvatar"), { image: pe.image || "", name: pe.name || "你", color: "var(--accent-soft)" }, "lg");
     $("sTier").value = state.settings.tier;
     $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" || state.settings.len === "follow" ? state.settings.len : "medium";
-    $("sStyle").value = styleText(); $("sWealth").value = wealthText(); $("sPace").value = PACE_FLOORS[state.settings.pace] ? state.settings.pace : "normal"; $("sOs").value = state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto";
+    $("sStyle").value = styleText(); $("sWealth").value = wealthText(); $("sPace").value = PACE_FLOORS[state.settings.pace] ? state.settings.pace : "normal"; $("sOs").value = state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto"; $("sSms").value = SMS_COUNT[state.settings.sms] ? state.settings.sms : "normal";
     $("sLenMin").value = state.settings.lenMin || 600;
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
@@ -5041,6 +5046,13 @@
   }
   function phoneMode(c) { return c.phone && c.phone.mode === "together" ? "together" : "apart"; }
   function phoneRules(c, u) { return phoneRulesFor(c.name, u, phoneMode(c) === "together", c.phone && c.phone.note ? c.phone.note : ""); }
+  // how many bubbles one reply is: real people send one or two, a burst only when something is going on
+  const SMS_COUNT = {
+    few: "- 一次回复 1 到 3 条，大多数时候一两条就够；每条单独一行，一条通常不超过 40 字。不要把一句话拆成好几条，不要为了凑热闹多发。",
+    normal: "- 一次回复通常 1 到 4 条，像真人发短信：平时一两条，只有在讲一件事、情绪上头、或者对方连发了很多的时候才连发；每条单独一行，一条通常不超过 40 字。不要把一句话拆成好几条。",
+    many: "- 可以连发几条，每条消息单独一行；一条通常不超过 40 字。",
+  };
+  const smsCountRule = () => SMS_COUNT[state.settings.sms] || SMS_COUNT.normal;
   function phoneRulesFor(name, u, together, noteText) {
     const c = { name };
     const note = noteText ? `情境：${noteText}` : "";
@@ -5051,7 +5063,7 @@
         : `现在 ${c.name} 和 ${u} 不在同一个地方，正在用手机发消息。你只输出 ${c.name} 发出的手机消息本身：`,
       note,
       "- 像真人发短信：短句、口语、可以有错别字式的随意，不写 *动作*、不写环境和心理描写，不用引号，不加名字前缀。",
-      "- 可以连发几条，每条消息单独一行；一条通常不超过 40 字。",
+      smsCountRule(),
       together ? `- 两人看得见彼此：可以提到现场的人和事、${u} 此刻的表情动作；消息更短、更急、更像偷偷发，注意别被旁人发现。` : "",
       together ? `- 如果 ${c.name} 有值得注意的现场小动作（抬头看你一眼、把手机扣在桌上、憋笑），可以单独一行用全角括号写，整段最多一条，例如：（抬头朝你这边瞥了一眼）` : "",
       `- 不要替 ${u} 发消息或猜 ${u} 的回复。`,
@@ -10777,6 +10789,7 @@
   $("sStyleReset").onclick = () => { state.settings.style = null; $("sStyle").value = DEFAULT_STYLE_RULES; save(); refreshContextMeter(); toast("已恢复默认文风规则"); };
   $("sPace").addEventListener("change", (e) => { state.settings.pace = e.target.value; save(); });
   $("sOs").addEventListener("change", (e) => { state.settings.os = e.target.value === "auto" ? "" : e.target.value; save(); });
+  $("sSms").addEventListener("change", (e) => { state.settings.sms = e.target.value; save(); });
   $("sWealth").addEventListener("input", (e) => { state.settings.wealthRule = e.target.value === DEFAULT_WEALTH_RULE ? null : e.target.value; save(); refreshContextMeter(); });
   $("sWealthReset").onclick = () => { state.settings.wealthRule = null; $("sWealth").value = DEFAULT_WEALTH_RULE; save(); refreshContextMeter(); toast("已恢复默认有钱人写法"); };
   $("inspire").onclick = inspire;
