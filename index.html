@@ -1607,8 +1607,8 @@
       </div>
       <div class="field">
         <label for="sOsAmt">内心OS 多少（全局）</label>
-        <select id="sOsAmt"><option value="few">少 · 一楼最多一段，一两句</option><option value="normal">正常 · 一楼一到两段</option><option value="many">多 · 不限，想到什么写什么</option><option value="custom">自定义 · 一楼最多几段</option></select>
-        <div class="os-max" id="sOsMaxWrap" hidden><label for="sOsMax">一楼最多</label><input id="sOsMax" type="number" min="1" max="20" step="1" value="2"><span>段（每段一两句）</span></div>
+        <select id="sOsAmt"><option value="few">少 · 一楼最多一段，一两句</option><option value="normal">正常 · 一楼一到两段</option><option value="many">多 · 不限，想到什么写什么</option><option value="custom">自定义 · 一楼最多几句</option></select>
+        <div class="os-max" id="sOsMaxWrap" hidden><label for="sOsMax">一楼最多</label><input id="sOsMax" type="number" min="1" max="30" step="1" value="4"><span>句（所有内心OS 加起来，不用写满）</span></div>
         <div class="help">开了内心OS 之后一楼写几段。一楼五六段「内心OS：」就把正文冲散了。每张卡可以在编辑里单独设。</div>
       </div>
       <div class="field">
@@ -1785,9 +1785,9 @@
             <option value="few">少 · 一楼最多一段，一两句</option>
             <option value="normal">正常 · 一楼一到两段</option>
             <option value="many">多 · 不限，想到什么写什么</option>
-            <option value="custom">自定义 · 一楼最多几段</option>
+            <option value="custom">自定义 · 一楼最多几句</option>
           </select>
-          <div class="os-max" id="edOsMaxWrap" hidden><label for="edOsMax">一楼最多</label><input id="edOsMax" type="number" min="1" max="20" step="1" value="2"><span>段（每段一两句）</span></div>
+          <div class="os-max" id="edOsMaxWrap" hidden><label for="edOsMax">一楼最多</label><input id="edOsMax" type="number" min="1" max="30" step="1" value="4"><span>句（所有内心OS 加起来，不用写满）</span></div>
         </div>
       <details class="adv">
         <summary>高级 · SillyTavern 兼容字段</summary>
@@ -3006,7 +3006,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.16"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.17"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4887,8 +4887,8 @@
   const FORMAT_OS_ON = "角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。";
   const FORMAT_OS_OFF = "正文里不写内心OS 段落：心里的话放进状态块的心声，正文只写看得见、听得见的；不用星号。";
   const OS_AMT = { few: "内心OS 一楼最多一段，一两句，只放在真有心里话的那一处；没什么可想的就不写。", normal: "内心OS 一楼一到两段，每段一两句，放在最有心里话的地方；不要每说一句话、每做一个动作后面都跟一段。", many: "内心OS 可以多写，想到什么写什么，但每段还是要短。" };
-  const OS_CUSTOM = (n) => `内心OS 一楼最多 ${n} 段，每段一两句，放在最有心里话的地方；到数了就不再写。`;
-  const osMaxN = (v) => Math.min(20, Math.max(1, Math.round(Number(v) || 2)));
+  const OS_CUSTOM = (n) => `内心OS 一楼所有段落加起来最多 ${n} 句：一到 ${n} 句都行，不用写满，没什么可想的就一句不写；可以一处写完，也可以分几处。`;
+  const osMaxN = (v) => Math.min(30, Math.max(1, Math.round(Number(v) || 4)));
   const osAmtOk = (v) => OS_AMT[v] || v === "custom";
   function osAmt(c) { if (c && osAmtOk(c.osAmt)) return c.osAmt === "custom" ? OS_CUSTOM(osMaxN(c.osMax)) : OS_AMT[c.osAmt]; const g = state.settings.osAmt; return g === "custom" ? OS_CUSTOM(osMaxN(state.settings.osMax)) : OS_AMT[OS_AMT[g] ? g : "normal"]; }
   function osOn(c) { const v = c && (c.os === "on" || c.os === "off") ? c.os : (state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto"); return v === "on" ? true : v === "off" ? false : greetingHasOS(c); }
