@@ -900,7 +900,9 @@
   .zoom-back textarea { flex: 1; min-height: 0; width: 100%; border: 0; outline: none; resize: none; box-sizing: border-box; padding: 18px max(18px, calc((100% - 860px) / 2)); font: inherit; font-size: 15px; line-height: 1.7; background: transparent; color: var(--text); }
   .zoom-back textarea.mono { font-family: var(--font-mono); font-size: 13px; }
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); outline: none; }
-  .field .help { font-size: 11px; color: var(--faint); }
+  .os-max { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; font-size: 13px; }
+    .os-max input { width: 64px; }
+    .field .help { font-size: 11px; color: var(--faint); }
   .section-title {
     display: flex; align-items: center; justify-content: space-between;
     font-family: var(--font-display); font-weight: 700; font-size: 14px;
@@ -1605,7 +1607,8 @@
       </div>
       <div class="field">
         <label for="sOsAmt">内心OS 多少（全局）</label>
-        <select id="sOsAmt"><option value="few">少 · 一楼最多一段，一两句</option><option value="normal">正常 · 一楼一到两段</option><option value="many">多 · 不限，想到什么写什么</option></select>
+        <select id="sOsAmt"><option value="few">少 · 一楼最多一段，一两句</option><option value="normal">正常 · 一楼一到两段</option><option value="many">多 · 不限，想到什么写什么</option><option value="custom">自定义 · 一楼最多几段</option></select>
+        <div class="os-max" id="sOsMaxWrap" hidden><label for="sOsMax">一楼最多</label><input id="sOsMax" type="number" min="1" max="20" step="1" value="2"><span>段（每段一两句）</span></div>
         <div class="help">开了内心OS 之后一楼写几段。一楼五六段「内心OS：」就把正文冲散了。每张卡可以在编辑里单独设。</div>
       </div>
       <div class="field">
@@ -1782,7 +1785,9 @@
             <option value="few">少 · 一楼最多一段，一两句</option>
             <option value="normal">正常 · 一楼一到两段</option>
             <option value="many">多 · 不限，想到什么写什么</option>
+            <option value="custom">自定义 · 一楼最多几段</option>
           </select>
+          <div class="os-max" id="edOsMaxWrap" hidden><label for="edOsMax">一楼最多</label><input id="edOsMax" type="number" min="1" max="20" step="1" value="2"><span>段（每段一两句）</span></div>
         </div>
       <details class="adv">
         <summary>高级 · SillyTavern 兼容字段</summary>
@@ -3001,7 +3006,7 @@
   // ============================================================
   // State & persistence
   // ============================================================
-  const APP_VERSION = "v22.15"; // shown in the rail so a screenshot tells which build is running
+  const APP_VERSION = "v22.16"; // shown in the rail so a screenshot tells which build is running
   const LS_KEY = "lantern-tavern.v1";
   const SWATCHES = ["#d9a066", "#7fa7d9", "#b58ad9", "#7fc4a4", "#d97f9a", "#8f8ba3", "#e0c15a", "#6fb6c9"];
 
@@ -4717,7 +4722,7 @@
     renderAvatar($("pAvatar"), { image: pe.image || "", name: pe.name || "你", color: "var(--accent-soft)" }, "lg");
     $("sTier").value = state.settings.tier;
     $("sLen").value = state.settings.len in LEN_PRESETS || state.settings.len === "custom" || state.settings.len === "follow" ? state.settings.len : "medium";
-    $("sStyle").value = styleText(); $("sWealth").value = wealthText(); $("sPace").value = PACE_FLOORS[state.settings.pace] ? state.settings.pace : "normal"; $("sOs").value = state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto"; $("sOsAmt").value = OS_AMT[state.settings.osAmt] ? state.settings.osAmt : "normal"; $("sSms").value = SMS_COUNT[state.settings.sms] ? state.settings.sms : "normal";
+    $("sStyle").value = styleText(); $("sWealth").value = wealthText(); $("sPace").value = PACE_FLOORS[state.settings.pace] ? state.settings.pace : "normal"; $("sOs").value = state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto"; $("sOsAmt").value = osAmtOk(state.settings.osAmt) ? state.settings.osAmt : "normal"; $("sOsMax").value = osMaxN(state.settings.osMax); $("sOsMaxWrap").hidden = $("sOsAmt").value !== "custom"; $("sSms").value = SMS_COUNT[state.settings.sms] ? state.settings.sms : "normal";
     $("sLenMin").value = state.settings.lenMin || 600;
     $("sLenMax").value = state.settings.lenMax || 1000;
     $("sLenCustomRow").hidden = state.settings.len !== "custom";
@@ -4882,7 +4887,10 @@
   const FORMAT_OS_ON = "角色心里想的、没说出口的内心独白整段用星号包起来，写成 *内心OS：……* 这样，星号只用在内心独白上。";
   const FORMAT_OS_OFF = "正文里不写内心OS 段落：心里的话放进状态块的心声，正文只写看得见、听得见的；不用星号。";
   const OS_AMT = { few: "内心OS 一楼最多一段，一两句，只放在真有心里话的那一处；没什么可想的就不写。", normal: "内心OS 一楼一到两段，每段一两句，放在最有心里话的地方；不要每说一句话、每做一个动作后面都跟一段。", many: "内心OS 可以多写，想到什么写什么，但每段还是要短。" };
-  function osAmt(c) { const v = c && OS_AMT[c.osAmt] ? c.osAmt : (OS_AMT[state.settings.osAmt] ? state.settings.osAmt : "normal"); return OS_AMT[v]; }
+  const OS_CUSTOM = (n) => `内心OS 一楼最多 ${n} 段，每段一两句，放在最有心里话的地方；到数了就不再写。`;
+  const osMaxN = (v) => Math.min(20, Math.max(1, Math.round(Number(v) || 2)));
+  const osAmtOk = (v) => OS_AMT[v] || v === "custom";
+  function osAmt(c) { if (c && osAmtOk(c.osAmt)) return c.osAmt === "custom" ? OS_CUSTOM(osMaxN(c.osMax)) : OS_AMT[c.osAmt]; const g = state.settings.osAmt; return g === "custom" ? OS_CUSTOM(osMaxN(state.settings.osMax)) : OS_AMT[OS_AMT[g] ? g : "normal"]; }
   function osOn(c) { const v = c && (c.os === "on" || c.os === "off") ? c.os : (state.settings.os === "on" || state.settings.os === "off" ? state.settings.os : "auto"); return v === "on" ? true : v === "off" ? false : greetingHasOS(c); }
   const formatRule = (c) => `${FORMAT_BASE}${osOn(c) ? FORMAT_OS_ON + osAmt(c) : FORMAT_OS_OFF}`;
   const CAST_RULE = "在场的人，不管是通讯录里的还是路人，都要有自己的动作和整段对白，可以主动挑事、推动情节，不只是接主角的话；路人也可以有名字、有自己的事，不是背景板。这只管已经在场的人：场景里没有别人就不用硬加，两个人独处就写独处，不要为了热闹安排路人进来。";
@@ -9209,7 +9217,7 @@
     $("edScenario").value = d.scenario || ""; $("edFirst").value = d.firstMessage || ""; $("edExamples").value = d.examples || "";
     $("edAlt").value = (d.altGreetings || []).join("\n---\n");
     $("edTags").value = (d.tags || []).join(", "); $("edCreator").value = d.creator || "";
-    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edWealth").value = d.wealth === "on" || d.wealth === "off" ? d.wealth : "auto"; $("edOs").value = d.os === "on" || d.os === "off" ? d.os : "auto"; $("edOsAmt").value = OS_AMT[d.osAmt] ? d.osAmt : "inherit"; $("edUserRole").value = d.userRole || "";
+    $("edNotes").value = d.creatorNotes || ""; $("edSys").value = d.systemPrompt || ""; $("edPost").value = d.postHistory || ""; $("edCss").value = d.css || ""; $("edEmotion").value = d.emotion && d.emotion !== "inherit" ? d.emotion : "inherit"; $("edNsfw").value = d.nsfw && d.nsfw !== "inherit" ? d.nsfw : "inherit"; $("edStyle").value = d.style === "off" ? "off" : "inherit"; $("edWealth").value = d.wealth === "on" || d.wealth === "off" ? d.wealth : "auto"; $("edOs").value = d.os === "on" || d.os === "off" ? d.os : "auto"; $("edOsAmt").value = osAmtOk(d.osAmt) ? d.osAmt : "inherit"; $("edOsMax").value = osMaxN(d.osMax); $("edOsMaxWrap").hidden = $("edOsAmt").value !== "custom"; $("edUserRole").value = d.userRole || "";
     renderEdBook();
   }
   function readEditorForm(d) {
@@ -9235,7 +9243,8 @@
     d.style = $("edStyle").value === "off" ? "off" : "";
     d.wealth = $("edWealth").value === "auto" ? "" : $("edWealth").value;
     d.os = $("edOs").value === "auto" ? "" : $("edOs").value;
-    d.osAmt = OS_AMT[$("edOsAmt").value] ? $("edOsAmt").value : "";
+    d.osAmt = osAmtOk($("edOsAmt").value) ? $("edOsAmt").value : "";
+    d.osMax = osMaxN($("edOsMax").value);
     d.worldName = $("edWorld").value;
   }
   function renderEditorAvatar() {
@@ -10806,7 +10815,9 @@
   $("sStyleReset").onclick = () => { state.settings.style = null; $("sStyle").value = DEFAULT_STYLE_RULES; save(); refreshContextMeter(); toast("已恢复默认文风规则"); };
   $("sPace").addEventListener("change", (e) => { state.settings.pace = e.target.value; save(); });
   $("sOs").addEventListener("change", (e) => { state.settings.os = e.target.value === "auto" ? "" : e.target.value; save(); });
-  $("sOsAmt").addEventListener("change", (e) => { state.settings.osAmt = e.target.value; save(); });
+  $("sOsAmt").addEventListener("change", (e) => { state.settings.osAmt = e.target.value; $("sOsMaxWrap").hidden = e.target.value !== "custom"; save(); });
+  $("sOsMax").addEventListener("change", (e) => { state.settings.osMax = osMaxN(e.target.value); e.target.value = state.settings.osMax; save(); });
+  $("edOsAmt").addEventListener("change", (e) => { $("edOsMaxWrap").hidden = e.target.value !== "custom"; });
   $("sSms").addEventListener("change", (e) => { state.settings.sms = e.target.value; save(); });
   $("sWealth").addEventListener("input", (e) => { state.settings.wealthRule = e.target.value === DEFAULT_WEALTH_RULE ? null : e.target.value; save(); refreshContextMeter(); });
   $("sWealthReset").onclick = () => { state.settings.wealthRule = null; $("sWealth").value = DEFAULT_WEALTH_RULE; save(); refreshContextMeter(); toast("已恢复默认有钱人写法"); };
